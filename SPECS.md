@@ -417,6 +417,53 @@ suite: la cuota del plan gratuito es por proyecto.
 
 ---
 
+# SPEC-012 — Encabezado estándar de la suite
+
+### Alcance
+
+El encabezado es el mismo en las aplicaciones de la suite. Está definido en la
+SPEC-035 del repositorio `rrhh-pwa`, que es la referencia; aquí se registra cómo
+se aplicó en esta app y lo que tiene de particular.
+
+### Qué hace
+
+- **Marca a la izquierda, botones a la derecha, de borde a borde.** IMPREDIMEX en
+  Jost peso 600 con espaciado amplio; debajo, «CONTROL DE PROCESOS» en mayúsculas
+  finas y grises. Es el nombre con que la llama el portal.
+- **Fijo arriba y opaco.** Sin la transparencia y el desenfoque que tenía, que
+  dejaban pasar el fondo y lavaban el logotipo en iOS. Capa 45: por encima del
+  contenido y por debajo de las ventanas emergentes (100) y los avisos (200).
+- **Nombre y puesto centrados, solo en pantalla ancha** (desde 760 px). En el
+  teléfono no caben sin cortarse y viven en el panel.
+- **Panel al tocar la nómina**: nombre, puesto, estado de conexión y papel, más
+  «Ir al portal» y «Cerrar sesión». El botón «Salir» de texto que había en la
+  barra se mudó ahí.
+- **Botón de portal**, los cuatro cuadros.
+- **El estado de conexión es un punto sobre la nómina**: verde con red, rojo sin
+  ella. Sigue lo que reporta el teléfono, el mismo criterio que Recursos Humanos.
+
+### Particular de esta app
+
+- **La sesión ahora guarda el puesto.** Antes solo llevaba nómina, nombre y
+  papel. El puesto se agregó únicamente para el encabezado; nada más lo usa.
+  Sin puesto en el padrón, se muestra el papel en su lugar.
+- **El papel dejó de estar en la barra** y pasó al panel y al título del círculo
+  de la nómina, que es donde alguien lo busca cuando duda de sus permisos.
+- **El cuadro «IM» sigue existiendo en la pantalla de entrada.** Se quitó del
+  encabezado, pero su estilo `.logo` se conserva porque la entrada lo usa.
+- **Se reutilizaron los identificadores `b-nom` y `b-rol`**, así el código que ya
+  los llenaba sigue funcionando sin tocarlo: `b-nom` es ahora el círculo de la
+  nómina, y `b-rol` el papel dentro del panel.
+
+### Service worker
+
+Se subió la versión de la caché a `calidad-v1.1.0`. Al activarse, el service
+worker borra las copias guardadas con otro nombre, así ningún teléfono se queda
+con el encabezado viejo si abre la app sin señal. Conviene subirla en cada
+cambio visible.
+
+---
+
 # Trabajo pendiente de definir
 
 - **La matriz defecto ↔ variable** (SPEC-005), en junta de calidad, producción e

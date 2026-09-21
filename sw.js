@@ -2,7 +2,9 @@
 // Hace la app instalable y que abra rápido. NO la vuelve funcional sin
 // conexión: registrar una inspección siempre necesita alcanzar Firebase.
 
-const CACHE = 'calidad-v1.0.0';
+// Se sube la versión en cada cambio visible: al activarse, el service worker
+// borra las copias guardadas con otro nombre y nadie se queda con la vieja.
+const CACHE = 'calidad-v1.1.0';
 const ESENCIALES = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

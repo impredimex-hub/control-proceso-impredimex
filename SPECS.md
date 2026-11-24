@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.9.0 — estados revisados contra el código el 24 de
+**Versión vigente:** 1.10.0 — estados revisados contra el código el 24 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -50,7 +50,7 @@ se puede ir del documento al código y de regreso.
 | 016 | Etiqueta y turno automáticos en la inspección | Implementado |
 | 017 | Registro de rechazos (antes «Merma 2») | Implementado; desde la v1.8.0 vive en la pestaña Merma |
 | 018 | Merma: una sola fuente, formulario más Excel | Implementado |
-| 019 | Borrar un rechazo | Implementado |
+| 019 | Editar y borrar un rechazo | Implementado |
 
 ---
 
@@ -154,7 +154,7 @@ Las pestañas se muestran según el papel:
 | Matriz | | | ✓ |
 | Merma: formulario y tabla | ✓ | ✓ | ✓ |
 | Merma: cargar Excel | | | ✓ |
-| Merma: borrar un rechazo | | | ✓ |
+| Merma: editar y borrar un rechazo | | | ✓ |
 | Galería (consulta) | ✓ | ✓ | ✓ |
 | Galería (cargar, alta y edición) | | | ✓ |
 
@@ -607,6 +607,7 @@ Proyecto `impredimex-procesos`, Realtime Database, todo bajo el nodo `cal/`:
 | `cal/merma2Folios/<folio>` | Índice de folios de rechazo, para no repetirlos (SPEC-017) |
 | `cal/mermaResumen/<máquina>/<defecto>/<AAAA-MM>` | Metros de los rechazos sumados por mes, para el foco (SPEC-018) |
 | `cal/merma2Borrados/<id>` | Copia de cada rechazo borrado, con quién, cuándo y por qué (SPEC-019) |
+| `cal/merma2Ediciones/<id>/<n>` | Cada versión anterior de un rechazo editado, con quién y cuándo (SPEC-019) |
 
 La app abre una **sesión anónima** en este proyecto después de validar a la
 persona contra la suite, y **solo después** abre sus lecturas (v1.8.1). Una
@@ -974,7 +975,7 @@ aparta con transacción antes de escribir el rechazo.
 - **No alimenta el foco.** El foco de la SPEC-004 sigue saliendo de la merma
   cargada por Excel. Conectar Merma 2 es la decisión pendiente de si sustituye
   a la pestaña Merma.
-- No se edita un rechazo desde la app. Se borra desde la v1.9.0 (SPEC-019).
+- Se edita y se borra desde la app desde la v1.10.0 y la v1.9.0 (SPEC-019).
 - Hasta la v1.7.0 la tabla no se filtraba por mes; desde la v1.8.0 sí
   (SPEC-018).
 
@@ -1070,25 +1071,46 @@ Una sola pestaña **Merma**, en este orden:
   campo `fecha`.
 
 ### Lo que no hace todavía
-- No se edita un rechazo desde la app; se borra (SPEC-019) y se vuelve a
-  capturar.
 - La carga no avisa de folios que ya están **dentro de la base histórica**
   agregada: esa base no guarda folios.
 
 ---
 
-# SPEC-019 — Borrar un rechazo
+# SPEC-019 — Editar y borrar un rechazo
 
-**Estado:** implementado (v1.9.0)
+**Estado:** implementado (borrar en la v1.9.0, editar en la v1.10.0)
 
 ### Por qué existe
 Un rechazo capturado por error (de prueba, con el folio equivocado, duplicado
 con otra captura) cuenta en el foco. Borrarlo desde la consola de Firebase
 pedía tres pasos a mano y sin rastro.
 
-### Qué hace
-- En la tabla de rechazos, el **administrador** ve un botón **Borrar** en la
-  celda del folio.
+### Columnas
+En la tabla de rechazos, el **administrador** ve dos columnas propias,
+**Editar** y **Borrar**, justo después de Folio, para que se alcancen en el
+teléfono sin desplazar la tabla. No salen en el Excel.
+
+### Editar
+- **Editar** carga el rechazo en el mismo formulario de arriba, con un aviso
+  «Editando el folio …» y el botón «Guardar cambios». «Cancelar edición»
+  regresa el formulario a captura.
+- Se editan folio, etiqueta, máquina, nóminas y las líneas de defecto. **Se
+  conservan** fecha, turno, origen y quién lo capturó, y se agregan
+  `editadoPorNomina`, `editadoPorNombre` y `editadoEn`.
+- **Mismas validaciones que al capturar**, con tres excepciones para no
+  bloquear la corrección de un rechazo cargado de Excel: lo que el original no
+  traía (etiqueta, una nómina, bobinas) puede seguir sin venir, y una nómina
+  **que no se cambió** se acepta aunque ya no esté en el padrón, con el nombre
+  que tenía.
+- La etiqueta y los nombres se vuelven a derivar de la galería y el padrón.
+- Si cambia el folio, el nuevo se aparta igual que al capturar (no puede ser
+  uno ya registrado) y el anterior queda libre.
+- En una sola escritura: el rechazo actualizado, la **diferencia** de metros en
+  el resumen del foco (resta lo anterior y suma lo nuevo) y la **versión
+  anterior** en `cal/merma2Ediciones/<id>/<n>` con quién y cuándo.
+
+### Borrar
+- En la columna **Borrar**.
 - Antes de borrar se muestra el folio con fecha, máquina, etiqueta y sus
   defectos con metros y bobinas, y se pide un **motivo** (obligatorio).
 - En **una sola escritura**:
@@ -1101,7 +1123,6 @@ pedía tres pasos a mano y sin rastro.
 
 ### Reglas de negocio
 - Solo `ADMIN`. Los demás papeles no ven el botón.
-- **Corregir es borrar y volver a capturar.** No hay edición.
 - La copia es el rastro de quién borró y por qué, y permite recuperar un
   rechazo borrado por error (a mano, en la consola).
 - Al restar, el resumen puede quedar en 0 en ese mes. Para el foco, menos de

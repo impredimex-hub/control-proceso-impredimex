@@ -11,6 +11,24 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.10.0] — 2026-11-24
+
+### Agregado
+
+- **Editar un rechazo** (SPEC-019), solo `ADMIN`: lo carga en el formulario con
+  las mismas validaciones; conserva fecha, turno y quién lo capturó; ajusta el
+  foco con la diferencia y guarda la versión anterior en
+  `cal/merma2Ediciones`. Si cambia el folio, el nuevo se aparta y el anterior
+  se libera.
+
+### Cambiado
+
+- **Editar y Borrar tienen columna propia** en la tabla, después de Folio.
+  Antes, Borrar estaba dentro de la celda del folio.
+- Caché del service worker a `calidad-v1.10.0`.
+
+---
+
 ## [1.9.0] — 2026-11-24
 
 ### Agregado

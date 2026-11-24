@@ -262,8 +262,10 @@ textarea.derivado[readonly]{background:var(--bg);color:var(--navy-dark);font-wei
 .r-total{margin-top:10px;font-size:12.5px;color:var(--navy-dark);background:var(--navy-light);
   border-radius:9px;padding:8px 12px}
 .r-cuenta{flex:1 1 180px;font-size:12px;color:var(--text2)}
-.r-borrar{display:block;margin-top:4px;background:none;border:none;padding:0;color:var(--red);
-  font-size:11px;font-weight:600;cursor:pointer}
+.r-acc{border:1px solid var(--line);background:#fff;color:var(--navy);border-radius:7px;
+  padding:4px 10px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit}
+.r-acc-borrar{color:var(--red)}
+.gal-tabla.r-tabla td.r-acc-td{text-align:center}
 .r-mes{width:auto;padding:7px 10px;font-size:12.5px}
 /* Tabla de rechazos: los datos del folio ocupan una celda alta por todos sus
    defectos, y los folios alternan color para distinguir dónde empieza cada uno.
@@ -525,6 +527,7 @@ main.ancha{max-width:1400px}
   <section id="pg-merma" class="hide">
     <div class="card">
       <div class="card-t">Registro de rechazo</div>
+      <div id="r-editando" class="aviso aviso-amber hide"></div>
       <div class="row">
         <div><label>Folio de rechazo</label><input id="r-folio" autocomplete="off" autocapitalize="characters"></div>
         <div><label># de etiqueta</label><input id="r-etiqueta" autocomplete="off" autocapitalize="characters"
@@ -1498,24 +1501,35 @@ async function guardarRechazo(){
   const folio = $('r-folio').value.trim().toUpperCase();
   if(!folio) return err('Escribe el folio de rechazo.');
   if(!claveValida(folio)) return err('El folio no puede llevar . # $ / [ ]');
-  if(!$('r-etiqueta').value.trim()) return err('Escribe el # de etiqueta.');
+  // En edición, lo que el original no traía (por ejemplo, de un Excel) puede seguir sin venir.
+  const ed = rEditando;
+  if(!$('r-etiqueta').value.trim() && !(ed && !ed.etiqueta)) return err('Escribe el # de etiqueta.');
   const maquina = $('r-maquina').value;
   if(!maquina) return err('Elige la máquina.');
 
   const per = {};
   for(const p of R_PERSONAS){
-    if(!$('r-nom-'+p.id).value.trim()) return err(`Escribe la nómina del ${p.etiqueta.toLowerCase()}.`);
+    const n = $('r-nom-'+p.id).value.trim();
+    const original = ed ? (ed[p.campo+'Nomina'] || '') : null;
+    if(!n){
+      if(ed && !original){ per[p.campo+'Nomina'] = ''; per[p.campo+'Nombre'] = ed[p.campo+'Nombre'] || ''; continue; }
+      return err(`Escribe la nómina del ${p.etiqueta.toLowerCase()}.`);
+    }
     const r = await rBuscarPersona(p.id);
     if(!r || r.estado==='error') return err(`No se pudo consultar la nómina del ${p.etiqueta.toLowerCase()}.`);
+    // SPEC-019: al editar, una nómina que no se cambió se acepta aunque ya no
+    // esté en el padrón, con el nombre que tenía.
+    if(r.estado!=='ok' && ed && n===original){ per[p.campo+'Nomina'] = n; per[p.campo+'Nombre'] = ed[p.campo+'Nombre'] || r.nombre; continue; }
     if(r.estado==='no')   return err(`La nómina del ${p.etiqueta.toLowerCase()} no está en el padrón de RRHH.`);
     if(r.estado==='baja') return err(`El ${p.etiqueta.toLowerCase()} está dado de baja en RRHH.`);
     per[p.campo+'Nomina'] = r.nomina; per[p.campo+'Nombre'] = r.nombre;
   }
-  const lin = leerDefectosRechazo();
+  const lin = leerDefectosRechazo(!!ed);
   if(lin.error) return err(lin.error);
   const defectos = lin.defectos;
 
   const etq = await rBuscarEtiqueta(true) || {clave: claveEtiq($('r-etiqueta').value), encontrada:null};
+  if(ed) return guardarEdicion({folio, maquina, per, defectos, etq}, err);
   $('r-guardar').disabled = true;
   let folioApartado = false;
   try{
@@ -1596,7 +1610,8 @@ function totalRechazo(){
   caja.classList.remove('hide');
   caja.innerHTML = `Total del folio: <b>${(+m.toFixed(3)).toLocaleString('es-MX')} m</b> · <b>${b.toLocaleString('es-MX')} bobina${b===1?'':'s'}</b> en ${ls.length} defectos`;
 }
-function leerDefectosRechazo(){
+// sinBobinasOk: al editar un rechazo de Excel que no traía bobinas.
+function leerDefectosRechazo(sinBobinasOk){
   const ls = [...document.querySelectorAll('#r-defectos .r-def')];
   const defectos = [], vistos = new Set();
   for(let i=0; i<ls.length; i++){
@@ -1608,6 +1623,7 @@ function leerDefectosRechazo(){
     if(vistos.has(d)) return {error: `${d} está dos veces. Suma sus metros y bobinas en una sola línea.`};
     vistos.add(d);
     if(metros===null || Number.isNaN(metros) || metros<=0) return {error: n + 'los metros lineales deben ser un número mayor que cero.'};
+    if(bobinas===null && sinBobinasOk){ defectos.push({defecto:d, metros}); continue; }
     if(bobinas===null || Number.isNaN(bobinas) || bobinas<0 || !Number.isInteger(bobinas))
       return {error: n + 'el número de bobinas debe ser un entero, cero o más.'};
     defectos.push({defecto:d, metros, bobinas});
@@ -1647,6 +1663,7 @@ const R_COLUMNAS = [
 const ordenRechazos = (a,b) => String(b.fecha||'').localeCompare(String(a.fecha||'')) || (b.ts||0)-(a.ts||0);
 
 function pintarRechazos(lista, mes){
+  const esAdmin = sesion.rol==='ADMIN';
   rTablaPorId = {}; lista.forEach(r=>{ if(r._id) rTablaPorId[r._id] = r; });
   lista.sort(ordenRechazos);
   if(!mes) lista = lista.slice(0, 300);
@@ -1669,15 +1686,18 @@ function pintarRechazos(lista, mes){
         if(c.folio && j>0) return '';                     // ya va en la celda alta del primer renglón
         const rs = c.folio && alto>1 ? ` rowspan="${alto}"` : '';
         const cls = [c.num?'num':'', c.t==='Folio'?'fija':''].join(' ').trim();
-        // SPEC-019: el administrador borra desde la celda del folio.
-        const borrar = c.t==='Folio' && sesion.rol==='ADMIN' && r._id
-          ? `<button class="r-borrar" onclick="pedirBorrarRechazo('${esc(r._id)}')">Borrar</button>` : '';
-        return `<td${rs} class="${cls}">${esc(fmt(c.v(r,d)))}${borrar}</td>`;
+        // SPEC-019: Editar y Borrar, cada una en su columna, después de Folio.
+        const acciones = c.t==='Folio' && esAdmin
+          ? `<td${rs} class="r-acc-td"><button class="r-acc" onclick="editarRechazo('${esc(r._id)}')">Editar</button></td>` +
+            `<td${rs} class="r-acc-td"><button class="r-acc r-acc-borrar" onclick="pedirBorrarRechazo('${esc(r._id)}')">Borrar</button></td>`
+          : '';
+        return `<td${rs} class="${cls}">${esc(fmt(c.v(r,d)))}</td>${acciones}`;
       }).join('') + '</tr>';
     });
   });
   $('r-lista').innerHTML = `<div class="gal-tabla-wrap"><table class="gal-tabla r-tabla">
-    <thead><tr>${R_COLUMNAS.map(c=>`<th class="${c.num?'num':''}">${c.t}</th>`).join('')}</tr></thead>
+    <thead><tr>${R_COLUMNAS.map(c=>`<th class="${c.num?'num':''}">${c.t}</th>` +
+      (c.t==='Folio' && esAdmin ? '<th>Editar</th><th>Borrar</th>' : '')).join('')}</tr></thead>
     <tbody>${cuerpo}</tbody></table></div>`;
 }
 
@@ -2164,6 +2184,114 @@ async function borrarRechazo(id){
     $('b-ok').disabled = false;
     $('b-err').textContent = 'No se pudo borrar: ' + e.message;
   }
+}
+
+/* ═══════════════ EDITAR UN RECHAZO, SOLO ADMIN (SPEC-019) ═══════════════
+   El rechazo se carga en el mismo formulario, con las mismas validaciones. Se
+   conservan fecha, turno y quién lo capturó; se agrega quién lo editó, y la
+   versión anterior queda en merma2Ediciones. */
+let rEditando = null;        // el rechazo original mientras se edita, con su _id
+
+async function editarRechazo(id){
+  const r = rTablaPorId[id]; if(!r || sesion.rol!=='ADMIN') return;
+  rEditando = r;
+  $('r-err').textContent = '';
+  $('r-folio').value = r.folio || '';
+  $('r-etiqueta').value = r.etiqueta || ''; rEtiquetaEscrita();
+  $('r-maquina').value = r.maquina || '';
+  R_PERSONAS.forEach(p=>{ $('r-nom-'+p.id).value = r[p.campo+'Nomina'] || ''; rPersonaEscrita(p.id); });
+  $('r-defectos').innerHTML = '';
+  const defs = defectosDe(r);
+  (defs.length ? defs : [{}]).forEach(d=>{
+    agregarDefectoRechazo();
+    const ls = document.querySelectorAll('#r-defectos .r-def'), div = ls[ls.length-1];
+    div.querySelector('.r-def-sel').value = d.defecto || '';
+    div.querySelector('.r-def-m').value = d.metros!=null ? d.metros : '';
+    div.querySelector('.r-def-b').value = d.bobinas!=null ? d.bobinas : '';
+  });
+  totalRechazo();
+  const origen = r.origen==='excel' ? 'cargado de Excel' : 'capturado';
+  $('r-editando').innerHTML = `Editando el folio <b>${esc(r.folio)}</b>, ${origen} el ${esc(r.fecha)}
+    ${r.capturoNombre ? 'por '+esc(r.capturoNombre) : ''}.
+    <button type="button" class="r-acc" style="margin-left:6px" onclick="terminarEdicion()">Cancelar edición</button>`;
+  $('r-editando').classList.remove('hide');
+  $('r-guardar').textContent = 'Guardar cambios';
+  document.getElementById('pg-merma').scrollIntoView({behavior:'smooth', block:'start'});
+  // Etiqueta y nombres se derivan otra vez, como al capturar.
+  await Promise.all([rBuscarEtiqueta(true), ...R_PERSONAS.map(p=>rBuscarPersona(p.id))]);
+  // Si la etiqueta no está en la galería, se conserva el nombre y cliente que traía.
+  if(rEditando===r && rEtiqueta && rEtiqueta.encontrada!==true){
+    if(r.etiquetaNombre)  fijarDerivado('r-etq-nombre',  r.etiquetaNombre);
+    if(r.etiquetaCliente) fijarDerivado('r-etq-cliente', r.etiquetaCliente);
+  }
+}
+
+function terminarEdicion(){
+  rEditando = null;
+  $('r-editando').classList.add('hide'); $('r-editando').innerHTML = '';
+  $('r-guardar').textContent = 'Registrar rechazo';
+  $('r-err').textContent = '';
+  limpiarRechazo();
+  $('r-nom-ins').value = sesion.rol==='INSPECTOR' ? sesion.nomina : '';
+  rPersonaEscrita('ins'); if($('r-nom-ins').value) rBuscarPersona('ins');
+}
+
+// Lo que hay que sumar o restar al resumen para pasar de `antes` a `despues`.
+function deltaResumen(antes, despues){
+  const a = sumarPorMes([antes]), b = sumarPorMes([despues]), neto = {};
+  const recorrer = (acc, k) => Object.keys(acc).forEach(maq=>Object.keys(acc[maq]).forEach(def=>Object.keys(acc[maq][def]).forEach(mes=>{
+    const ruta = `mermaResumen/${maq}/${def}/${mes}`;
+    neto[ruta] = (neto[ruta]||0) + k*acc[maq][def][mes];
+  })));
+  recorrer(b, 1); recorrer(a, -1);
+  const out = {};
+  Object.keys(neto).forEach(r=>{ const v = +neto[r].toFixed(3); if(v) out[r] = firebase.database.ServerValue.increment(v); });
+  return out;
+}
+
+async function guardarEdicion(d, err){
+  const viejo = rEditando, id = viejo._id;
+  const {_id, ...antes} = viejo;
+  const ahora = new Date().toISOString();
+  const rec = {...antes, folio:d.folio, maquina:d.maquina, ...d.per, defectos:d.defectos,
+    metrosTotal:  +d.defectos.reduce((a,x)=>a+x.metros, 0).toFixed(3),
+    bobinasTotal: d.defectos.reduce((a,x)=>a+(x.bobinas||0), 0),
+    editadoPorNomina: sesion.nomina, editadoPorNombre: sesion.nombre, editadoEn: ahora};
+  delete rec.defecto; delete rec.metros; delete rec.bobinas;      // formato de la v1.5.0
+  ['etiqueta','etiquetaNombre','etiquetaCliente','etiquetaEnGaleria'].forEach(k=>delete rec[k]);
+  if(d.etq.clave){
+    rec.etiqueta = d.etq.clave;
+    rec.etiquetaNombre = $('r-etq-nombre').value.trim();
+    rec.etiquetaCliente = $('r-etq-cliente').value.trim();
+    if(d.etq.encontrada!==null) rec.etiquetaEnGaleria = d.etq.encontrada;
+  }
+  Object.keys(rec).forEach(k=>{ if(rec[k]==='' || rec[k]===undefined) delete rec[k]; });
+
+  $('r-guardar').disabled = true;
+  let nuevoApartado = false;
+  try{
+    // Si cambia el folio, el nuevo se aparta igual que al capturar.
+    if(d.folio !== viejo.folio){
+      const t = await db.ref('cal/merma2Folios/'+d.folio).transaction(actual => actual ? undefined : id);
+      if(!t.committed) return err(`El folio ${d.folio} ya está registrado.`);
+      nuevoApartado = true;
+    }
+    const upd = {
+      ['merma2/'+id]: rec,
+      ['merma2Ediciones/'+id+'/'+db.ref('cal/merma2Ediciones').push().key]:
+        {antes, editadoPorNomina: sesion.nomina, editadoPorNombre: sesion.nombre, editadoEn: ahora},
+      ...deltaResumen(antes, rec)
+    };
+    if(d.folio !== viejo.folio && viejo.folio && claveValida(viejo.folio) &&
+       (await db.ref('cal/merma2Folios/'+viejo.folio).once('value')).val() === id)
+      upd['merma2Folios/'+viejo.folio] = null;
+    await db.ref('cal').update(upd);
+    toast(`Folio ${d.folio} actualizado`);
+    terminarEdicion();
+  }catch(e){
+    if(nuevoApartado) db.ref('cal/merma2Folios/'+d.folio).remove().catch(()=>{});
+    err('No se pudo guardar: '+e.message);
+  }finally{ $('r-guardar').disabled = false; }
 }
 
 /* ═══════════════ GALERÍA DE ETIQUETAS (SPEC-015) ═══════════════

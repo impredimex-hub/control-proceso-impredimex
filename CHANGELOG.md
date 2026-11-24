@@ -11,6 +11,23 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.11.0] — 2026-11-24
+
+### Cambiado
+
+- **La cantidad rechazada se captura en número de etiquetas** (SPEC-020). Los
+  metros lineales se calculan solos: (etiquetas × (Med_des / 100)) /
+  Repeticiones, con las medidas de la etiqueta en la galería, y la cuenta se
+  ve debajo. Si la etiqueta no tiene medidas, los metros se escriben a mano.
+- El rechazo guarda las etiquetas de cada defecto y copia de `Med_des` y
+  `Repeticiones` con que se calculó.
+- Columna **Etiquetas rechazadas** en la tabla, el Excel y la plantilla. Al
+  cargar un Excel, con etiquetas y medidas los metros se calculan; sin
+  etiquetas se usan los del archivo.
+- Caché del service worker a `calidad-v1.11.0`.
+
+---
+
 ## [1.10.0] — 2026-11-24
 
 ### Agregado

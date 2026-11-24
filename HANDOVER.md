@@ -3,7 +3,7 @@
 Lo que necesita saber quien reciba esta aplicación para operarla, corregirla y
 extenderla sin depender de quien la construyó.
 
-**Versión de la aplicación:** 1.10.0
+**Versión de la aplicación:** 1.11.0
 **Última actualización de este documento:** 24 de noviembre de 2026
 **Desarrollo original:** Victor Moreno
 
@@ -151,7 +151,7 @@ en la SPEC-010.
 | `cal/hallazgos/<id>` | Inspector, Admin; al cerrar, Supervisor o Admin | Lo de la inspección más `defecto`, `causa`, `causaDeterminada`, `metros`, `paro`, `obs`, `estado`; al cerrar, `correccion`, `cerradoPorNomina`, `cerradoPorNombre`, `fechaCierre`, `tsCierre` |
 | `cal/matriz/<defecto>@<máquina>` | Admin | `defecto`, `maquina` (vacía = todas), `vars: [{nombre, peso}]`, `actualizadoPor`, `actualizadoEn` |
 | `cal/merma` | Ya nadie (hasta la v1.7.0, Admin) | La última carga del cargador anterior: `datos[línea][defecto][AAAA-MM] = metros`, `registros`, `ultimoMes`, `cargadoPor`, `cargadoEn`. Si existe, es la base histórica del foco (SPEC-018) |
-| `cal/merma2/<AAAA-MM-DD>_<id>` | Los tres papeles (formulario); Admin (Excel) | Cada rechazo. La clave empieza con su fecha para leer un mes sin índices; los de antes de la v1.8.0 tienen clave sin fecha. Campos: `origen` (`formulario` o `excel`), `folio`, `etiqueta`, `etiquetaNombre`, `etiquetaCliente`, `etiquetaEnGaleria`, `maquina`, nómina y nombre de supervisor, operador e inspector, `defectos: [{defecto, metros, bobinas}]`, `metrosTotal`, `bobinasTotal`, `fecha`, `turno`, `ts`, `capturoNomina`, `capturoNombre` (SPEC-017) |
+| `cal/merma2/<AAAA-MM-DD>_<id>` | Los tres papeles (formulario); Admin (Excel) | Cada rechazo. La clave empieza con su fecha para leer un mes sin índices; los de antes de la v1.8.0 tienen clave sin fecha. Campos: `origen` (`formulario` o `excel`), `folio`, `etiqueta`, `etiquetaNombre`, `etiquetaCliente`, `etiquetaEnGaleria`, `maquina`, nómina y nombre de supervisor, operador e inspector, `defectos: [{defecto, etiquetas, metros, bobinas}]`, `etiquetasTotal`, `metrosTotal`, `bobinasTotal`, `medDes` y `repeticiones` (copia de las medidas con que se calcularon los metros, SPEC-020), `fecha`, `turno`, `ts`, `capturoNomina`, `capturoNombre` (SPEC-017) |
 | `cal/merma2Folios/<folio>` | Los tres papeles | El `<id>` del rechazo con ese folio. Es lo que impide repetir un folio |
 | `cal/merma2Ediciones/<clave>/<n>` | Admin, al editar | `antes` (el rechazo como estaba), `editadoPorNomina`, `editadoPorNombre`, `editadoEn` (SPEC-019) |
 | `cal/merma2Borrados/<clave>` | Admin, al borrar | Copia de cada rechazo borrado con `borradoPorNomina`, `borradoPorNombre`, `borradoEn` y `motivo` (SPEC-019) |
@@ -271,6 +271,7 @@ igual a lo publicado.
 | «Todavía no hay variables asociadas» | La matriz está vacía para esos defectos | Capturarla en la pestaña Matriz (solo Admin) |
 | Un cambio publicado no se ve en el teléfono | Copia guardada por el service worker | Confirmar que se subió `CACHE` en `sw.js`; cerrar y abrir la app dos veces |
 | El turno o la fecha salen mal | La hora o la zona horaria del teléfono están mal | Ajustar el teléfono a la hora automática. El turno y la fecha salen de su reloj (SPEC-016) |
+| Los metros no se calculan y piden escribirse a mano | La etiqueta no está en la galería, o le falta `Med_des` o `Repeticiones` (o son 0) | Completar la etiqueta en Galería → Editar. Fórmula: (etiquetas × (Med_des / 100)) / Repeticiones (SPEC-020) |
 | El foco no cambia después de borrar un rechazo en la consola | El resumen todavía tiene sus metros | Pestaña Merma → Recalcular resumen |
 | Una carga de Excel dice que un folio «ya está registrado» | Ese folio ya se capturó (en el formulario o en otra carga) | Es lo esperado: una carga nunca sobrescribe. Si el registrado está mal, borrarlo en la consola y volver a cargar |
 | En Merma, «no está en el padrón de RRHH» | La nómina no existe en `colaboradores` o se tecleó mal | Revisar la nómina; si es alguien nuevo, que RRHH lo dé de alta |

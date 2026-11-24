@@ -258,6 +258,8 @@ textarea.derivado[readonly]{background:var(--bg);color:var(--navy-dark);font-wei
 .r-def{border:1px solid var(--line);border-radius:10px;padding:4px 12px 12px;margin-top:12px;background:#FBFCFE}
 .r-def-cab{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
 .r-def-num{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--navy)}
+.r-def-m.derivado-m{background:var(--bg);color:var(--navy-dark);font-weight:600}
+.r-def-nota{font-size:11px;color:var(--text3);margin-top:5px;line-height:1.4}
 .r-quitar{background:none;border:none;color:var(--red);font-size:12px;font-weight:600;cursor:pointer;padding:6px 0}
 .r-total{margin-top:10px;font-size:12.5px;color:var(--navy-dark);background:var(--navy-light);
   border-radius:9px;padding:8px 12px}
@@ -1464,6 +1466,7 @@ async function rBuscarPersona(id){
 function rEtiquetaEscrita(){
   rEtiqueta = null; $('r-etq-aviso').innerHTML = '';
   ['r-etq-nombre','r-etq-cliente'].forEach(i=>{ fijarDerivado(i, ''); $(i).readOnly = true; });
+  recalcularLineas();
   clearTimeout(rTimers.etq);
   if($('r-etiqueta').value.trim().length >= 5) rTimers.etq = setTimeout(()=>rBuscarEtiqueta(false), 250);
 }
@@ -1479,7 +1482,8 @@ async function rBuscarEtiqueta(fijar){
   try{ e = await etiquetaDeGaleria(k); }catch(err){ console.error('Galería:', err); fallo = true; }
   if(claveEtiq(campo.value) !== k) return null;
   rEtiqueta = fallo ? {clave:k, encontrada:null}
-            : {clave:k, encontrada:!!e, nombre:(e&&e.Nombre_etiq)||'', cliente:(e&&e.Cliente)||''};
+            : {clave:k, encontrada:!!e, nombre:(e&&e.Nombre_etiq)||'', cliente:(e&&e.Cliente)||'',
+               medDes: e ? +e.Med_des : null, rep: e ? +e.Repeticiones : null};   // SPEC-020
   const nom = $('r-etq-nombre'), cli = $('r-etq-cliente');
   if(rEtiqueta.encontrada){
     fijarDerivado('r-etq-nombre', rEtiqueta.nombre); fijarDerivado('r-etq-cliente', rEtiqueta.cliente);
@@ -1492,6 +1496,7 @@ async function rBuscarEtiqueta(fijar){
       ? 'No se pudo consultar la galería.' : 'La etiqueta '+esc(k)+' no está en la galería.'}
       Puedes escribir nombre y cliente y registrar el rechazo.</div>`;
   }
+  recalcularLineas();                     // SPEC-020: metros con las medidas de esta etiqueta
   return rEtiqueta;
 }
 
@@ -1539,11 +1544,15 @@ async function guardarRechazo(){
       etiquetaNombre: $('r-etq-nombre').value.trim(), etiquetaCliente: $('r-etq-cliente').value.trim(),
       maquina, ...per, defectos,
       metrosTotal:  +defectos.reduce((a,d)=>a+d.metros, 0).toFixed(3),
-      bobinasTotal: defectos.reduce((a,d)=>a+d.bobinas, 0),
+      bobinasTotal: defectos.reduce((a,d)=>a+(d.bobinas||0), 0),
+      etiquetasTotal: defectos.reduce((a,d)=>a+(d.etiquetas||0), 0),
       fecha: fechaLocal(ahora), turno: turnoDe(ahora), ts: ahora.getTime(),
       capturoNomina: sesion.nomina, capturoNombre: sesion.nombre, origen: 'formulario'
     };
     if(etq.encontrada!==null) rec.etiquetaEnGaleria = etq.encontrada;
+    // SPEC-020: copia de las medidas con que se calcularon los metros.
+    const med = medidasEtiqueta();
+    if(med && defectos.some(x=>x.etiquetas)){ rec.medDes = med.medDes; rec.repeticiones = med.rep; }
     Object.keys(rec).forEach(k=>{ if(rec[k]==='') delete rec[k]; });
     // SPEC-017: el folio no se repite. Se aparta con una transacción, así dos
     // personas que capturan el mismo folio al mismo tiempo no pueden ganar las
@@ -1581,14 +1590,56 @@ function agregarDefectoRechazo(){
     <label>Defecto</label>
     <select class="r-def-sel"><option value="">— Selecciona —</option>${DEFECTOS.map(d=>`<option>${d}</option>`).join('')}</select>
     <div class="row">
-      <div><label>Cantidad rechazada (metros lineales)</label>
-        <input class="r-def-m" inputmode="decimal" autocomplete="off" oninput="totalRechazo()"></div>
+      <div><label>Cantidad rechazada (número de etiquetas)</label>
+        <input class="r-def-e" inputmode="numeric" autocomplete="off" oninput="recalcularLinea(this.closest('.r-def'))"></div>
       <div><label>Cantidad rechazada (número de bobinas)</label>
         <input class="r-def-b" inputmode="numeric" autocomplete="off" oninput="totalRechazo()"></div>
-    </div>`;
+    </div>
+    <label>Cantidad rechazada (metros lineales)</label>
+    <input class="r-def-m" inputmode="decimal" autocomplete="off" readonly oninput="totalRechazo()">
+    <div class="r-def-nota"></div>`;
   $('r-defectos').appendChild(div);
-  numerarDefectos(); totalRechazo();
+  numerarDefectos(); recalcularLinea(div);
 }
+
+/* ── SPEC-020: metros lineales = (etiquetas × (Med_des / 100)) / Repeticiones ──
+   Med_des y Repeticiones son los de la etiqueta del folio en la galería. */
+function medidasEtiqueta(){
+  const e = rEtiqueta;
+  return e && e.encontrada && e.medDes>0 && e.rep>0 ? {medDes:e.medDes, rep:e.rep} : null;
+}
+const metrosDeEtiquetas = (n, med) => +((n * (med.medDes/100)) / med.rep).toFixed(2);
+
+function recalcularLinea(div){
+  const ef = div.querySelector('.r-def-e'), m = div.querySelector('.r-def-m'), nota = div.querySelector('.r-def-nota');
+  const med = medidasEtiqueta(), txtE = ef.value.trim(), n = numDe(txtE);
+  const nOk = n!==null && !Number.isNaN(n) && n>0 && Number.isInteger(n);
+  const fmt = v => v.toLocaleString('es-MX', {maximumFractionDigits:4});
+  if(med && nOk){
+    m.value = metrosDeEtiquetas(n, med); m.readOnly = true;
+    nota.textContent = `${fmt(n)} etiquetas × ${fmt(med.medDes)} cm ÷ 100 ÷ ${fmt(med.rep)} rep.`;
+  } else if(med && !txtE && rEditando){
+    // Rechazo anterior a la v1.11.0, sin número de etiquetas: se conservan sus metros.
+    m.readOnly = false; nota.textContent = 'Sin número de etiquetas: se conservan los metros; puedes corregirlos.';
+  } else if(med){
+    m.value = ''; m.readOnly = true;
+    nota.textContent = txtE ? 'El número de etiquetas debe ser un entero mayor que cero.' : 'Se calcula al escribir el número de etiquetas.';
+  } else if(rEtiqueta && rEtiqueta.clave){
+    // Sin medidas para calcular: los metros se escriben a mano.
+    m.readOnly = false;
+    nota.textContent = rEtiqueta.encontrada===true ? 'La etiqueta no tiene Med_des o Repeticiones en la galería: escribe los metros.'
+                     : rEtiqueta.encontrada===false ? 'La etiqueta no está en la galería: escribe los metros.'
+                     : 'No se pudo consultar la galería: escribe los metros.';
+  } else if(rEditando && !$('r-etiqueta').value.trim()){
+    m.readOnly = false; nota.textContent = 'Sin etiqueta en el folio: escribe los metros.';
+  } else {
+    if(!rEditando) m.value = '';
+    m.readOnly = true; nota.textContent = 'Escribe el # de etiqueta del folio para calcular los metros.';
+  }
+  m.classList.toggle('derivado-m', m.readOnly);
+  totalRechazo();
+}
+function recalcularLineas(){ document.querySelectorAll('#r-defectos .r-def').forEach(recalcularLinea); }
 function quitarDefectoRechazo(btn){
   btn.closest('.r-def').remove(); numerarDefectos(); totalRechazo();
 }
@@ -1604,29 +1655,40 @@ function numerarDefectos(){
 function totalRechazo(){
   const ls = [...document.querySelectorAll('#r-defectos .r-def')], caja = $('r-total');
   if(ls.length < 2){ caja.classList.add('hide'); return; }
-  let m = 0, b = 0;
-  ls.forEach(d=>{ const x = numDe(d.querySelector('.r-def-m').value), y = numDe(d.querySelector('.r-def-b').value);
-    if(x>0) m += x; if(y>0) b += y; });
+  let m = 0, b = 0, e = 0;
+  ls.forEach(d=>{ const x = numDe(d.querySelector('.r-def-m').value), y = numDe(d.querySelector('.r-def-b').value),
+                        z = numDe(d.querySelector('.r-def-e').value);
+    if(x>0) m += x; if(y>0) b += y; if(z>0) e += z; });
   caja.classList.remove('hide');
-  caja.innerHTML = `Total del folio: <b>${(+m.toFixed(3)).toLocaleString('es-MX')} m</b> · <b>${b.toLocaleString('es-MX')} bobina${b===1?'':'s'}</b> en ${ls.length} defectos`;
+  caja.innerHTML = `Total del folio: <b>${e.toLocaleString('es-MX')} etiquetas</b> · <b>${(+m.toFixed(2)).toLocaleString('es-MX')} m</b> · <b>${b.toLocaleString('es-MX')} bobina${b===1?'':'s'}</b> en ${ls.length} defectos`;
 }
-// sinBobinasOk: al editar un rechazo de Excel que no traía bobinas.
-function leerDefectosRechazo(sinBobinasOk){
+// enEdicion: al editar un rechazo anterior, bobinas o etiquetas pueden venir vacías.
+function leerDefectosRechazo(enEdicion){
   const ls = [...document.querySelectorAll('#r-defectos .r-def')];
   const defectos = [], vistos = new Set();
   for(let i=0; i<ls.length; i++){
     const n = ls.length>1 ? `Defecto ${i+1}: ` : '';
     const d = ls[i].querySelector('.r-def-sel').value;
     const metros = numDe(ls[i].querySelector('.r-def-m').value), bobinas = numDe(ls[i].querySelector('.r-def-b').value);
+    const etiquetas = numDe(ls[i].querySelector('.r-def-e').value);
     if(!d) return {error: n + 'elige el defecto.'};
     // SPEC-017: un defecto una sola vez por folio.
     if(vistos.has(d)) return {error: `${d} está dos veces. Suma sus metros y bobinas en una sola línea.`};
     vistos.add(d);
-    if(metros===null || Number.isNaN(metros) || metros<=0) return {error: n + 'los metros lineales deben ser un número mayor que cero.'};
-    if(bobinas===null && sinBobinasOk){ defectos.push({defecto:d, metros}); continue; }
-    if(bobinas===null || Number.isNaN(bobinas) || bobinas<0 || !Number.isInteger(bobinas))
+    // SPEC-020: la cantidad rechazada se captura en etiquetas.
+    if(etiquetas===null && !enEdicion) return {error: n + 'escribe el número de etiquetas rechazadas.'};
+    if(etiquetas!==null && (Number.isNaN(etiquetas) || etiquetas<=0 || !Number.isInteger(etiquetas)))
+      return {error: n + 'el número de etiquetas debe ser un entero mayor que cero.'};
+    if(metros===null || Number.isNaN(metros) || metros<=0)
+      return {error: n + (ls[i].querySelector('.r-def-m').readOnly ? 'no se pudieron calcular los metros lineales.'
+                                                                   : 'los metros lineales deben ser un número mayor que cero.')};
+    if(!(bobinas===null && enEdicion) && (bobinas===null || Number.isNaN(bobinas) || bobinas<0 || !Number.isInteger(bobinas)))
       return {error: n + 'el número de bobinas debe ser un entero, cero o más.'};
-    defectos.push({defecto:d, metros, bobinas});
+    const linea = {defecto:d};
+    if(etiquetas!==null) linea.etiquetas = etiquetas;
+    linea.metros = metros;
+    if(bobinas!==null) linea.bobinas = bobinas;
+    defectos.push(linea);
   }
   return {defectos};
 }
@@ -1649,6 +1711,7 @@ const R_COLUMNAS = [
   {t:'Cliente',            v:r=>r.etiquetaCliente,  w:36, folio:true},
   {t:'Máquina',            v:r=>r.maquina,          w:10, folio:true},
   {t:'Defecto',            v:(r,d)=>d.defecto,      w:20},
+  {t:'Etiquetas rechazadas', v:(r,d)=>d.etiquetas,  w:12, num:true},    // SPEC-020
   {t:'Metros lineales',    v:(r,d)=>d.metros,       w:13, num:true},
   {t:'Bobinas',            v:(r,d)=>d.bobinas,      w:9,  num:true},
   {t:'Nómina Supervisor',  v:r=>r.supervisorNomina, w:11, folio:true},
@@ -1876,7 +1939,9 @@ function descargarPlantilla(){
   const filas = [['Máquina','Área','','Defecto']];
   for(let i=0;i<n;i++) filas.push([MAQUINAS[i]?MAQUINAS[i].id:'', MAQUINAS[i]?MAQUINAS[i].area:'', '', DEFECTOS[i]||'']);
   filas.push([], ['Un renglón por defecto. Varios renglones con el mismo folio son un mismo rechazo.'],
-    ['Obligatorios: Folio, Fecha, Máquina, Defecto y Metros lineales.'],
+    ['Obligatorios: Folio, Fecha, Máquina, Defecto y Etiquetas rechazadas.'],
+    ['Metros lineales = (Etiquetas rechazadas × (Med_des / 100)) / Repeticiones, con las medidas de la galería.'],
+    ['Solo si la etiqueta no tiene medidas en la galería se toman los Metros lineales del archivo.'],
     ['Turno: Matutino, Vespertino o Nocturno. Bobinas: número entero.'],
     ['Si la nómina está en el padrón de RRHH, el nombre se toma de ahí.']);
   const wc = XLSX.utils.aoa_to_sheet(filas);
@@ -1902,6 +1967,7 @@ const R_ENCABEZADOS = {
   maquina:['maquina','linea'],
   defecto:['defecto'],
   metros:['metroslineales','cantidadrechazada(metroslineales)','mtsrechazados','metrosrechazados','metros'],
+  etiquetasRech:['etiquetasrechazadas','cantidadrechazada(numerodeetiquetas)','numerodeetiquetasrechazadas','etiquetas'],
   bobinas:['bobinas','cantidadrechazada(numerodebobinas)','numerodebobinas'],
   supervisorNomina:['nominasupervisor'], supervisorNombre:['nombresupervisor'],
   operadorNomina:['nominaoperador'],     operadorNombre:['nombreoperador'],
@@ -1955,9 +2021,12 @@ async function procesarExcelRechazos(filas){
     const i = enc.findIndex(h => R_ENCABEZADOS[f].includes(h));
     if(i>=0) col[f] = i;
   });
-  const faltan = ['folio','fecha','maquina','defecto','metros'].filter(f=>col[f]===undefined);
+  // SPEC-020: la cantidad puede venir en etiquetas rechazadas, en metros o en ambas.
+  const faltan = ['folio','fecha','maquina','defecto'].filter(f=>col[f]===undefined);
+  if(col.metros===undefined && col.etiquetasRech===undefined) faltan.push('cantidad');
   if(faltan.length){
-    const nombres = {folio:'Folio', fecha:'Fecha', maquina:'Máquina', defecto:'Defecto', metros:'Metros lineales'};
+    const nombres = {folio:'Folio', fecha:'Fecha', maquina:'Máquina', defecto:'Defecto',
+                     cantidad:'Etiquetas rechazadas o Metros lineales'};
     $('m-previa').innerHTML = `<div class="aviso aviso-amber" style="margin-top:12px">Al archivo le
       faltan columnas: ${faltan.map(f=>'<b>'+nombres[f]+'</b>').join(', ')}. Descarga la plantilla para
       ver el formato.</div>`;
@@ -1968,6 +2037,8 @@ async function procesarExcelRechazos(filas){
   const defPorNorm = {}; DEFECTOS.forEach(d=>{ defPorNorm[norm(d)] = d; });
   const maqs = new Set(MAQUINAS.map(m=>m.id));
   const TURNO = {mat:'Matutino', ves:'Vespertino', noc:'Nocturno'};
+  // La galería hace falta desde aquí: con ella se calculan los metros (SPEC-020).
+  if(col.etiqueta!==undefined) await leerGaleria(false).catch(()=>{});
 
   // 1. Agrupar por folio y validar renglón por renglón.
   const folios = {}, orden = [];
@@ -1999,23 +2070,41 @@ async function procesarExcelRechazos(filas){
     const tt = norm(celda(p,'turno'));
     if(tt){ turno = TURNO[tt.slice(0,3)] || ''; if(!turno){ rechazar(F, 'turno no reconocido'); continue; } }
 
-    const defs = {}; let error = '';
+    const primero = f => { for(const x of F.filas){ const v = txt(celda(x.r,f)); if(v) return v; } return ''; };
+    // SPEC-020: medidas de la etiqueta del folio para calcular los metros.
+    const g = primero('etiqueta') && GALERIA ? GALERIA[claveEtiq(primero('etiqueta'))] : null;
+    const med = g && +g.Med_des>0 && +g.Repeticiones>0 ? {medDes:+g.Med_des, rep:+g.Repeticiones} : null;
+
+    const defs = {}; let error = '', calculado = false;
     for(const x of F.filas){
       const d = defPorNorm[norm(celda(x.r,'defecto'))];
-      const metros = numDe(celda(x.r,'metros')), bob = numDe(celda(x.r,'bobinas'));
+      const etiq = numDe(celda(x.r,'etiquetasRech')), bob = numDe(celda(x.r,'bobinas'));
+      let metros = numDe(celda(x.r,'metros'));
       if(!d){ error = txt(celda(x.r,'defecto')) ? 'defecto fuera del catálogo' : 'sin defecto'; break; }
-      if(metros===null || Number.isNaN(metros) || metros<=0){ error = 'metros vacíos, en cero o con texto'; break; }
+      if(etiq!==null && (Number.isNaN(etiq) || etiq<=0 || !Number.isInteger(etiq))){ error = 'etiquetas rechazadas que no son un entero mayor que cero'; break; }
+      // Con etiquetas y medidas, los metros salen de la fórmula aunque el archivo traiga otros.
+      if(etiq!==null && med){ metros = metrosDeEtiquetas(etiq, med); calculado = true; }
+      if(metros===null || Number.isNaN(metros) || metros<=0){
+        error = etiq!==null ? 'sin medidas en la galería para calcular los metros, y sin metros en el archivo'
+                            : 'sin etiquetas rechazadas ni metros'; break;
+      }
       if(bob!==null && (Number.isNaN(bob) || bob<0 || !Number.isInteger(bob))){ error = 'bobinas que no son un entero'; break; }
-      const y = defs[d] = defs[d] || {defecto:d, metros:0, bobinas:null};
-      y.metros = +(y.metros + metros).toFixed(3);                // mismo defecto dos veces: se suma
+      const y = defs[d] = defs[d] || {defecto:d, etiquetas:null, metros:0, bobinas:null};
+      y.metros = +(y.metros + metros).toFixed(2);                // mismo defecto dos veces: se suma
+      if(etiq!==null) y.etiquetas = (y.etiquetas||0) + etiq;
       if(bob!==null) y.bobinas = (y.bobinas||0) + bob;
     }
     if(error){ rechazar(F, error); continue; }
-    const defectos = Object.values(defs).map(d=> d.bobinas===null ? {defecto:d.defecto, metros:d.metros} : d);
+    const defectos = Object.values(defs).map(d=>{
+      const o = {defecto:d.defecto};
+      if(d.etiquetas!==null) o.etiquetas = d.etiquetas;
+      o.metros = d.metros;
+      if(d.bobinas!==null) o.bobinas = d.bobinas;
+      return o;
+    });
 
-    const primero = f => { for(const x of F.filas){ const v = txt(celda(x.r,f)); if(v) return v; } return ''; };
     candidatos.push({
-      folio, fecha, turno, maquina, defectos,
+      folio, fecha, turno, maquina, defectos, med: calculado ? med : null,
       etiqueta: primero('etiqueta') ? claveEtiq(primero('etiqueta')) : '',
       etiquetaNombre: primero('etiquetaNombre'), etiquetaCliente: primero('etiquetaCliente'),
       supervisorNomina: primero('supervisorNomina'), supervisorNombre: primero('supervisorNombre'),
@@ -2042,9 +2131,11 @@ async function procesarExcelRechazos(filas){
     const r = {folio:c.folio, fecha:c.fecha, maquina:c.maquina, defectos:c.defectos,
       metrosTotal: +c.defectos.reduce((a,d)=>a+d.metros,0).toFixed(3),
       bobinasTotal: c.defectos.reduce((a,d)=>a+(d.bobinas||0),0),
+      etiquetasTotal: c.defectos.reduce((a,d)=>a+(d.etiquetas||0),0),
       ts: new Date(+c.fecha.slice(0,4), +c.fecha.slice(5,7)-1, +c.fecha.slice(8,10), 12).getTime(),
       origen:'excel', cargadoEn: ahora, capturoNomina: sesion.nomina, capturoNombre: sesion.nombre};
     if(c.turno) r.turno = c.turno;
+    if(c.med){ r.medDes = c.med.medDes; r.repeticiones = c.med.rep; }   // SPEC-020
     if(c.etiqueta){
       r.etiqueta = c.etiqueta;
       const g = GALERIA ? GALERIA[c.etiqueta] : undefined;
@@ -2206,6 +2297,7 @@ async function editarRechazo(id){
     agregarDefectoRechazo();
     const ls = document.querySelectorAll('#r-defectos .r-def'), div = ls[ls.length-1];
     div.querySelector('.r-def-sel').value = d.defecto || '';
+    div.querySelector('.r-def-e').value = d.etiquetas!=null ? d.etiquetas : '';
     div.querySelector('.r-def-m').value = d.metros!=null ? d.metros : '';
     div.querySelector('.r-def-b').value = d.bobinas!=null ? d.bobinas : '';
   });
@@ -2256,9 +2348,12 @@ async function guardarEdicion(d, err){
   const rec = {...antes, folio:d.folio, maquina:d.maquina, ...d.per, defectos:d.defectos,
     metrosTotal:  +d.defectos.reduce((a,x)=>a+x.metros, 0).toFixed(3),
     bobinasTotal: d.defectos.reduce((a,x)=>a+(x.bobinas||0), 0),
+    etiquetasTotal: d.defectos.reduce((a,x)=>a+(x.etiquetas||0), 0),
     editadoPorNomina: sesion.nomina, editadoPorNombre: sesion.nombre, editadoEn: ahora};
   delete rec.defecto; delete rec.metros; delete rec.bobinas;      // formato de la v1.5.0
-  ['etiqueta','etiquetaNombre','etiquetaCliente','etiquetaEnGaleria'].forEach(k=>delete rec[k]);
+  ['etiqueta','etiquetaNombre','etiquetaCliente','etiquetaEnGaleria','medDes','repeticiones'].forEach(k=>delete rec[k]);
+  const med = medidasEtiqueta();
+  if(med && d.defectos.some(x=>x.etiquetas)){ rec.medDes = med.medDes; rec.repeticiones = med.rep; }
   if(d.etq.clave){
     rec.etiqueta = d.etq.clave;
     rec.etiquetaNombre = $('r-etq-nombre').value.trim();

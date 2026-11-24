@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.10.0 — estados revisados contra el código el 24 de
+**Versión vigente:** 1.11.0 — estados revisados contra el código el 24 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -51,6 +51,7 @@ se puede ir del documento al código y de regreso.
 | 017 | Registro de rechazos (antes «Merma 2») | Implementado; desde la v1.8.0 vive en la pestaña Merma |
 | 018 | Merma: una sola fuente, formulario más Excel | Implementado |
 | 019 | Editar y borrar un rechazo | Implementado |
+| 020 | Cantidad rechazada en etiquetas, metros calculados | Implementado |
 
 ---
 
@@ -1129,6 +1130,56 @@ teléfono sin desplazar la tabla. No salen en el Excel.
   0.001 m no cuenta; «Recalcular resumen» deja el resumen sin esos ceros.
 - Como el resto de los permisos, se aplica en la pantalla; las reglas de la
   base no lo exigen todavía (SPEC-010).
+
+---
+
+# SPEC-020 — Cantidad rechazada en etiquetas, metros calculados
+
+**Estado:** implementado (v1.11.0)
+
+### Por qué existe
+En piso el rechazo se cuenta en **número de etiquetas**, no en metros. Pedir
+los metros obligaba a hacer la cuenta a mano. El foco y los reportes sí
+necesitan metros lineales, así que la app los calcula.
+
+### La fórmula
+```
+metros lineales = (número de etiquetas × (Med_des / 100)) / Repeticiones
+```
+`Med_des` y `Repeticiones` son los de la etiqueta del folio en la galería
+(SPEC-015). El resultado se redondea a dos decimales.
+
+### En el formulario
+- Cada línea de defecto tiene **Cantidad rechazada (número de etiquetas)**,
+  **Cantidad rechazada (número de bobinas)** y **Cantidad rechazada (metros
+  lineales)**. Los metros se calculan solos, en gris, con la cuenta a la vista
+  debajo (por ejemplo, «5,000 etiquetas × 33.02 cm ÷ 100 ÷ 4 rep.»).
+- El número de etiquetas es obligatorio y entero mayor que cero.
+- Al cambiar la etiqueta del folio se recalculan todas las líneas.
+- **Si no se puede calcular** (la etiqueta no está en la galería, o le falta
+  `Med_des` o `Repeticiones`, o alguno es cero), se avisa y **los metros se
+  escriben a mano**, como antes.
+- El total del folio suma etiquetas, metros y bobinas.
+
+### Qué se guarda
+- En cada defecto, `etiquetas` además de `metros` y `bobinas`.
+- En el rechazo, **copia** de `medDes` y `repeticiones` con que se calculó
+  (SPEC-009): si después se corrige la galería, el rechazo sigue diciendo con
+  qué medidas se hizo la cuenta. Sin cálculo (metros a mano) no se guardan.
+
+### Excel y tabla
+- Columna nueva **Etiquetas rechazadas**, antes de Metros lineales, en la
+  tabla, la exportación y la plantilla.
+- Al cargar: si el renglón trae etiquetas rechazadas y la etiqueta del folio
+  tiene medidas, **los metros se calculan** con la fórmula, aunque el archivo
+  traiga otros. Si no trae etiquetas rechazadas, se usan los metros del
+  archivo (un histórico puede traer solo metros). Si no hay forma de tener
+  metros, se rechaza el folio.
+
+### Al editar (SPEC-019)
+Las líneas se recalculan con las medidas actuales de la galería. Un rechazo
+anterior a esta versión, sin número de etiquetas, puede seguir sin él: sus
+metros se conservan y se pueden corregir a mano.
 
 ---
 

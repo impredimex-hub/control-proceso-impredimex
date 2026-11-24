@@ -4,7 +4,7 @@ Inspección de calidad en línea: foco por máquina, hallazgos con causa y
 acciones correctivas que se cierran.
 
 **Dirección:** https://impredimex-hub.github.io/control-proceso-impredimex/
-**Versión vigente:** 1.10.0 (ver [`CHANGELOG.md`](./CHANGELOG.md))
+**Versión vigente:** 1.11.0 (ver [`CHANGELOG.md`](./CHANGELOG.md))
 **Estado:** reconstruida y publicada; varias especificaciones están parciales
 (ver la tabla de estado en [`SPECS.md`](./SPECS.md))
 
@@ -37,7 +37,8 @@ y se entra desde el portal https://impredimex-hub.github.io/.
 - **Acciones correctivas** que el supervisor atiende y cierra
 - **Comportamiento** de cada defecto mes a mes en todo el histórico
 - **Merma**: registro de rechazos con folio único, etiqueta, máquina y uno o
-  varios defectos con sus metros y bobinas; los nombres de supervisor, operador
+  varios defectos con su número de etiquetas rechazadas (los metros
+  lineales se calculan con las medidas de la galería) y bobinas; los nombres de supervisor, operador
   e inspector salen del padrón de RRHH. Mientras se estandariza el formulario,
   carga de Excel con las mismas columnas. Tabla y exportación a Excel por mes;
   el administrador puede editar un rechazo o borrarlo con motivo, y

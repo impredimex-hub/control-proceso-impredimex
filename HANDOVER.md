@@ -3,7 +3,7 @@
 Lo que necesita saber quien reciba esta aplicación para operarla, corregirla y
 extenderla sin depender de quien la construyó.
 
-**Versión de la aplicación:** 1.12.0
+**Versión de la aplicación:** 1.13.0
 **Última actualización de este documento:** 24 de noviembre de 2026
 **Desarrollo original:** Victor Moreno
 
@@ -156,7 +156,8 @@ en la SPEC-010.
 | `cal/merma2Ediciones/<clave>/<n>` | Admin, al editar | `antes` (el rechazo como estaba), `editadoPorNomina`, `editadoPorNombre`, `editadoEn` (SPEC-019) |
 | `cal/merma2Borrados/<clave>` | Admin, al borrar | Copia de cada rechazo borrado con `borradoPorNomina`, `borradoPorNombre`, `borradoEn` y `motivo` (SPEC-019) |
 | `cal/mermaResumen/<máquina>/<defecto>/<AAAA-MM>` | Se escribe solo | Metros de los rechazos sumados por mes. Es lo que lee el foco, para no descargar todos los rechazos en cada apertura. Cada rechazo suma aquí en la misma escritura en que se guarda (SPEC-018) |
-| `cal/defectos/<id>` | Admin | `nombre`, `creadoPor`, `creadoEn` y, si se renombró, `editadoPor`, `editadoEn` (SPEC-022) |
+| `cal/defectosCatalogo` | Admin, una vez por versión | `version`, `aplicadoPor`, `aplicadoEn`, `quitados` |
+| `cal/defectos/<id>` | Admin | `numero`, `nombre`, `creadoPor`, `creadoEn` y, si se renombró, `editadoPor`, `editadoEn` (SPEC-022) |
 | `cal/defectosRenombrados/<anterior>` | Admin, al renombrar | Nombre nuevo; el foco lo aplica a la base histórica |
 | `cal/etiquetasBorradas/<Etiq>` | Admin, al borrar | La etiqueta como estaba, más `borradoPorNomina`, `borradoPorNombre`, `borradoEn` |
 | `cal/etiquetas/<Etiq>` | Admin | Los 15 campos de la galería con el nombre de su encabezado (`Etiq`, `Nombre_etiq`, `Tipo`, … `Tipo_tinta`), más `actualizadoPor`, `actualizadoEn` y `origen` (`excel` o `manual`). Los vacíos no se guardan |
@@ -179,12 +180,16 @@ en `cal/etiquetasBorradas`.
 
 ### El catálogo de defectos
 
-Vive en `cal/defectos` y se administra en Galería → Defectos (SPEC-022). Al
+Vive en `cal/defectos` (con `numero` y `nombre`) y se administra en Galería →
+Defectos (SPEC-022). La lista oficial está en el código (`DEFECTOS_OFICIALES`)
+con su versión (`VERSION_CATALOGO`); si se cambia la lista en el código, hay
+que subir la versión para que la app la aplique, y la versión aplicada queda
+en `cal/defectosCatalogo`, con los defectos que se quitaron. Al
 **renombrar** un defecto la app lo cambia en rechazos, hallazgos y matriz,
 recalcula el resumen y anota el renombre en `cal/defectosRenombrados` para la
 base histórica. Al **borrar**, lo ya registrado lo conserva. Si se borra
 `cal/defectos` completo en la consola, el siguiente administrador que entre lo
-vuelve a sembrar con los 40 del código.
+vuelve a sembrar con la lista oficial.
 
 ### De dónde sale el foco (SPEC-018)
 

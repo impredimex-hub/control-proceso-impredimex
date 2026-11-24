@@ -4,7 +4,7 @@ Inspección de calidad en línea: foco por máquina, hallazgos con causa y
 acciones correctivas que se cierran.
 
 **Dirección:** https://impredimex-hub.github.io/control-proceso-impredimex/
-**Versión vigente:** 1.12.0 (ver [`CHANGELOG.md`](./CHANGELOG.md))
+**Versión vigente:** 1.13.0 (ver [`CHANGELOG.md`](./CHANGELOG.md))
 **Estado:** reconstruida y publicada; varias especificaciones están parciales
 (ver la tabla de estado en [`SPECS.md`](./SPECS.md))
 
@@ -47,7 +47,7 @@ y se entra desde el portal https://impredimex-hub.github.io/.
 - **Editor de la matriz** defecto ↔ variable para la junta de calidad
 - **Galería de etiquetas**: tabla con los datos técnicos de cada etiqueta
   (tintas, engrane, medidas, sustratos), con búsqueda, carga desde Excel,
-  alta, edición y borrado; y el **catálogo de defectos**, editable
+  alta, edición y borrado; y el **catálogo de defectos** numerado, editable
 - Se instala como aplicación desde el navegador; no requiere tienda
 
 ---

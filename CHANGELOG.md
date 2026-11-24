@@ -11,6 +11,27 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.13.0] — 2026-11-24
+
+### Cambiado
+
+- **Catálogo oficial de 36 defectos numerados**, definido por Calidad
+  (SPEC-022). La primera vez que un administrador abre la app, el catálogo de
+  la base queda igual a la lista: cada defecto toma su número y salen
+  ADHESIVO, FALTA DE TINTA, LAMINACIÓN y PEGADO (lo registrado con ellos lo
+  conserva). La tabla de defectos muestra el número y ordena por él; Nuevo y
+  Editar piden número.
+
+### Agregado
+
+- **# defecto** junto a Defecto en el formulario de rechazo (SPEC-021): al
+  llenar uno se llena el otro. Columna **# defecto** en tabla, Excel y
+  plantilla; al cargar basta con uno de los dos y, si vienen ambos, deben
+  coincidir.
+- Caché del service worker a `calidad-v1.13.0`.
+
+---
+
 ## [1.12.0] — 2026-11-24
 
 ### Agregado

@@ -259,7 +259,8 @@ textarea.derivado[readonly]{background:var(--bg);color:var(--navy-dark);font-wei
 .r-def-cab{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
 .r-def-num{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--navy)}
 .r-def-m.derivado-m{background:var(--bg);color:var(--navy-dark);font-weight:600}
-.r-def-sel.invalido{border-color:var(--red)}
+.r-def-sel.invalido,.r-def-num-in.invalido{border-color:var(--red)}
+.r-def-fila > div:last-child{flex:0 0 28%}
 .d-tabla td{font-weight:600}
 .r-def-nota{font-size:11px;color:var(--text3);margin-top:5px;line-height:1.4}
 .r-quitar{background:none;border:none;color:var(--red);font-size:12px;font-weight:600;cursor:pointer;padding:6px 0}
@@ -656,10 +657,11 @@ const DATOS = {"semilla": {"COR2": {"PUNTEADO": {"2025-09": 864}}, "COR3": {"PUN
 const SEMILLA  = DATOS.semilla;
 // SPEC-022: el catálogo vive en cal/defectos; los del código son el punto de
 // partida y el respaldo mientras la base no responde.
-let DEFECTOS = DATOS.defectos.slice();
-let DEFECTOS_DB = null;          // {id: {nombre, ...}} tal como está en la base
+let DEFECTOS = [];               // nombres, en orden de número (se llena con el catálogo)
+let DEFECTOS_DB;                 // {id: {numero, nombre, ...}}; undefined hasta leerlo, null si no hay
+let CATALOGO_META;               // cal/defectosCatalogo: versión aplicada del catálogo oficial
 let ALIAS_DEF = {};              // cal/defectosRenombrados: {anterior: nuevo}
-let defSembrado = false;
+
 const MAQUINAS = DATOS.maquinas;
 
 let db=null, suiteAuth=null, suiteDb=null;
@@ -827,7 +829,7 @@ function poblarSelects(){
   const om = MAQUINAS.map(m=>`<option value="${m.id}">${m.id} · ${m.area}</option>`).join('');
   $('f-maquina').innerHTML = om; $('t-maquina').innerHTML = om;
   $('m-maquina').innerHTML = '<option value="">— Todas —</option>' + om;
-  actualizarListasDefectos();
+  refrescarCatalogo();            // lista oficial mientras llega la de la base
   pintarTurno();
   pintarFoco();
 }
@@ -870,11 +872,11 @@ async function conectar(){
   // SPEC-022: catálogo de defectos y renombres. Sin catálogo en la base, el
   // primer administrador que entra lo siembra con los del código.
   db.ref('cal/defectos').on('value', s=>{
-    const v = s.val(); DEFECTOS_DB = v;
-    if(!v){ if(sesion.rol==='ADMIN' && !defSembrado){ defSembrado = true; sembrarDefectos(); } DEFECTOS = DATOS.defectos.slice(); }
-    else DEFECTOS = Object.values(v).map(x=>x.nombre).filter(Boolean).sort((a,b)=>a.localeCompare(b,'es'));
-    actualizarListasDefectos(); pintarDefectos();
+    DEFECTOS_DB = s.val(); refrescarCatalogo(); revisarCatalogo();
   }, fallo('cal/defectos'));
+  db.ref('cal/defectosCatalogo').on('value', s=>{
+    CATALOGO_META = s.val(); revisarCatalogo();
+  }, fallo('cal/defectosCatalogo'));
   db.ref('cal/defectosRenombrados').on('value', s=>{
     ALIAS_DEF = s.val() || {}; MERMA_COMBINADA = null; pintarFoco(); pintarTendencia();
   }, fallo('cal/defectosRenombrados'));
@@ -1624,9 +1626,13 @@ function agregarDefectoRechazo(){
   const div = document.createElement('div'); div.className = 'r-def';
   div.innerHTML = `<div class="r-def-cab"><span class="r-def-num"></span>
       <button type="button" class="r-quitar" onclick="quitarDefectoRechazo(this)">Quitar</button></div>
-    <label>Defecto</label>
-    <input class="r-def-sel" list="dl-defectos" placeholder="Escribe o elige el defecto" autocomplete="off"
-      autocapitalize="characters" onchange="normalizarDefecto(this)">
+    <div class="row r-def-fila">
+      <div><label>Defecto</label>
+        <input class="r-def-sel" list="dl-defectos" placeholder="Escribe o elige" autocomplete="off"
+          autocapitalize="characters" onchange="normalizarDefecto(this)"></div>
+      <div><label># defecto</label>
+        <input class="r-def-num-in" inputmode="numeric" autocomplete="off" oninput="defectoPorNumero(this)"></div>
+    </div>
     <div class="row">
       <div><label>Cantidad rechazada (número de etiquetas)</label>
         <input class="r-def-e" inputmode="numeric" autocomplete="off" oninput="recalcularLinea(this.closest('.r-def'))"></div>
@@ -1707,8 +1713,16 @@ function leerDefectosRechazo(enEdicion){
   for(let i=0; i<ls.length; i++){
     const n = ls.length>1 ? `Defecto ${i+1}: ` : '';
     const escrito = ls[i].querySelector('.r-def-sel').value.trim();
-    const d = defectoDeTexto(escrito);           // SPEC-021: del catálogo, sin importar acentos
+    const numTxt = ls[i].querySelector('.r-def-num-in').value.trim();
+    // SPEC-021: del catálogo, sin importar acentos; o por su número.
+    let d = defectoDeTexto(escrito);
     if(escrito && !d) return {error: n + `«${escrito}» no está en el catálogo de defectos.`};
+    if(numTxt){
+      const porNum = defectoDeNumero(numTxt);
+      if(!porNum) return {error: n + `el # defecto ${numTxt} no está en el catálogo.`};
+      if(d && d!==porNum) return {error: n + `el # defecto ${numTxt} es ${porNum}, no ${d}.`};
+      d = porNum;
+    }
     const metros = numDe(ls[i].querySelector('.r-def-m').value), bobinas = numDe(ls[i].querySelector('.r-def-b').value);
     const etiquetas = numDe(ls[i].querySelector('.r-def-e').value);
     if(!d) return {error: n + 'elige el defecto.'};
@@ -1725,6 +1739,7 @@ function leerDefectosRechazo(enEdicion){
     if(!(bobinas===null && enEdicion) && (bobinas===null || Number.isNaN(bobinas) || bobinas<0 || !Number.isInteger(bobinas)))
       return {error: n + 'el número de bobinas debe ser un entero, cero o más.'};
     const linea = {defecto:d};
+    if(numeroDeDefecto(d)) linea.numero = numeroDeDefecto(d);      // copia del número al capturar
     if(etiquetas!==null) linea.etiquetas = etiquetas;
     linea.metros = metros;
     if(bobinas!==null) linea.bobinas = bobinas;
@@ -1751,6 +1766,7 @@ const R_COLUMNAS = [
   {t:'Cliente',            v:r=>r.etiquetaCliente,  w:36, folio:true},
   {t:'Máquina de inspección', v:r=>r.maquina,      w:12, folio:true},
   {t:'Máquina que genera', v:r=>r.maquinaGenera,    w:12, folio:true},    // SPEC-021
+  {t:'# defecto',          v:(r,d)=>d.numero || numeroDeDefecto(d.defecto), w:9, num:true},   // SPEC-021
   {t:'Defecto',            v:(r,d)=>d.defecto,      w:20},
   {t:'Etiquetas rechazadas', v:(r,d)=>d.etiquetas,  w:12, num:true},    // SPEC-020
   {t:'Metros lineales',    v:(r,d)=>d.metros,       w:13, num:true},
@@ -1979,8 +1995,9 @@ function descargarPlantilla(){
   ws['!rows'] = [{hpt:30}];
 
   const n = Math.max(MAQUINAS.length, DEFECTOS.length);
-  const filas = [['Máquina','Área','','Defecto']];   // sirve para las dos columnas de máquina
-  for(let i=0;i<n;i++) filas.push([MAQUINAS[i]?MAQUINAS[i].id:'', MAQUINAS[i]?MAQUINAS[i].area:'', '', DEFECTOS[i]||'']);
+  const filas = [['Máquina','Área','','# defecto','Defecto']];   // sirve para las dos columnas de máquina
+  for(let i=0;i<n;i++) filas.push([MAQUINAS[i]?MAQUINAS[i].id:'', MAQUINAS[i]?MAQUINAS[i].area:'', '',
+    DEFECTOS[i] ? (numeroDeDefecto(DEFECTOS[i])||'') : '', DEFECTOS[i]||'']);
   filas.push([], ['Un renglón por defecto. Varios renglones con el mismo folio son un mismo rechazo.'],
     ['Obligatorios: Folio, Fecha, Máquina de inspección, Defecto y Etiquetas rechazadas.'],
     ['Máquina que genera: la que provoca el defecto. Con ella cuenta el foco; si va vacía, cuenta la de inspección.'],
@@ -1989,8 +2006,8 @@ function descargarPlantilla(){
     ['Turno: Matutino, Vespertino o Nocturno. Bobinas: número entero.'],
     ['Si la nómina está en el padrón de RRHH, el nombre se toma de ahí.']);
   const wc = XLSX.utils.aoa_to_sheet(filas);
-  ['A1','B1','D1'].forEach(k=>{ wc[k].s = sCab; });
-  wc['!cols'] = [{wch:12},{wch:16},{wch:3},{wch:22}];
+  ['A1','B1','D1','E1'].forEach(k=>{ wc[k].s = sCab; });
+  wc['!cols'] = [{wch:12},{wch:16},{wch:3},{wch:10},{wch:22}];
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Rechazos');
@@ -2011,6 +2028,7 @@ const R_ENCABEZADOS = {
   maquina:['maquinadeinspeccion','maquina','linea'],
   maquinaGenera:['maquinaquegenera','maquinagenera','maquinaquegeneraeldefecto'],
   defecto:['defecto'],
+  numDefecto:['#defecto','numerodedefecto','nodefecto','numdefecto'],
   metros:['metroslineales','cantidadrechazada(metroslineales)','mtsrechazados','metrosrechazados','metros'],
   etiquetasRech:['etiquetasrechazadas','cantidadrechazada(numerodeetiquetas)','numerodeetiquetasrechazadas','etiquetas'],
   bobinas:['bobinas','cantidadrechazada(numerodebobinas)','numerodebobinas'],
@@ -2067,10 +2085,11 @@ async function procesarExcelRechazos(filas){
     if(i>=0) col[f] = i;
   });
   // SPEC-020: la cantidad puede venir en etiquetas rechazadas, en metros o en ambas.
-  const faltan = ['folio','fecha','maquina','defecto'].filter(f=>col[f]===undefined);
+  const faltan = ['folio','fecha','maquina'].filter(f=>col[f]===undefined);
+  if(col.defecto===undefined && col.numDefecto===undefined) faltan.push('defecto');
   if(col.metros===undefined && col.etiquetasRech===undefined) faltan.push('cantidad');
   if(faltan.length){
-    const nombres = {folio:'Folio', fecha:'Fecha', maquina:'Máquina de inspección', defecto:'Defecto',
+    const nombres = {folio:'Folio', fecha:'Fecha', maquina:'Máquina de inspección', defecto:'Defecto o # defecto',
                      cantidad:'Etiquetas rechazadas o Metros lineales'};
     $('m-previa').innerHTML = `<div class="aviso aviso-amber" style="margin-top:12px">Al archivo le
       faltan columnas: ${faltan.map(f=>'<b>'+nombres[f]+'</b>').join(', ')}. Descarga la plantilla para
@@ -2126,10 +2145,18 @@ async function procesarExcelRechazos(filas){
 
     const defs = {}; let error = '', calculado = false;
     for(const x of F.filas){
-      const d = defPorNorm[norm(celda(x.r,'defecto'))];
+      // SPEC-021: el defecto por nombre o por número; si vienen ambos, deben coincidir.
+      const nomTxt = txt(celda(x.r,'defecto')), numTxt = txt(celda(x.r,'numDefecto'));
+      let d = nomTxt ? defPorNorm[norm(nomTxt)] : null;
+      if(numTxt){
+        const porNum = defectoDeNumero(numTxt);
+        if(!porNum){ error = '# defecto fuera del catálogo'; break; }
+        if(d && d!==porNum){ error = 'defecto y # defecto no coinciden'; break; }
+        if(!nomTxt) d = porNum;
+      }
       const etiq = numDe(celda(x.r,'etiquetasRech')), bob = numDe(celda(x.r,'bobinas'));
       let metros = numDe(celda(x.r,'metros'));
-      if(!d){ error = txt(celda(x.r,'defecto')) ? 'defecto fuera del catálogo' : 'sin defecto'; break; }
+      if(!d){ error = nomTxt ? 'defecto fuera del catálogo' : 'sin defecto'; break; }
       if(etiq!==null && (Number.isNaN(etiq) || etiq<=0 || !Number.isInteger(etiq))){ error = 'etiquetas rechazadas que no son un entero mayor que cero'; break; }
       // Con etiquetas y medidas, los metros salen de la fórmula aunque el archivo traiga otros.
       if(etiq!==null && med){ metros = metrosDeEtiquetas(etiq, med); calculado = true; }
@@ -2146,6 +2173,7 @@ async function procesarExcelRechazos(filas){
     if(error){ rechazar(F, error); continue; }
     const defectos = Object.values(defs).map(d=>{
       const o = {defecto:d.defecto};
+      if(numeroDeDefecto(d.defecto)) o.numero = numeroDeDefecto(d.defecto);
       if(d.etiquetas!==null) o.etiquetas = d.etiquetas;
       o.metros = d.metros;
       if(d.bobinas!==null) o.bobinas = d.bobinas;
@@ -2348,6 +2376,7 @@ async function editarRechazo(id){
     agregarDefectoRechazo();
     const ls = document.querySelectorAll('#r-defectos .r-def'), div = ls[ls.length-1];
     div.querySelector('.r-def-sel').value = d.defecto || '';
+    div.querySelector('.r-def-num-in').value = d.defecto ? (numeroDeDefecto(d.defecto) || '') : '';
     div.querySelector('.r-def-e').value = d.etiquetas!=null ? d.etiquetas : '';
     div.querySelector('.r-def-m').value = d.metros!=null ? d.metros : '';
     div.querySelector('.r-def-b').value = d.bobinas!=null ? d.bobinas : '';
@@ -2441,18 +2470,64 @@ async function guardarEdicion(d, err){
 }
 
 /* ═══════════════ CATÁLOGO DE DEFECTOS (SPEC-021, SPEC-022) ═══════════════ */
+// SPEC-022: catálogo oficial definido por Calidad el 24/11/2026, numerado.
+// Al cambiar la lista, cambiar también VERSION_CATALOGO: la primera vez que un
+// administrador abra la app, el catálogo de la base quedará igual a esta lista.
+const VERSION_CATALOGO = '2026-11-24';
+const DEFECTOS_OFICIALES = [
+  [1,'ANCHO PLANO'],[2,'DOBLEZ'],[3,'MANGA ABIERTA'],[4,'MANGA PEGADA'],[5,'PUNTEADO'],[6,'TRASLAPE'],
+  [7,'EMPLASTADO'],[8,'EXCESO DE PRESIÓN'],[9,'FALTA DE PRESIÓN'],[10,'FUERA DE REGISTRO'],
+  [11,'IMPRESIÓN FALTANTE'],[12,'LAGRIMEO'],[13,'MANCHAS'],[14,'PIOJOS'],[15,'POROSIDAD'],[16,'RAYA'],
+  [17,'REGISTRO'],[18,'REMOSQUEO'],[19,'REPINTE'],[20,'RESEQUEDAD'],[21,'TABLETEO'],[22,'TEXTO FALTANTE'],
+  [23,'TONOS'],[24,'VELO'],[25,'DESPRENDIMIENTO'],[26,'LIMPIEZA'],[27,'MAL REFILADO'],[28,'REFILADO MOVIDO'],
+  [29,'DESLAMINADO'],[30,'ARRUGA'],[31,'EMPALMES'],[32,'SOBRE SUAJADO'],[33,'GOLPE'],[34,'GRABADO'],
+  [35,'CURLING'],[36,'ONDULACIÓN']
+];
+let NUM_DEF = {};                   // nombre → número, del catálogo vigente
+
 // Clave segura para usar un nombre de defecto como clave de la base.
 const claveDef = d => String(d).replace(/[.#$\/\[\]]/g,'_');
+
+// Lista ordenada del catálogo vigente: [{id, numero, nombre}].
+function catalogoDefectos(){
+  if(!DEFECTOS_DB) return DEFECTOS_OFICIALES.map(([numero,nombre])=>({id:null, numero, nombre}));
+  return Object.keys(DEFECTOS_DB).map(id=>({id, ...DEFECTOS_DB[id]})).filter(x=>x.nombre)
+    .sort((a,b)=>(a.numero||9999)-(b.numero||9999) || a.nombre.localeCompare(b.nombre,'es'));
+}
+function refrescarCatalogo(){
+  const cat = catalogoDefectos();
+  DEFECTOS = cat.map(x=>x.nombre);
+  NUM_DEF = {}; cat.forEach(x=>{ if(x.numero) NUM_DEF[x.nombre] = x.numero; });
+  actualizarListasDefectos(); pintarDefectos();
+}
 
 // Un defecto escrito, tal como está en el catálogo; sin importar acentos ni mayúsculas.
 function defectoDeTexto(t){
   const n = norm(t); if(!n) return null;
   return DEFECTOS.find(d=>norm(d)===n) || null;
 }
+const numeroDeDefecto = d => NUM_DEF[d] || null;
+function defectoDeNumero(n){
+  const x = +String(n).trim();
+  if(!Number.isInteger(x) || x<=0) return null;
+  return Object.keys(NUM_DEF).find(d=>NUM_DEF[d]===x) || null;
+}
+
+// SPEC-021: Defecto y # defecto se llenan uno con el otro.
 function normalizarDefecto(el){
+  const div = el.closest('.r-def'), num = div ? div.querySelector('.r-def-num-in') : null;
   const d = defectoDeTexto(el.value);
   if(d) el.value = d;
   el.classList.toggle('invalido', !!el.value.trim() && !d);
+  if(num){ num.value = d ? (numeroDeDefecto(d) || '') : (el.value.trim() ? '' : num.value); num.classList.remove('invalido'); }
+}
+function defectoPorNumero(el){
+  const div = el.closest('.r-def'), sel = div.querySelector('.r-def-sel');
+  const t = el.value.trim();
+  if(!t){ el.classList.remove('invalido'); return; }
+  const d = defectoDeNumero(t);
+  el.classList.toggle('invalido', !d);
+  if(d){ sel.value = d; sel.classList.remove('invalido'); }
 }
 
 // Nombre vigente de un defecto, siguiendo los renombres (para la base histórica).
@@ -2461,45 +2536,82 @@ function resolverAlias(d){
   return d;
 }
 
-// Cuando cambia el catálogo, se rehacen las listas que lo usan.
+// Cuando cambia el catálogo, se rehacen las listas que lo usan (en orden de número).
 function actualizarListasDefectos(){
   const od = DEFECTOS.map(d=>`<option>${esc(d)}</option>`).join('');
   ['t-defecto','m-defecto'].forEach(id=>{ const el = $(id); if(!el) return; const v = el.value; el.innerHTML = od; if(v) el.value = v; });
-  $('dl-defectos').innerHTML = DEFECTOS.map(d=>`<option value="${esc(d)}">`).join('');
+  $('dl-defectos').innerHTML = DEFECTOS.map(d=>`<option value="${esc(d)}" label="${numeroDeDefecto(d)||''}">`).join('');
 }
 
 async function sembrarDefectos(){
   const upd = {}, ahora = new Date().toISOString();
-  DATOS.defectos.forEach(n=>{ upd[db.ref('cal/defectos').push().key] = {nombre:n, creadoPor:sesion.nomina, creadoEn:ahora}; });
-  await db.ref('cal/defectos').set(upd).catch(e=>console.error('Sembrar defectos:', e));
+  DEFECTOS_OFICIALES.forEach(([numero,nombre])=>{
+    upd['defectos/'+db.ref('cal/defectos').push().key] = {numero, nombre, creadoPor:sesion.nomina, creadoEn:ahora};
+  });
+  upd['defectosCatalogo'] = {version:VERSION_CATALOGO, aplicadoPor:sesion.nomina, aplicadoEn:ahora};
+  await db.ref('cal').update(upd).catch(e=>console.error('Sembrar defectos:', e));
+}
+
+/* SPEC-022: deja el catálogo de la base igual a la lista oficial. Los que ya
+   existen conservan su identificador y toman su número; los que no están en la
+   lista salen del catálogo (lo registrado con ellos lo conserva). */
+async function aplicarCatalogoOficial(){
+  const v = DEFECTOS_DB || {}, upd = {}, ahora = new Date().toISOString();
+  const porNorm = {}; Object.keys(v).forEach(id=>{ if(v[id] && v[id].nombre) porNorm[norm(v[id].nombre)] = id; });
+  const quedan = new Set();
+  DEFECTOS_OFICIALES.forEach(([numero,nombre])=>{
+    const id = porNorm[norm(nombre)];
+    if(id){
+      quedan.add(id);
+      upd['defectos/'+id+'/numero'] = numero;
+      if(v[id].nombre!==nombre) upd['defectos/'+id+'/nombre'] = nombre;
+    } else upd['defectos/'+db.ref('cal/defectos').push().key] = {numero, nombre, creadoPor:sesion.nomina, creadoEn:ahora};
+  });
+  const quitados = Object.keys(v).filter(id=>!quedan.has(id));
+  quitados.forEach(id=>{ upd['defectos/'+id] = null; });
+  upd['defectosCatalogo'] = {version:VERSION_CATALOGO, aplicadoPor:sesion.nomina, aplicadoEn:ahora,
+                             quitados: quitados.map(id=>v[id].nombre).filter(Boolean)};
+  await db.ref('cal').update(upd);
+}
+let catalogoRevisado = false;
+function revisarCatalogo(){
+  // Solo un administrador, una vez, y con el catálogo y su versión ya leídos.
+  if(catalogoRevisado || sesion.rol!=='ADMIN' || CATALOGO_META===undefined || DEFECTOS_DB===undefined) return;
+  catalogoRevisado = true;
+  if(!DEFECTOS_DB) return void sembrarDefectos();
+  if(!CATALOGO_META || CATALOGO_META.version!==VERSION_CATALOGO)
+    aplicarCatalogoOficial().catch(e=>{ console.error('Catálogo oficial:', e); catalogoRevisado = false; });
 }
 
 function pintarDefectos(){
   const t = $('d-tabla'); if(!t) return;
   const esAdmin = sesion.rol==='ADMIN';
   $('d-nuevo').classList.toggle('hide', !esAdmin);
-  const lista = DEFECTOS_DB ? Object.keys(DEFECTOS_DB).map(id=>({id, ...DEFECTOS_DB[id]})).filter(x=>x.nombre)
-                                .sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'))
-                            : DEFECTOS.map(n=>({id:null, nombre:n}));
+  const lista = catalogoDefectos();
   $('d-cuenta').textContent = `${lista.length} defectos`;
-  t.innerHTML = `<thead><tr><th>Defecto</th>${esAdmin ? '<th>Editar</th><th>Borrar</th>' : ''}</tr></thead><tbody>` +
-    lista.map(x=>`<tr><td>${esc(x.nombre)}</td>${esAdmin && x.id ?
+  t.innerHTML = `<thead><tr><th class="num">#</th><th>Defecto</th>${esAdmin ? '<th>Editar</th><th>Borrar</th>' : ''}</tr></thead><tbody>` +
+    lista.map(x=>`<tr><td class="num">${x.numero||'—'}</td><td>${esc(x.nombre)}</td>${esAdmin && x.id ?
       `<td class="r-acc-td"><button class="r-acc" onclick="abrirDefecto('${x.id}')">Editar</button></td>
        <td class="r-acc-td"><button class="r-acc r-acc-borrar" onclick="pedirBorrarDefecto('${x.id}')">Borrar</button></td>` :
       (esAdmin ? '<td></td><td></td>' : '')}</tr>`).join('') + '</tbody>';
 }
 
-/* Nuevo (id = null) o renombrar un defecto. */
+/* Nuevo (id = null) o editar un defecto: número y nombre. */
 function abrirDefecto(id){
   if(sesion.rol!=='ADMIN') return;
   const x = id ? DEFECTOS_DB[id] : null;
+  const siguiente = Math.max(0, ...catalogoDefectos().map(y=>y.numero||0)) + 1;
   cerrarModal('modal-defecto');
   const c = document.createElement('div'); c.className='modal'; c.id='modal-defecto';
   c.innerHTML = `<div class="modal-box">
     <div class="modal-t">${x ? 'Editar defecto' : 'Nuevo defecto'}</div>
-    <label>Nombre</label>
-    <input id="d-nombre" value="${x ? esc(x.nombre) : ''}" autocapitalize="characters" maxlength="40" autocomplete="off">
-    ${x ? `<div class="aviso" style="margin:10px 0 0">Al cambiar el nombre se actualiza en todo lo registrado:
+    <div class="row">
+      <div style="flex:0 0 28%"><label># defecto</label>
+        <input id="d-numero" inputmode="numeric" value="${x ? (x.numero||'') : siguiente}" autocomplete="off"></div>
+      <div><label>Nombre</label>
+        <input id="d-nombre" value="${x ? esc(x.nombre) : ''}" autocapitalize="characters" maxlength="40" autocomplete="off"></div>
+    </div>
+    ${x ? `<div class="aviso" style="margin:10px 0 0">Si cambias el nombre, se actualiza en todo lo registrado:
       rechazos, hallazgos, matriz y foco, para que no queden dos nombres para lo mismo.</div>` : ''}
     <div id="d-err" style="color:var(--red);font-size:12.5px;margin-top:8px"></div>
     <div class="row" style="margin-top:14px">
@@ -2514,21 +2626,28 @@ function abrirDefecto(id){
 async function guardarDefecto(id){
   const err = m => { $('d-err').textContent = m; };
   const nombre = $('d-nombre').value.trim().replace(/\s+/g,' ').toUpperCase();
+  const numero = +$('d-numero').value.trim();
+  if(!Number.isInteger(numero) || numero<=0) return err('El número debe ser un entero mayor que cero.');
   if(!nombre) return err('Escribe el nombre.');
   if(!claveValida(nombre)) return err('El nombre no puede llevar . # $ / [ ]');
-  const viejo = id ? DEFECTOS_DB[id].nombre : null;
-  if(viejo === nombre){ cerrarModal('modal-defecto'); return; }
-  const otro = Object.keys(DEFECTOS_DB||{}).find(k=>k!==id && norm(DEFECTOS_DB[k].nombre)===norm(nombre));
-  if(otro) return err(`Ya existe «${DEFECTOS_DB[otro].nombre}».`);
+  const v = DEFECTOS_DB || {};
+  const otroNom = Object.keys(v).find(k=>k!==id && v[k] && norm(v[k].nombre)===norm(nombre));
+  if(otroNom) return err(`Ya existe «${v[otroNom].nombre}».`);
+  const otroNum = Object.keys(v).find(k=>k!==id && v[k] && v[k].numero===numero);
+  if(otroNum) return err(`El número ${numero} ya es de «${v[otroNum].nombre}».`);
+  const viejo = id ? v[id].nombre : null;
   $('d-ok').disabled = true;
   try{
     if(!id){
-      await db.ref('cal/defectos').push({nombre, creadoPor:sesion.nomina, creadoEn:new Date().toISOString()});
-      toast(`Defecto ${nombre} agregado`);
+      await db.ref('cal/defectos').push({numero, nombre, creadoPor:sesion.nomina, creadoEn:new Date().toISOString()});
+      toast(`Defecto ${numero} · ${nombre} agregado`);
     } else {
-      $('d-ok').textContent = 'Actualizando registros…';
-      const n = await renombrarDefecto(id, viejo, nombre);
-      toast(`${viejo} ahora es ${nombre}` + (n ? ` (${n} registros actualizados)` : ''));
+      if(v[id].numero!==numero) await db.ref('cal/defectos/'+id).update({numero, editadoPor:sesion.nomina, editadoEn:new Date().toISOString()});
+      if(viejo!==nombre){
+        $('d-ok').textContent = 'Actualizando registros…';
+        const n = await renombrarDefecto(id, viejo, nombre);
+        toast(`${viejo} ahora es ${nombre}` + (n ? ` (${n} registros actualizados)` : ''));
+      } else toast('Defecto actualizado');
     }
     cerrarModal('modal-defecto');
   }catch(e){ $('d-ok').disabled = false; $('d-ok').textContent = 'Guardar'; err('No se pudo guardar: '+e.message); }

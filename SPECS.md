@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.12.0 — estados revisados contra el código el 24 de
+**Versión vigente:** 1.13.0 — estados revisados contra el código el 24 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -53,7 +53,7 @@ se puede ir del documento al código y de regreso.
 | 019 | Editar y borrar un rechazo | Implementado |
 | 020 | Cantidad rechazada en etiquetas, metros calculados | Implementado |
 | 021 | Máquina de inspección y máquina que genera; defecto con autocompletado | Implementado |
-| 022 | Catálogo de defectos editable; editar y borrar etiquetas | Implementado |
+| 022 | Catálogo de defectos editable y numerado; editar y borrar etiquetas | Implementado |
 
 ---
 
@@ -1205,6 +1205,10 @@ corregirlo hay que saber **qué máquina lo genera**.
   (donde se detecta el problema) y a su lado está **Máquina que genera** (la
   que provoca el defecto). Las dos son obligatorias al capturar y salen del
   mismo catálogo de máquinas.
+- Junto a **Defecto** está **# defecto** (v1.13.0): al escribir el defecto se
+  llena su número, y al escribir el número se llena el defecto. Un número que
+  no está en el catálogo no se acepta. Cada línea guarda copia del número
+  (`numero`) como estaba al capturar.
 - El **Defecto** de cada línea se escribe con **autocompletado**: al teclear se
   sugieren los del catálogo, sin importar acentos ni mayúsculas, y al salir del
   campo se escribe tal como está en el catálogo. Un texto que no sea un
@@ -1219,6 +1223,8 @@ corregirlo hay que saber **qué máquina lo genera**.
 - Al editar un rechazo anterior sin máquina que genera, puede seguir sin ella.
 
 ### Excel y tabla
+- Columna **# defecto** antes de Defecto. Al cargar basta con uno de los dos;
+  si vienen ambos y no coinciden, se rechaza el folio.
 - Columnas **Máquina de inspección** y **Máquina que genera**. Al cargar, se
   sigue aceptando `Máquina` o `Linea` como máquina de inspección. La máquina que
   genera es opcional en el archivo; si viene, debe estar en el catálogo y ser
@@ -1230,9 +1236,46 @@ romper lo anterior) y `maquinaGenera` la que genera.
 
 ---
 
-# SPEC-022 — Catálogo de defectos editable; editar y borrar etiquetas
+# SPEC-022 — Catálogo de defectos editable y numerado; editar y borrar etiquetas
 
-**Estado:** implementado (v1.12.0)
+**Estado:** implementado (v1.12.0); números y catálogo oficial en la v1.13.0
+
+### Catálogo oficial (v1.13.0)
+Calidad definió el 24 de noviembre de 2026 la lista oficial, numerada. Se
+quitaron cuatro defectos que hablaban de lo mismo que otros: ADHESIVO, FALTA
+DE TINTA, LAMINACIÓN y PEGADO.
+
+| # | Defecto | # | Defecto | # | Defecto |
+|---|---|---|---|---|---|
+| 1 | ANCHO PLANO | 13 | MANCHAS | 25 | DESPRENDIMIENTO |
+| 2 | DOBLEZ | 14 | PIOJOS | 26 | LIMPIEZA |
+| 3 | MANGA ABIERTA | 15 | POROSIDAD | 27 | MAL REFILADO |
+| 4 | MANGA PEGADA | 16 | RAYA | 28 | REFILADO MOVIDO |
+| 5 | PUNTEADO | 17 | REGISTRO | 29 | DESLAMINADO |
+| 6 | TRASLAPE | 18 | REMOSQUEO | 30 | ARRUGA |
+| 7 | EMPLASTADO | 19 | REPINTE | 31 | EMPALMES |
+| 8 | EXCESO DE PRESIÓN | 20 | RESEQUEDAD | 32 | SOBRE SUAJADO |
+| 9 | FALTA DE PRESIÓN | 21 | TABLETEO | 33 | GOLPE |
+| 10 | FUERA DE REGISTRO | 22 | TEXTO FALTANTE | 34 | GRABADO |
+| 11 | IMPRESIÓN FALTANTE | 23 | TONOS | 35 | CURLING |
+| 12 | LAGRIMEO | 24 | VELO | 36 | ONDULACIÓN |
+
+- La lista está en el código (`DEFECTOS_OFICIALES`, con su versión
+  `VERSION_CATALOGO`). **La primera vez que un administrador abre la app** con
+  un catálogo de otra versión, la app lo deja igual a la lista: pone el número
+  a los que ya existen (conservando su identificador), agrega los que falten y
+  **quita del catálogo** los que no están en ella. La versión aplicada queda en
+  `cal/defectosCatalogo`, así no vuelve a correr.
+- Lo ya registrado con un defecto quitado lo conserva y sigue contando en el
+  foco con ese nombre. Si alguno de los quitados debe sumarse a otro defecto,
+  falta decidir a cuál (ver «Trabajo pendiente de definir»).
+- Sin catálogo en la base, se siembra con esta lista.
+
+### Número de defecto
+- Cada defecto tiene **número** (`numero`), entero, sin repetirse. La tabla de
+  la galería lo muestra en la primera columna y ordena por él; Nuevo y Editar
+  piden número y nombre (al crear se sugiere el siguiente libre).
+- Las listas de defectos de toda la app van en orden de número.
 
 ### Catálogo de defectos
 - En la pestaña **Galería**, debajo de las etiquetas, una tabla **Defectos**
@@ -1279,6 +1322,10 @@ romper lo anterior) y `maquinaGenera` la que genera.
 ---
 
 # Trabajo pendiente de definir
+
+- **Defectos quitados del catálogo el 24/11/2026** (ADHESIVO, FALTA DE TINTA,
+  LAMINACIÓN, PEGADO): decidir si su historia se suma a otro defecto de la
+  lista. Si sí, se renombra cada uno al defecto destino y su historia se une.
 
 - **La matriz defecto ↔ variable** (SPEC-005), en junta de calidad, producción e
   ingeniería de procesos.

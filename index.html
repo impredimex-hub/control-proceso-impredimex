@@ -259,6 +259,8 @@ textarea.derivado[readonly]{background:var(--bg);color:var(--navy-dark);font-wei
 .r-def-cab{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
 .r-def-num{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--navy)}
 .r-def-m.derivado-m{background:var(--bg);color:var(--navy-dark);font-weight:600}
+.r-def-sel.invalido{border-color:var(--red)}
+.d-tabla td{font-weight:600}
 .r-def-nota{font-size:11px;color:var(--text3);margin-top:5px;line-height:1.4}
 .r-quitar{background:none;border:none;color:var(--red);font-size:12px;font-weight:600;cursor:pointer;padding:6px 0}
 .r-total{margin-top:10px;font-size:12.5px;color:var(--navy-dark);background:var(--navy-light);
@@ -503,6 +505,8 @@ main.ancha{max-width:1400px}
     </div>
   </section>
 
+  <datalist id="dl-defectos"></datalist>   <!-- SPEC-021: autocompletado de defectos -->
+
   <!-- Galería de etiquetas (SPEC-015) -->
   <section id="pg-galeria" class="hide">
     <div class="card">
@@ -522,6 +526,15 @@ main.ancha{max-width:1400px}
       <div class="gal-tabla-wrap"><table class="gal-tabla" id="g-tabla"></table></div>
       <div id="g-mas"></div>
     </div>
+    <!-- SPEC-022: catálogo de defectos -->
+    <div class="card">
+      <div class="card-t">Defectos</div>
+      <div class="gal-acciones" style="margin-top:0">
+        <span id="d-cuenta" class="r-cuenta">—</span>
+        <button class="btn btn-sm hide" id="d-nuevo" onclick="abrirDefecto(null)">Nuevo defecto</button>
+      </div>
+      <div class="gal-tabla-wrap" style="max-height:50vh"><table class="gal-tabla d-tabla" id="d-tabla"></table></div>
+    </div>
   </section>
 
   <!-- Merma (SPEC-018): formulario del día a día, carga de Excel mientras se
@@ -540,7 +553,11 @@ main.ancha{max-width:1400px}
         <div><label>Cliente</label><textarea id="r-etq-cliente" class="derivado" rows="1" readonly></textarea></div>
       </div>
       <div id="r-etq-aviso"></div>
-      <label>Máquina</label><select id="r-maquina"></select>
+      <!-- SPEC-021: donde se detecta y la que lo genera -->
+      <div class="row">
+        <div><label>Máquina de inspección</label><select id="r-maquina"></select></div>
+        <div><label>Máquina que genera</label><select id="r-maq-genera"></select></div>
+      </div>
       <div class="row r-persona">
         <div><label>Nómina Supervisor</label><input id="r-nom-sup" inputmode="numeric" autocomplete="off"
           oninput="rPersonaEscrita('sup')" onchange="rBuscarPersona('sup')"></div>
@@ -637,7 +654,12 @@ main.ancha{max-width:1400px}
    ═══════════════════════════════════════════════════════════════════════ */
 const DATOS = {"semilla": {"COR2": {"PUNTEADO": {"2025-09": 864}}, "COR3": {"PUNTEADO": {"2025-01": 846}}, "FL1": {"ARRUGA": {"2025-01": 2476, "2025-02": 4286, "2025-04": 848}, "CURLING": {"2025-01": 3238, "2025-03": 2119, "2025-08": 4263, "2026-06": 3667}, "DESLAMINADO": {"2025-02": 848, "2025-05": 848, "2025-08": 571, "2025-10": 380, "2025-11": 830}, "EXCESO DE PRESIÓN": {"2026-02": 671}, "FALTA DE PRESIÓN": {"2025-06": 1413, "2025-09": 492, "2026-01": 667, "2026-02": 524, "2026-03": 1079, "2026-04": 880, "2026-05": 3934, "2026-07": 4644}, "FALTA DE TINTA": {"2025-09": 1238, "2026-02": 574}, "FUERA DE REGISTRO": {"2026-03": 13469, "2026-04": 1055, "2026-05": 667}, "GRABADO": {"2025-03": 1695}, "IMPRESIÓN FALTANTE": {"2025-03": 378, "2025-04": 2084, "2025-05": 1238, "2025-06": 1272, "2025-08": 200, "2025-10": 1079, "2025-12": 1413}, "LAGRIMEO": {"2025-02": 6994}, "LAMINACIÓN": {"2025-01": 316, "2025-07": 1672}, "LIMPIEZA": {"2026-06": 695, "2026-07": 1747}, "MANCHAS": {"2025-01": 1918, "2025-02": 1719, "2025-03": 960, "2025-04": 962, "2025-05": 5832, "2025-06": 365, "2025-07": 1935, "2025-08": 633, "2025-09": 2128, "2025-10": 489, "2025-11": 1079, "2025-12": 695, "2026-02": 2001, "2026-03": 1650, "2026-04": 447, "2026-05": 18600, "2026-06": 209, "2026-07": 1341}, "PIOJOS": {"2025-08": 7430, "2026-05": 1775}, "POROSIDAD": {"2025-08": 7556, "2026-05": 3477}, "RAYA": {"2025-01": 848, "2025-02": 1511, "2025-03": 3702, "2025-04": 7329, "2025-06": 2068, "2025-07": 933, "2025-08": 3566, "2025-09": 1429, "2025-10": 489, "2025-12": 1238, "2026-01": 937, "2026-02": 646, "2026-03": 4887, "2026-04": 2296, "2026-05": 1079, "2026-06": 5362}, "REGISTRO": {"2025-01": 4239, "2026-01": 430, "2026-04": 527, "2026-06": 2191}, "REMOSQUEO": {"2025-01": 2543, "2025-02": 2265, "2025-03": 2797, "2025-06": 822, "2025-07": 2648, "2026-01": 1314, "2026-02": 701, "2026-03": 4363, "2026-07": 382}, "REPINTE": {"2025-03": 4662, "2025-04": 11387, "2025-09": 848, "2026-05": 4892}, "TABLETEO": {"2025-06": 619, "2025-08": 254, "2026-03": 833}, "TONOS": {"2025-02": 3673, "2026-03": 1667, "2026-06": 556}, "VELO": {"2025-06": 612, "2025-08": 300}}, "FL2": {"CURLING": {"2025-01": 1180}, "FALTA DE PRESIÓN": {"2026-01": 548, "2026-02": 1945}, "FUERA DE REGISTRO": {"2025-03": 548}, "LAGRIMEO": {"2026-06": 3112}, "PUNTEADO": {"2026-07": 600}, "RAYA": {"2025-10": 289, "2026-02": 2540, "2026-06": 1331}, "REGISTRO": {"2025-02": 548, "2025-12": 310}}, "FL3": {"ARRUGA": {"2025-10": 170, "2026-07": 571}, "DESLAMINADO": {"2026-05": 598}, "DESPRENDIMIENTO": {"2025-05": 2515, "2026-01": 1730}, "EMPLASTADO": {"2026-04": 5344}, "FALTA DE PRESIÓN": {"2026-06": 800, "2026-07": 305}, "FUERA DE REGISTRO": {"2026-04": 1956, "2026-05": 1466, "2026-06": 3077, "2026-07": 582}, "IMPRESIÓN FALTANTE": {"2025-02": 340, "2025-10": 635}, "LAMINACIÓN": {"2025-03": 510}, "MANCHAS": {"2025-03": 1238, "2025-08": 80, "2026-01": 1730, "2026-03": 2084, "2026-04": 865, "2026-05": 1683, "2026-07": 435}, "PIOJOS": {"2025-04": 223, "2026-02": 141, "2026-03": 1524, "2026-06": 797}, "RAYA": {"2025-07": 1083, "2025-08": 229, "2025-09": 35, "2026-02": 591, "2026-07": 2547}, "REGISTRO": {"2025-12": 1730, "2026-01": 1730, "2026-02": 108, "2026-04": 865}, "SOBRE SUAJADO": {"2025-06": 94, "2025-09": 4115, "2025-10": 12909, "2026-07": 461}, "VELO": {"2025-08": 41, "2026-07": 877}}, "FL4": {"ARRUGA": {"2025-07": 2159}, "CURLING": {"2025-04": 2400, "2025-08": 3186}, "DESLAMINADO": {"2025-02": 5640}, "EXCESO DE PRESIÓN": {"2026-02": 745}, "FALTA DE PRESIÓN": {"2025-07": 2015, "2026-05": 2674}, "FALTA DE TINTA": {"2026-02": 2235}, "FUERA DE REGISTRO": {"2026-02": 3604, "2026-03": 1079, "2026-07": 313}, "GRABADO": {"2025-08": 1079}, "IMPRESIÓN FALTANTE": {"2025-02": 1511, "2025-03": 1364, "2025-04": 3444, "2025-05": 1195, "2025-06": 1490, "2025-08": 745, "2025-11": 513, "2026-07": 1445}, "LAGRIMEO": {"2025-05": 197, "2026-06": 1490}, "MANCHAS": {"2025-02": 2433, "2025-03": 2159, "2025-04": 673, "2026-02": 578, "2026-03": 808, "2026-04": 1319, "2026-05": 1778}, "RAYA": {"2025-01": 2159, "2025-08": 407, "2026-06": 964, "2026-07": 777}, "REGISTRO": {"2025-05": 3077, "2025-07": 3553}, "REMOSQUEO": {"2025-03": 1741, "2026-03": 4420}, "TONOS": {"2025-04": 9954, "2025-11": 4655}, "VELO": {"2025-04": 586, "2025-07": 513}}, "LAM": {"ARRUGA": {"2025-10": 744}, "DESLAMINADO": {"2025-12": 903}, "LAMINACIÓN": {"2025-05": 8768}}, "LAM1": {"LAMINACIÓN": {"2026-07": 693}}, "OMEGA": {"DESPRENDIMIENTO": {"2025-07": 3, "2025-08": 80}}, "PEG": {"ADHESIVO": {"2026-05": 1510}}, "PEG1": {"ADHESIVO": {"2025-08": 352, "2025-09": 1162, "2025-10": 3729, "2025-11": 3315, "2025-12": 2357, "2026-01": 1058, "2026-02": 352, "2026-04": 2121, "2026-05": 421, "2026-06": 2408, "2026-07": 3357}, "ANCHO PLANO": {"2025-03": 283, "2026-05": 350}, "DOBLEZ": {"2025-03": 86}, "MANGA PEGADA": {"2025-02": 352, "2025-06": 3143, "2025-07": 352, "2026-07": 730}, "PEGADO": {"2025-08": 400}, "PUNTEADO": {"2025-02": 2848, "2025-03": 1410, "2025-04": 1762, "2025-07": 1706, "2025-09": 2400, "2025-11": 600, "2026-01": 2220}, "TRASLAPE": {"2025-07": 1482}}, "PEG1 ": {"ADHESIVO": {"2025-02": 705}}, "PEG2": {"ADHESIVO": {"2025-05": 1231, "2025-06": 705, "2025-07": 888, "2025-08": 12002, "2025-09": 3878, "2025-10": 5001, "2025-11": 705, "2025-12": 62, "2026-02": 1219, "2026-04": 692, "2026-05": 1288, "2026-06": 3020}, "ANCHO PLANO": {"2025-02": 833, "2025-03": 2468, "2025-05": 1799, "2025-10": 1202, "2025-12": 2596, "2026-04": 2115, "2026-06": 1802, "2026-07": 2026}, "DOBLEZ": {"2025-04": 338, "2025-10": 338, "2025-12": 125, "2026-01": 1762}, "EMPALMES": {"2026-04": 705}, "MANGA ABIERTA": {"2026-03": 533}, "MANGA PEGADA": {"2025-01": 352, "2025-02": 837, "2025-04": 1363, "2025-05": 2016, "2025-06": 5640, "2025-12": 1013}, "PEGADO": {"2026-01": 730}, "PUNTEADO": {"2025-01": 2468, "2025-02": 705, "2025-04": 1762, "2025-07": 352, "2025-08": 1355, "2026-04": 352, "2026-06": 600}, "TRASLAPE": {"2026-06": 2010}}, "PEG3": {"ADHESIVO": {"2026-03": 375}, "ANCHO PLANO": {"2025-05": 625}, "TRASLAPE": {"2025-05": 375}}, "PEG7": {"PUNTEADO": {"2026-06": 600}}, "REF1": {"ADHESIVO": {"2026-06": 680}, "EMPALMES": {"2026-05": 750, "2026-06": 189}, "MANCHAS": {"2026-03": 829}, "REFILADO MOVIDO": {"2025-08": 465}}, "REF2": {"MAL REFILADO": {"2025-06": 736}, "REFILADO MOVIDO": {"2025-11": 1287}}, "REF3": {"MAL REFILADO": {"2025-07": 1655}, "ONDULACIÓN": {"2025-09": 47}}, "REV4": {"ARRUGA": {"2025-10": 189}}, "RT5": {"LAGRIMEO": {"2025-01": 737}, "MANCHAS": {"2025-05": 455}, "RAYA": {"2025-06": 69}, "REGISTRO": {"2025-01": 369}}, "RT6": {"ADHESIVO": {"2025-08": 352, "2026-02": 1058, "2026-05": 352}, "ANCHO PLANO": {"2026-07": 338}, "DESPRENDIMIENTO": {"2025-05": 682}, "EMPALMES": {"2026-06": 536, "2026-07": 352}, "FALTA DE PRESIÓN": {"2025-12": 540, "2026-05": 3850}, "FALTA DE TINTA": {"2026-02": 352, "2026-07": 1735}, "FUERA DE REGISTRO": {"2025-10": 189, "2026-02": 352, "2026-04": 352, "2026-06": 1407, "2026-07": 705}, "IMPRESIÓN FALTANTE": {"2025-03": 2468, "2025-05": 590, "2025-11": 352}, "LAGRIMEO": {"2025-01": 5970, "2025-02": 4632, "2025-03": 705, "2025-04": 3878, "2025-05": 1800, "2025-06": 4582, "2025-07": 690, "2025-09": 705, "2025-10": 633, "2026-01": 3784, "2026-02": 352, "2026-03": 2018, "2026-04": 1058, "2026-05": 1441, "2026-06": 705, "2026-07": 400}, "MAL REFILADO": {"2025-04": 352, "2025-07": 705}, "MANCHAS": {"2025-01": 1474, "2025-02": 705, "2025-04": 189, "2025-05": 9442, "2025-06": 352, "2025-09": 705, "2025-10": 3878, "2025-11": 705, "2026-01": 1762, "2026-02": 705, "2026-04": 2115, "2026-05": 700, "2026-06": 3163, "2026-07": 1815}, "MANGA PEGADA": {"2025-09": 352}, "PEGADO": {"2026-02": 352}, "PIOJOS": {"2025-03": 352, "2025-06": 352}, "PUNTEADO": {"2026-07": 1072}, "RAYA": {"2006-06": 1072, "2025-01": 417, "2025-02": 3860, "2025-03": 984, "2025-04": 3133, "2025-05": 6095, "2025-06": 7755, "2025-07": 5606, "2025-08": 3159, "2025-09": 3896, "2025-10": 8258, "2025-11": 3502, "2025-12": 352, "2026-01": 13673, "2026-02": 3525, "2026-04": 9124, "2026-05": 7000, "2026-06": 10763, "2026-07": 12984}, "REFILADO MOVIDO": {"2025-01": 833, "2025-09": 1410, "2026-05": 1510}, "REGISTRO": {"2025-01": 833, "2025-02": 3750, "2025-05": 7988, "2025-06": 2115, "2026-01": 1175, "2026-02": 1058, "2026-03": 338, "2026-04": 705, "2026-05": 4675, "2026-06": 2235, "2026-07": 1762}, "REPINTE": {"2025-07": 321, "2026-05": 705, "2026-07": 1058}, "RESEQUEDAD": {"2025-01": 1925, "2025-04": 705, "2025-05": 352, "2025-11": 352, "2026-04": 352, "2026-05": 1514, "2026-07": 352}, "TONOS": {"2025-02": 2115, "2025-04": 3525, "2025-10": 1058, "2026-01": 705, "2026-02": 352}, "VELO": {"2025-02": 1058, "2025-03": 4925, "2025-04": 352, "2025-05": 1132, "2025-06": 804, "2025-09": 352, "2025-10": 705, "2026-02": 352, "2026-05": 1410, "2026-06": 1271, "2026-07": 400}}, "RT7": {"ADHESIVO": {"2025-08": 562, "2025-11": 1287, "2026-02": 482, "2026-04": 400, "2026-05": 755}, "ARRUGA": {"2025-05": 1028, "2026-04": 347}, "DESPRENDIMIENTO": {"2025-04": 23166}, "EXCESO DE PRESIÓN": {"2026-02": 400, "2026-07": 2666}, "FALTA DE PRESIÓN": {"2026-03": 2133, "2026-05": 141, "2026-07": 3469}, "FALTA DE TINTA": {"2026-02": 966, "2026-06": 340}, "FUERA DE REGISTRO": {"2025-10": 378, "2026-02": 1154, "2026-03": 493, "2026-05": 1435, "2026-06": 4169, "2026-07": 513}, "GOLPE": {"2025-12": 3895, "2026-02": 5967}, "IMPRESIÓN FALTANTE": {"2025-02": 1414, "2025-03": 40900, "2025-04": 1053, "2025-06": 566, "2025-11": 15600, "2026-03": 566}, "LAGRIMEO": {"2025-01": 2746, "2025-02": 682, "2025-03": 755, "2025-04": 363, "2025-05": 6862, "2025-06": 3034, "2025-07": 7293, "2025-08": 3671, "2025-09": 3845, "2025-10": 7434, "2025-11": 7639, "2025-12": 508, "2026-01": 2574, "2026-02": 9177, "2026-03": 600, "2026-04": 3107, "2026-05": 5743, "2026-06": 12432, "2026-07": 8846}, "LIMPIEZA": {"2025-11": 1399}, "MAL REFILADO": {"2026-03": 189}, "MANCHAS": {"2025-01": 8835, "2025-02": 562, "2025-03": 189, "2025-04": 2932, "2025-05": 2913, "2025-06": 1666, "2025-07": 1314, "2025-09": 682, "2025-11": 1544, "2025-12": 378, "2026-01": 603, "2026-02": 944, "2026-03": 5266, "2026-04": 529, "2026-05": 2228, "2026-06": 1209, "2026-07": 4099}, "MANGA PEGADA": {"2025-01": 189, "2025-07": 1072}, "PEGADO": {"2026-02": 965}, "PIOJOS": {"2025-06": 566, "2026-02": 800}, "POROSIDAD": {"2025-08": 4500}, "PUNTEADO": {"2025-08": 3900}, "RAYA": {"2025-02": 944, "2025-03": 771, "2025-04": 2250, "2025-06": 8868, "2025-07": 11853, "2025-08": 2631, "2025-09": 3281, "2025-10": 189, "2025-11": 827, "2026-01": 9044, "2026-02": 2574, "2026-03": 6637, "2026-04": 3645, "2026-05": 3675, "2026-06": 5175, "2026-07": 15850}, "REFILADO MOVIDO": {"2025-06": 730, "2025-10": 378}, "REGISTRO": {"2025-02": 536, "2025-03": 257, "2025-05": 1942, "2025-06": 378, "2025-07": 15455, "2025-08": 751, "2025-11": 5242, "2025-12": 566, "2026-01": 13777, "2026-02": 4201, "2026-03": 755, "2026-04": 378, "2026-05": 2575, "2026-06": 1678, "2026-07": 4031}, "REMOSQUEO": {"2025-08": 5454, "2026-02": 3600}, "REPINTE": {"2025-03": 830, "2026-05": 1200}, "RESEQUEDAD": {"2025-02": 786, "2026-05": 924}, "TEXTO FALTANTE": {"2026-02": 566, "2026-05": 400}, "TONOS": {"2026-03": 349, "2026-05": 1079, "2026-06": 600}, "TRASLAPE": {"2026-06": 1255}, "VELO": {"2025-01": 3457, "2025-03": 771, "2025-05": 11416, "2025-06": 2069, "2025-07": 6698, "2025-09": 1125, "2025-10": 1855, "2025-11": 2727, "2025-12": 566, "2026-01": 1363, "2026-02": 5177, "2026-03": 2045, "2026-04": 1202, "2026-05": 777, "2026-06": 340, "2026-07": 1602}}, "XEIKON": {"PIOJOS": {"2025-08": 1}, "REPINTE": {"2025-07": 370}}}, "defectos": ["ADHESIVO", "ANCHO PLANO", "ARRUGA", "CURLING", "DESLAMINADO", "DESPRENDIMIENTO", "DOBLEZ", "EMPALMES", "EMPLASTADO", "EXCESO DE PRESIÓN", "FALTA DE PRESIÓN", "FALTA DE TINTA", "FUERA DE REGISTRO", "GOLPE", "GRABADO", "IMPRESIÓN FALTANTE", "LAGRIMEO", "LAMINACIÓN", "LIMPIEZA", "MAL REFILADO", "MANCHAS", "MANGA ABIERTA", "MANGA PEGADA", "ONDULACIÓN", "PEGADO", "PIOJOS", "POROSIDAD", "PUNTEADO", "RAYA", "REFILADO MOVIDO", "REGISTRO", "REMOSQUEO", "REPINTE", "RESEQUEDAD", "SOBRE SUAJADO", "TABLETEO", "TEXTO FALTANTE", "TONOS", "TRASLAPE", "VELO"], "maquinas": [{"id": "RT7", "area": "ROTOGRABADO"}, {"id": "RT6", "area": "ROTOGRABADO"}, {"id": "RT5", "area": "ROTOGRABADO"}, {"id": "FL1", "area": "FLEXOGRAFIA"}, {"id": "FL2", "area": "FLEXOGRAFIA"}, {"id": "FL3", "area": "FLEXOGRAFIA"}, {"id": "FL4", "area": "FLEXOGRAFIA"}, {"id": "PEG1", "area": "PEGADO"}, {"id": "PEG2", "area": "PEGADO"}, {"id": "PEG3", "area": "PEGADO"}, {"id": "PEG7", "area": "PEGADO"}, {"id": "REF1", "area": "REFILADO"}, {"id": "REF2", "area": "REFILADO"}, {"id": "REF3", "area": "REFILADO"}, {"id": "LAM1", "area": "REFILADO"}, {"id": "COR2", "area": "CORTE"}, {"id": "COR3", "area": "CORTE"}, {"id": "REV4", "area": "REVISADO"}, {"id": "XEIKON", "area": "DIGITAL"}, {"id": "OMEGA", "area": "DIGITAL"}]};
 const SEMILLA  = DATOS.semilla;
-const DEFECTOS = DATOS.defectos;
+// SPEC-022: el catálogo vive en cal/defectos; los del código son el punto de
+// partida y el respaldo mientras la base no responde.
+let DEFECTOS = DATOS.defectos.slice();
+let DEFECTOS_DB = null;          // {id: {nombre, ...}} tal como está en la base
+let ALIAS_DEF = {};              // cal/defectosRenombrados: {anterior: nuevo}
+let defSembrado = false;
 const MAQUINAS = DATOS.maquinas;
 
 let db=null, suiteAuth=null, suiteDb=null;
@@ -795,7 +817,7 @@ function verPagina(id, btn){
   if(id==='historial') pintarHistorial();
   if(id==='tendencia') pintarTendencia();
   if(id==='matriz')    cargarMatriz();
-  if(id==='galeria')   leerGaleria(false);
+  if(id==='galeria'){  leerGaleria(false); pintarDefectos(); }
   if(id==='merma')     prepararMerma();
   // SPEC-015: la tabla de la galería aprovecha la pantalla ancha.
   document.querySelector('main').classList.toggle('ancha', id==='galeria');
@@ -805,8 +827,7 @@ function poblarSelects(){
   const om = MAQUINAS.map(m=>`<option value="${m.id}">${m.id} · ${m.area}</option>`).join('');
   $('f-maquina').innerHTML = om; $('t-maquina').innerHTML = om;
   $('m-maquina').innerHTML = '<option value="">— Todas —</option>' + om;
-  const od = DEFECTOS.map(d=>`<option>${d}</option>`).join('');
-  $('t-defecto').innerHTML = od; $('m-defecto').innerHTML = od;
+  actualizarListasDefectos();
   pintarTurno();
   pintarFoco();
 }
@@ -846,6 +867,17 @@ async function conectar(){
                         registros:v.registros, ultimoMes:v.ultimoMes} : null;
     MERMA_COMBINADA = null; pintarFoco(); pintarFuenteMerma();
   }, fallo('cal/merma'));
+  // SPEC-022: catálogo de defectos y renombres. Sin catálogo en la base, el
+  // primer administrador que entra lo siembra con los del código.
+  db.ref('cal/defectos').on('value', s=>{
+    const v = s.val(); DEFECTOS_DB = v;
+    if(!v){ if(sesion.rol==='ADMIN' && !defSembrado){ defSembrado = true; sembrarDefectos(); } DEFECTOS = DATOS.defectos.slice(); }
+    else DEFECTOS = Object.values(v).map(x=>x.nombre).filter(Boolean).sort((a,b)=>a.localeCompare(b,'es'));
+    actualizarListasDefectos(); pintarDefectos();
+  }, fallo('cal/defectos'));
+  db.ref('cal/defectosRenombrados').on('value', s=>{
+    ALIAS_DEF = s.val() || {}; MERMA_COMBINADA = null; pintarFoco(); pintarTendencia();
+  }, fallo('cal/defectosRenombrados'));
   // SPEC-018: el resumen de los rechazos. Si no existe, se arma una vez.
   db.ref('cal/mermaResumen').on('value', s=>{
     RESUMEN = s.val();
@@ -887,9 +919,10 @@ function combinarMerma(){
     const d = ((out[maq] = out[maq]||{})[def] = out[maq][def]||{});
     d[mes] = +((d[mes]||0) + v).toFixed(3);
   };
-  Object.keys(base).forEach(maq=>Object.keys(base[maq]).forEach(def=>Object.keys(base[maq][def]).forEach(mes=>{
-    if(!corte || mes < corte) sumar(maq, def, mes, base[maq][def][mes]);
-  })));
+  // SPEC-022: la base histórica no se reescribe; los defectos renombrados se leen con su nombre nuevo.
+  Object.keys(base).forEach(maq=>Object.keys(base[maq]).forEach(def=>{ const d2 = resolverAlias(def);
+    Object.keys(base[maq][def]).forEach(mes=>{ if(!corte || mes < corte) sumar(maq, d2, mes, base[maq][def][mes]); });
+  }));
   Object.keys(res).forEach(maq=>Object.keys(res[maq]||{}).forEach(def=>Object.keys(res[maq][def]||{}).forEach(mes=>{
     sumar(maq, def, mes, res[maq][def][mes]);
   })));
@@ -1422,6 +1455,8 @@ function prepararMerma(){
   $('m-carga').classList.toggle('hide', sesion.rol!=='ADMIN');   // SPEC-018
   pintarFuenteMerma();
   if(!$('r-maquina').options.length){
+    $('r-maq-genera').innerHTML = '<option value="">— Selecciona —</option>' +
+      MAQUINAS.map(m=>`<option value="${m.id}">${m.id} · ${m.area}</option>`).join('');
     $('r-maquina').innerHTML = '<option value="">— Selecciona —</option>' +
       MAQUINAS.map(m=>`<option value="${m.id}">${m.id} · ${m.area}</option>`).join('');
     agregarDefectoRechazo();
@@ -1509,8 +1544,10 @@ async function guardarRechazo(){
   // En edición, lo que el original no traía (por ejemplo, de un Excel) puede seguir sin venir.
   const ed = rEditando;
   if(!$('r-etiqueta').value.trim() && !(ed && !ed.etiqueta)) return err('Escribe el # de etiqueta.');
-  const maquina = $('r-maquina').value;
-  if(!maquina) return err('Elige la máquina.');
+  const maquina = $('r-maquina').value, maquinaGenera = $('r-maq-genera').value;
+  if(!maquina) return err('Elige la máquina de inspección.');
+  // SPEC-021: al editar un rechazo anterior sin máquina que genera, puede seguir sin ella.
+  if(!maquinaGenera && !(rEditando && !rEditando.maquinaGenera)) return err('Elige la máquina que genera el defecto.');
 
   const per = {};
   for(const p of R_PERSONAS){
@@ -1534,7 +1571,7 @@ async function guardarRechazo(){
   const defectos = lin.defectos;
 
   const etq = await rBuscarEtiqueta(true) || {clave: claveEtiq($('r-etiqueta').value), encontrada:null};
-  if(ed) return guardarEdicion({folio, maquina, per, defectos, etq}, err);
+  if(ed) return guardarEdicion({folio, maquina, maquinaGenera, per, defectos, etq}, err);
   $('r-guardar').disabled = true;
   let folioApartado = false;
   try{
@@ -1542,7 +1579,7 @@ async function guardarRechazo(){
     const rec = {
       folio, etiqueta: etq.clave,
       etiquetaNombre: $('r-etq-nombre').value.trim(), etiquetaCliente: $('r-etq-cliente').value.trim(),
-      maquina, ...per, defectos,
+      maquina, maquinaGenera, ...per, defectos,
       metrosTotal:  +defectos.reduce((a,d)=>a+d.metros, 0).toFixed(3),
       bobinasTotal: defectos.reduce((a,d)=>a+(d.bobinas||0), 0),
       etiquetasTotal: defectos.reduce((a,d)=>a+(d.etiquetas||0), 0),
@@ -1576,7 +1613,7 @@ async function guardarRechazo(){
 
 function limpiarRechazo(){
   ['r-folio','r-etiqueta','r-nom-sup','r-nom-ope'].forEach(i=>$(i).value='');
-  $('r-maquina').value = '';
+  $('r-maquina').value = ''; $('r-maq-genera').value = '';
   $('r-defectos').innerHTML = ''; agregarDefectoRechazo(); totalRechazo();
   rEtiquetaEscrita(); rPersonaEscrita('sup'); rPersonaEscrita('ope');
   // La nómina del inspector se queda: suele capturar varios rechazos seguidos.
@@ -1588,7 +1625,8 @@ function agregarDefectoRechazo(){
   div.innerHTML = `<div class="r-def-cab"><span class="r-def-num"></span>
       <button type="button" class="r-quitar" onclick="quitarDefectoRechazo(this)">Quitar</button></div>
     <label>Defecto</label>
-    <select class="r-def-sel"><option value="">— Selecciona —</option>${DEFECTOS.map(d=>`<option>${d}</option>`).join('')}</select>
+    <input class="r-def-sel" list="dl-defectos" placeholder="Escribe o elige el defecto" autocomplete="off"
+      autocapitalize="characters" onchange="normalizarDefecto(this)">
     <div class="row">
       <div><label>Cantidad rechazada (número de etiquetas)</label>
         <input class="r-def-e" inputmode="numeric" autocomplete="off" oninput="recalcularLinea(this.closest('.r-def'))"></div>
@@ -1668,7 +1706,9 @@ function leerDefectosRechazo(enEdicion){
   const defectos = [], vistos = new Set();
   for(let i=0; i<ls.length; i++){
     const n = ls.length>1 ? `Defecto ${i+1}: ` : '';
-    const d = ls[i].querySelector('.r-def-sel').value;
+    const escrito = ls[i].querySelector('.r-def-sel').value.trim();
+    const d = defectoDeTexto(escrito);           // SPEC-021: del catálogo, sin importar acentos
+    if(escrito && !d) return {error: n + `«${escrito}» no está en el catálogo de defectos.`};
     const metros = numDe(ls[i].querySelector('.r-def-m').value), bobinas = numDe(ls[i].querySelector('.r-def-b').value);
     const etiquetas = numDe(ls[i].querySelector('.r-def-e').value);
     if(!d) return {error: n + 'elige el defecto.'};
@@ -1709,7 +1749,8 @@ const R_COLUMNAS = [
   {t:'# de etiqueta',      v:r=>r.etiqueta,         w:11, folio:true},
   {t:'Nombre de etiqueta', v:r=>r.etiquetaNombre,   w:40, folio:true},
   {t:'Cliente',            v:r=>r.etiquetaCliente,  w:36, folio:true},
-  {t:'Máquina',            v:r=>r.maquina,          w:10, folio:true},
+  {t:'Máquina de inspección', v:r=>r.maquina,      w:12, folio:true},
+  {t:'Máquina que genera', v:r=>r.maquinaGenera,    w:12, folio:true},    // SPEC-021
   {t:'Defecto',            v:(r,d)=>d.defecto,      w:20},
   {t:'Etiquetas rechazadas', v:(r,d)=>d.etiquetas,  w:12, num:true},    // SPEC-020
   {t:'Metros lineales',    v:(r,d)=>d.metros,       w:13, num:true},
@@ -1866,10 +1907,12 @@ function sumarPorMes(recs){
   const acc = {};
   recs.forEach(r=>{
     const mes = String(r.fecha||'').slice(0,7);
-    if(!/^\d{4}-\d{2}$/.test(mes) || !r.maquina || !claveValida(r.maquina)) return;
+    // SPEC-021: los metros cuentan en la máquina que genera; sin ella, en la de inspección.
+    const maq = r.maquinaGenera || r.maquina;
+    if(!/^\d{4}-\d{2}$/.test(mes) || !maq || !claveValida(maq)) return;
     defectosDe(r).forEach(d=>{
       if(!(+d.metros>0) || !d.defecto || !claveValida(d.defecto)) return;
-      const x = ((acc[r.maquina] = acc[r.maquina]||{})[d.defecto] = acc[r.maquina][d.defecto]||{});
+      const x = ((acc[maq] = acc[maq]||{})[d.defecto] = acc[maq][d.defecto]||{});
       x[mes] = +((x[mes]||0) + (+d.metros)).toFixed(3);
     });
   });
@@ -1936,10 +1979,11 @@ function descargarPlantilla(){
   ws['!rows'] = [{hpt:30}];
 
   const n = Math.max(MAQUINAS.length, DEFECTOS.length);
-  const filas = [['Máquina','Área','','Defecto']];
+  const filas = [['Máquina','Área','','Defecto']];   // sirve para las dos columnas de máquina
   for(let i=0;i<n;i++) filas.push([MAQUINAS[i]?MAQUINAS[i].id:'', MAQUINAS[i]?MAQUINAS[i].area:'', '', DEFECTOS[i]||'']);
   filas.push([], ['Un renglón por defecto. Varios renglones con el mismo folio son un mismo rechazo.'],
-    ['Obligatorios: Folio, Fecha, Máquina, Defecto y Etiquetas rechazadas.'],
+    ['Obligatorios: Folio, Fecha, Máquina de inspección, Defecto y Etiquetas rechazadas.'],
+    ['Máquina que genera: la que provoca el defecto. Con ella cuenta el foco; si va vacía, cuenta la de inspección.'],
     ['Metros lineales = (Etiquetas rechazadas × (Med_des / 100)) / Repeticiones, con las medidas de la galería.'],
     ['Solo si la etiqueta no tiene medidas en la galería se toman los Metros lineales del archivo.'],
     ['Turno: Matutino, Vespertino o Nocturno. Bobinas: número entero.'],
@@ -1964,7 +2008,8 @@ const R_ENCABEZADOS = {
   etiqueta:['#deetiqueta','#etiqueta','etiqueta','etiq','numerodeetiqueta'],
   etiquetaNombre:['nombredeetiqueta','nombreetiqueta','nombreetiq'],
   etiquetaCliente:['cliente'],
-  maquina:['maquina','linea'],
+  maquina:['maquinadeinspeccion','maquina','linea'],
+  maquinaGenera:['maquinaquegenera','maquinagenera','maquinaquegeneraeldefecto'],
   defecto:['defecto'],
   metros:['metroslineales','cantidadrechazada(metroslineales)','mtsrechazados','metrosrechazados','metros'],
   etiquetasRech:['etiquetasrechazadas','cantidadrechazada(numerodeetiquetas)','numerodeetiquetasrechazadas','etiquetas'],
@@ -2025,7 +2070,7 @@ async function procesarExcelRechazos(filas){
   const faltan = ['folio','fecha','maquina','defecto'].filter(f=>col[f]===undefined);
   if(col.metros===undefined && col.etiquetasRech===undefined) faltan.push('cantidad');
   if(faltan.length){
-    const nombres = {folio:'Folio', fecha:'Fecha', maquina:'Máquina', defecto:'Defecto',
+    const nombres = {folio:'Folio', fecha:'Fecha', maquina:'Máquina de inspección', defecto:'Defecto',
                      cantidad:'Etiquetas rechazadas o Metros lineales'};
     $('m-previa').innerHTML = `<div class="aviso aviso-amber" style="margin-top:12px">Al archivo le
       faltan columnas: ${faltan.map(f=>'<b>'+nombres[f]+'</b>').join(', ')}. Descarga la plantilla para
@@ -2065,6 +2110,10 @@ async function procesarExcelRechazos(filas){
     // Los datos del folio deben coincidir en todos sus renglones.
     if(F.filas.some(x=>fechaDeCelda(celda(x.r,'fecha'))!==fecha)){ rechazar(F, 'fechas distintas en el mismo folio'); continue; }
     if(F.filas.some(x=>txt(celda(x.r,'maquina')).toUpperCase()!==maquina)){ rechazar(F, 'máquinas distintas en el mismo folio'); continue; }
+    // SPEC-021: la máquina que genera es opcional; si viene, del catálogo y la misma en todo el folio.
+    const maquinaGenera = txt(celda(p,'maquinaGenera')).toUpperCase();
+    if(maquinaGenera && !maqs.has(maquinaGenera)){ rechazar(F, 'máquina que genera fuera del catálogo'); continue; }
+    if(F.filas.some(x=>txt(celda(x.r,'maquinaGenera')).toUpperCase()!==maquinaGenera)){ rechazar(F, 'máquinas que generan distintas en el mismo folio'); continue; }
 
     let turno = '';
     const tt = norm(celda(p,'turno'));
@@ -2104,7 +2153,7 @@ async function procesarExcelRechazos(filas){
     });
 
     candidatos.push({
-      folio, fecha, turno, maquina, defectos, med: calculado ? med : null,
+      folio, fecha, turno, maquina, maquinaGenera, defectos, med: calculado ? med : null,
       etiqueta: primero('etiqueta') ? claveEtiq(primero('etiqueta')) : '',
       etiquetaNombre: primero('etiquetaNombre'), etiquetaCliente: primero('etiquetaCliente'),
       supervisorNomina: primero('supervisorNomina'), supervisorNombre: primero('supervisorNombre'),
@@ -2135,6 +2184,7 @@ async function procesarExcelRechazos(filas){
       ts: new Date(+c.fecha.slice(0,4), +c.fecha.slice(5,7)-1, +c.fecha.slice(8,10), 12).getTime(),
       origen:'excel', cargadoEn: ahora, capturoNomina: sesion.nomina, capturoNombre: sesion.nombre};
     if(c.turno) r.turno = c.turno;
+    if(c.maquinaGenera) r.maquinaGenera = c.maquinaGenera;
     if(c.med){ r.medDes = c.med.medDes; r.repeticiones = c.med.rep; }   // SPEC-020
     if(c.etiqueta){
       r.etiqueta = c.etiqueta;
@@ -2290,6 +2340,7 @@ async function editarRechazo(id){
   $('r-folio').value = r.folio || '';
   $('r-etiqueta').value = r.etiqueta || ''; rEtiquetaEscrita();
   $('r-maquina').value = r.maquina || '';
+  $('r-maq-genera').value = r.maquinaGenera || '';
   R_PERSONAS.forEach(p=>{ $('r-nom-'+p.id).value = r[p.campo+'Nomina'] || ''; rPersonaEscrita(p.id); });
   $('r-defectos').innerHTML = '';
   const defs = defectosDe(r);
@@ -2345,7 +2396,7 @@ async function guardarEdicion(d, err){
   const viejo = rEditando, id = viejo._id;
   const {_id, ...antes} = viejo;
   const ahora = new Date().toISOString();
-  const rec = {...antes, folio:d.folio, maquina:d.maquina, ...d.per, defectos:d.defectos,
+  const rec = {...antes, folio:d.folio, maquina:d.maquina, maquinaGenera:d.maquinaGenera, ...d.per, defectos:d.defectos,
     metrosTotal:  +d.defectos.reduce((a,x)=>a+x.metros, 0).toFixed(3),
     bobinasTotal: d.defectos.reduce((a,x)=>a+(x.bobinas||0), 0),
     etiquetasTotal: d.defectos.reduce((a,x)=>a+(x.etiquetas||0), 0),
@@ -2387,6 +2438,190 @@ async function guardarEdicion(d, err){
     if(nuevoApartado) db.ref('cal/merma2Folios/'+d.folio).remove().catch(()=>{});
     err('No se pudo guardar: '+e.message);
   }finally{ $('r-guardar').disabled = false; }
+}
+
+/* ═══════════════ CATÁLOGO DE DEFECTOS (SPEC-021, SPEC-022) ═══════════════ */
+// Clave segura para usar un nombre de defecto como clave de la base.
+const claveDef = d => String(d).replace(/[.#$\/\[\]]/g,'_');
+
+// Un defecto escrito, tal como está en el catálogo; sin importar acentos ni mayúsculas.
+function defectoDeTexto(t){
+  const n = norm(t); if(!n) return null;
+  return DEFECTOS.find(d=>norm(d)===n) || null;
+}
+function normalizarDefecto(el){
+  const d = defectoDeTexto(el.value);
+  if(d) el.value = d;
+  el.classList.toggle('invalido', !!el.value.trim() && !d);
+}
+
+// Nombre vigente de un defecto, siguiendo los renombres (para la base histórica).
+function resolverAlias(d){
+  for(let i=0; i<6; i++){ const n = ALIAS_DEF[claveDef(d)]; if(!n || n===d) break; d = n; }
+  return d;
+}
+
+// Cuando cambia el catálogo, se rehacen las listas que lo usan.
+function actualizarListasDefectos(){
+  const od = DEFECTOS.map(d=>`<option>${esc(d)}</option>`).join('');
+  ['t-defecto','m-defecto'].forEach(id=>{ const el = $(id); if(!el) return; const v = el.value; el.innerHTML = od; if(v) el.value = v; });
+  $('dl-defectos').innerHTML = DEFECTOS.map(d=>`<option value="${esc(d)}">`).join('');
+}
+
+async function sembrarDefectos(){
+  const upd = {}, ahora = new Date().toISOString();
+  DATOS.defectos.forEach(n=>{ upd[db.ref('cal/defectos').push().key] = {nombre:n, creadoPor:sesion.nomina, creadoEn:ahora}; });
+  await db.ref('cal/defectos').set(upd).catch(e=>console.error('Sembrar defectos:', e));
+}
+
+function pintarDefectos(){
+  const t = $('d-tabla'); if(!t) return;
+  const esAdmin = sesion.rol==='ADMIN';
+  $('d-nuevo').classList.toggle('hide', !esAdmin);
+  const lista = DEFECTOS_DB ? Object.keys(DEFECTOS_DB).map(id=>({id, ...DEFECTOS_DB[id]})).filter(x=>x.nombre)
+                                .sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'))
+                            : DEFECTOS.map(n=>({id:null, nombre:n}));
+  $('d-cuenta').textContent = `${lista.length} defectos`;
+  t.innerHTML = `<thead><tr><th>Defecto</th>${esAdmin ? '<th>Editar</th><th>Borrar</th>' : ''}</tr></thead><tbody>` +
+    lista.map(x=>`<tr><td>${esc(x.nombre)}</td>${esAdmin && x.id ?
+      `<td class="r-acc-td"><button class="r-acc" onclick="abrirDefecto('${x.id}')">Editar</button></td>
+       <td class="r-acc-td"><button class="r-acc r-acc-borrar" onclick="pedirBorrarDefecto('${x.id}')">Borrar</button></td>` :
+      (esAdmin ? '<td></td><td></td>' : '')}</tr>`).join('') + '</tbody>';
+}
+
+/* Nuevo (id = null) o renombrar un defecto. */
+function abrirDefecto(id){
+  if(sesion.rol!=='ADMIN') return;
+  const x = id ? DEFECTOS_DB[id] : null;
+  cerrarModal('modal-defecto');
+  const c = document.createElement('div'); c.className='modal'; c.id='modal-defecto';
+  c.innerHTML = `<div class="modal-box">
+    <div class="modal-t">${x ? 'Editar defecto' : 'Nuevo defecto'}</div>
+    <label>Nombre</label>
+    <input id="d-nombre" value="${x ? esc(x.nombre) : ''}" autocapitalize="characters" maxlength="40" autocomplete="off">
+    ${x ? `<div class="aviso" style="margin:10px 0 0">Al cambiar el nombre se actualiza en todo lo registrado:
+      rechazos, hallazgos, matriz y foco, para que no queden dos nombres para lo mismo.</div>` : ''}
+    <div id="d-err" style="color:var(--red);font-size:12.5px;margin-top:8px"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn btn-2" style="margin:0" onclick="cerrarModal('modal-defecto')">Cancelar</button>
+      <button class="btn" style="margin:0" id="d-ok" onclick="guardarDefecto(${x ? `'${id}'` : 'null'})">Guardar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(c);
+  $('d-nombre').focus();
+}
+
+async function guardarDefecto(id){
+  const err = m => { $('d-err').textContent = m; };
+  const nombre = $('d-nombre').value.trim().replace(/\s+/g,' ').toUpperCase();
+  if(!nombre) return err('Escribe el nombre.');
+  if(!claveValida(nombre)) return err('El nombre no puede llevar . # $ / [ ]');
+  const viejo = id ? DEFECTOS_DB[id].nombre : null;
+  if(viejo === nombre){ cerrarModal('modal-defecto'); return; }
+  const otro = Object.keys(DEFECTOS_DB||{}).find(k=>k!==id && norm(DEFECTOS_DB[k].nombre)===norm(nombre));
+  if(otro) return err(`Ya existe «${DEFECTOS_DB[otro].nombre}».`);
+  $('d-ok').disabled = true;
+  try{
+    if(!id){
+      await db.ref('cal/defectos').push({nombre, creadoPor:sesion.nomina, creadoEn:new Date().toISOString()});
+      toast(`Defecto ${nombre} agregado`);
+    } else {
+      $('d-ok').textContent = 'Actualizando registros…';
+      const n = await renombrarDefecto(id, viejo, nombre);
+      toast(`${viejo} ahora es ${nombre}` + (n ? ` (${n} registros actualizados)` : ''));
+    }
+    cerrarModal('modal-defecto');
+  }catch(e){ $('d-ok').disabled = false; $('d-ok').textContent = 'Guardar'; err('No se pudo guardar: '+e.message); }
+}
+
+/* SPEC-022: renombrar en todo lo registrado, en una sola escritura. */
+async function renombrarDefecto(id, viejo, nuevo){
+  const upd = {}, ahora = new Date().toISOString();
+  let n = 0;
+  // Rechazos (lista de defectos, o el campo suelto de la v1.5.0).
+  const v = (await db.ref('cal/merma2').once('value')).val() || {};
+  Object.keys(v).forEach(k=>{
+    const r = v[k];
+    if(Array.isArray(r.defectos) || (r.defectos && typeof r.defectos==='object')){
+      const defs = defectosDe(r);
+      if(defs.some(d=>d.defecto===viejo)){ upd['merma2/'+k+'/defectos'] = defs.map(d=> d.defecto===viejo ? {...d, defecto:nuevo} : d); n++; }
+    } else if(r.defecto===viejo){ upd['merma2/'+k+'/defecto'] = nuevo; n++; }
+  });
+  // Hallazgos.
+  DB.hallazgos.filter(h=>h.defecto===viejo).forEach(h=>{ upd['hallazgos/'+h._id+'/defecto'] = nuevo; n++; });
+  // Matriz: la clave lleva el nombre del defecto.
+  Object.keys(DB.matriz||{}).forEach(k=>{
+    const r = DB.matriz[k];
+    if(r && r.defecto===viejo){
+      upd['matriz/'+k] = null;
+      upd['matriz/'+claveDef(nuevo+'@'+(r.maquina||''))] = {...r, defecto:nuevo, actualizadoPor:sesion.nomina, actualizadoEn:Date.now()};
+      n++;
+    }
+  });
+  // Catálogo, y el renombre para la base histórica, que no se reescribe.
+  upd['defectos/'+id+'/nombre'] = nuevo;
+  upd['defectos/'+id+'/editadoPor'] = sesion.nomina;
+  upd['defectos/'+id+'/editadoEn'] = ahora;
+  upd['defectosRenombrados/'+claveDef(viejo)] = nuevo;
+  upd['defectosRenombrados/'+claveDef(nuevo)] = null;      // por si antes se renombró al revés
+  await db.ref('cal').update(upd);
+  await recalcularResumen(false);                          // el resumen usa el nombre como clave
+  return n;
+}
+
+function pedirBorrarDefecto(id){
+  if(sesion.rol!=='ADMIN') return;
+  const x = DEFECTOS_DB[id]; if(!x) return;
+  cerrarModal('modal-defecto');
+  const c = document.createElement('div'); c.className='modal'; c.id='modal-defecto';
+  c.innerHTML = `<div class="modal-box">
+    <div class="modal-t">Borrar el defecto ${esc(x.nombre)}</div>
+    <div class="aviso aviso-amber" style="margin:0">Ya no se podrá elegir. Lo que ya está registrado con
+      este defecto lo conserva y sigue contando en el foco.</div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn btn-2" style="margin:0" onclick="cerrarModal('modal-defecto')">Cancelar</button>
+      <button class="btn" style="margin:0;background:var(--red)" onclick="borrarDefecto('${id}')">Borrar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(c);
+}
+async function borrarDefecto(id){
+  const x = DEFECTOS_DB[id];
+  try{
+    await db.ref('cal/defectos/'+id).remove();
+    cerrarModal('modal-defecto'); toast(`Defecto ${x ? x.nombre : ''} borrado`);
+  }catch(e){ toast('No se pudo borrar: '+e.message); }
+}
+
+/* ── Etiquetas: borrar, solo ADMIN (SPEC-022) ── */
+function pedirBorrarEtiqueta(k){
+  if(sesion.rol!=='ADMIN') return;
+  const e = (GALERIA||{})[k]; if(!e) return;
+  cerrarModal('modal-etiqueta');
+  const c = document.createElement('div'); c.className='modal'; c.id='modal-etiqueta';
+  c.innerHTML = `<div class="modal-box">
+    <div class="modal-t">Borrar la etiqueta ${esc(e.Etiq)}</div>
+    <div style="font-size:12.5px;color:var(--text2);margin-bottom:10px">${esc(e.Nombre_etiq||'')}<br>${esc(e.Cliente||'')}</div>
+    <div class="aviso aviso-amber" style="margin:0">Deja de aparecer en la galería y en la búsqueda de etiquetas.
+      Los rechazos e inspecciones que ya la tienen conservan su nombre, cliente y medidas. Se guarda una copia.</div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn btn-2" style="margin:0" onclick="cerrarModal('modal-etiqueta')">Cancelar</button>
+      <button class="btn" style="margin:0;background:var(--red)" onclick="borrarEtiqueta('${esc(e.Etiq)}')">Borrar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(c);
+}
+async function borrarEtiqueta(k){
+  const e = (GALERIA||{})[k]; if(!e || sesion.rol!=='ADMIN') return;
+  try{
+    await db.ref('cal').update({
+      ['etiquetas/'+k]: null,
+      ['etiquetasBorradas/'+k]: {...e, borradoPorNomina:sesion.nomina, borradoPorNombre:sesion.nombre, borradoEn:new Date().toISOString()}
+    });
+    delete GALERIA[k]; delete cacheEtiq[k];
+    cerrarModal('modal-etiqueta'); poblarTiposGaleria(); pintarGaleria();
+    toast(`Etiqueta ${k} borrada`);
+  }catch(err){ toast('No se pudo borrar: '+err.message); }
 }
 
 /* ═══════════════ GALERÍA DE ETIQUETAS (SPEC-015) ═══════════════
@@ -2473,10 +2708,14 @@ function pintarGaleria(){
     return;
   }
   const vis = lista.slice(0, galLimite);
+  // SPEC-022: Editar y Borrar, en columnas propias después de Etiq, solo ADMIN.
+  const acc = e => esAdmin ? `<td class="r-acc-td"><button class="r-acc" onclick="abrirEtiqueta('${esc(e.Etiq)}')">Editar</button></td>` +
+    `<td class="r-acc-td"><button class="r-acc r-acc-borrar" onclick="pedirBorrarEtiqueta('${esc(e.Etiq)}')">Borrar</button></td>` : '';
   $('g-tabla').innerHTML =
-    '<thead><tr>' + GAL_CAMPOS.map(c=>`<th class="${GAL_NUMERICOS.has(c)?'num':''}">${c}</th>`).join('') + '</tr></thead>' +
+    '<thead><tr>' + GAL_CAMPOS.map(c=>`<th class="${GAL_NUMERICOS.has(c)?'num':''}">${c}</th>` +
+      (c==='Etiq' && esAdmin ? '<th>Editar</th><th>Borrar</th>' : '')).join('') + '</tr></thead>' +
     '<tbody>' + vis.map(e=>`<tr data-etiq="${esc(e.Etiq)}">` +
-      GAL_CAMPOS.map(c=>`<td class="${GAL_NUMERICOS.has(c)?'num':''}">${esc(fmtGal(c, e[c]))}</td>`).join('') +
+      GAL_CAMPOS.map(c=>`<td class="${GAL_NUMERICOS.has(c)?'num':''}">${esc(fmtGal(c, e[c]))}</td>` + (c==='Etiq' ? acc(e) : '')).join('') +
     '</tr>').join('') + '</tbody>';
   $('g-mas').innerHTML = !lista.length
     ? '<div class="vacio">Ninguna etiqueta coincide con la búsqueda.</div>'
@@ -2486,6 +2725,7 @@ function pintarGaleria(){
 }
 // Un solo manejador para toda la tabla, en vez de uno por renglón.
 document.addEventListener('click', ev=>{
+  if(ev.target.closest && ev.target.closest('button')) return;      // Editar y Borrar tienen lo suyo
   const tr = ev.target.closest && ev.target.closest('#g-tabla tbody tr');
   if(tr) verEtiqueta(tr.dataset.etiq);
 });

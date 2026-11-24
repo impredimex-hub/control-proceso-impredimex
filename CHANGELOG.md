@@ -11,6 +11,28 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.12.0] — 2026-11-24
+
+### Agregado
+
+- **Máquina que genera** en el rechazo (SPEC-021), junto a la que ahora se
+  llama **Máquina de inspección**. El foco cuenta los metros en la máquina que
+  genera; sin ella, en la de inspección. Columnas nuevas en tabla, Excel y
+  plantilla; en la carga es opcional.
+- **Defecto con autocompletado** en el formulario de rechazo, sin importar
+  acentos ni mayúsculas; un texto fuera del catálogo no se acepta.
+- **Catálogo de defectos editable** en la pestaña Galería (SPEC-022): nuevo,
+  renombrar (se aplica a rechazos, hallazgos, matriz, foco e histórico) y
+  borrar. Vive en `cal/defectos`; se siembra con los 40 del código.
+- **Editar y Borrar etiquetas** en columnas propias de la tabla de la
+  galería; al borrar se guarda una copia en `cal/etiquetasBorradas`.
+
+### Cambiado
+
+- Caché del service worker a `calidad-v1.12.0`.
+
+---
+
 ## [1.11.0] — 2026-11-24
 
 ### Cambiado

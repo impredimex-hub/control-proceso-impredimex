@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.11.0 — estados revisados contra el código el 24 de
+**Versión vigente:** 1.12.0 — estados revisados contra el código el 24 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -39,7 +39,7 @@ se puede ir del documento al código y de regreso.
 | 005 | Matriz defecto ↔ variable | Parcial — el editor funciona; el contenido lo define la junta |
 | 006 | Muestreo por AQL | Pendiente |
 | 007 | Hallazgo, paro y acción correctiva | Parcial — falta el aviso al supervisor y la hora del paro |
-| 008 | Catálogo de variables de calidad | Parcial — los 40 defectos están en el código; los 54 criterios no se han cargado |
+| 008 | Catálogo de variables de calidad | Parcial — los defectos ya viven en la base (SPEC-022); los 54 criterios no se han cargado |
 | 009 | Identidad y personal desde la suite | Implementado |
 | 010 | Datos propios | Implementado — las reglas de la base aceptan cualquier sesión, incluida la anónima |
 | 011 | Historial de merma como semilla | Sustituida por la SPEC-018 en la v1.8.0; queda la semilla como base histórica |
@@ -52,6 +52,8 @@ se puede ir del documento al código y de regreso.
 | 018 | Merma: una sola fuente, formulario más Excel | Implementado |
 | 019 | Editar y borrar un rechazo | Implementado |
 | 020 | Cantidad rechazada en etiquetas, metros calculados | Implementado |
+| 021 | Máquina de inspección y máquina que genera; defecto con autocompletado | Implementado |
+| 022 | Catálogo de defectos editable; editar y borrar etiquetas | Implementado |
 
 ---
 
@@ -157,7 +159,7 @@ Las pestañas se muestran según el papel:
 | Merma: cargar Excel | | | ✓ |
 | Merma: editar y borrar un rechazo | | | ✓ |
 | Galería (consulta) | ✓ | ✓ | ✓ |
-| Galería (cargar, alta y edición) | | | ✓ |
+| Galería (cargar, alta, edición y borrado de etiquetas; catálogo de defectos) | | | ✓ |
 
 El botón «Atender y cerrar» solo aparece a `SUPERVISOR` y `ADMIN`.
 
@@ -480,8 +482,10 @@ Es el único contenido irreemplazable de la versión anterior y se conserva.
   lo que sugiere que se marcan por trámite.
 
 ### Cómo está hoy
-- **Los 40 defectos** ya son la taxonomía de la app, pero están **escritos en
-  el código** (`DATOS.defectos`), no en la base.
+- **Los defectos viven en la base** desde la v1.12.0 (`cal/defectos`) y se
+  administran en la pestaña Galería (SPEC-022). Los 40 del código
+  (`DATOS.defectos`) son el punto de partida y el respaldo mientras la base no
+  responde.
 - **Las 20 máquinas** con su área también están en el código
   (`DATOS.maquinas`).
 
@@ -604,6 +608,9 @@ Proyecto `impredimex-procesos`, Realtime Database, todo bajo el nodo `cal/`:
 | `cal/matriz/<defecto>@<máquina>` | La matriz de la SPEC-005 |
 | `cal/merma` | La última carga del histórico agregado de la SPEC-011. Ya no se escribe; si existe, es la base histórica (SPEC-018) |
 | `cal/etiquetas/<Etiq>` | La galería de etiquetas (SPEC-015) |
+| `cal/etiquetasBorradas/<Etiq>` | Copia de cada etiqueta borrada, con quién y cuándo (SPEC-022) |
+| `cal/defectos/<id>` | El catálogo de defectos (SPEC-022) |
+| `cal/defectosRenombrados/<anterior>` | Nombre nuevo de un defecto renombrado, para la base histórica (SPEC-022) |
 | `cal/merma2/<id>` | Cada rechazo capturado en Merma 2 (SPEC-017) |
 | `cal/merma2Folios/<folio>` | Índice de folios de rechazo, para no repetirlos (SPEC-017) |
 | `cal/mermaResumen/<máquina>/<defecto>/<AAAA-MM>` | Metros de los rechazos sumados por mes, para el foco (SPEC-018) |
@@ -795,8 +802,9 @@ campos. Desde la ficha, el administrador puede **editar** una etiqueta.
   ni `]`, que la base no acepta en una clave.
 - `Tintas`, `Engrane`, `Med_des`, `Med_eje`, `Repeticiones` y `Ancho` son
   numéricos. Una fila con texto en alguno de ellos se rechaza.
-- **No se borra ninguna etiqueta desde la app.** Para retirarla se cambia su
-  `Estatus`. Hoy todas están en `A`.
+- Para retirar una etiqueta de uso se cambia su `Estatus` (hoy todas están en
+  `A`). Desde la v1.12.0 el administrador también la puede **borrar**
+  (SPEC-022).
 - El alta manual rechaza una clave que ya existe y ofrece abrir su ficha.
 - Cada etiqueta guarda quién la cargó o modificó por última vez, cuándo, y si
   fue desde Excel o a mano.
@@ -1180,6 +1188,79 @@ metros lineales = (número de etiquetas × (Med_des / 100)) / Repeticiones
 Las líneas se recalculan con las medidas actuales de la galería. Un rechazo
 anterior a esta versión, sin número de etiquetas, puede seguir sin él: sus
 metros se conservan y se pueden corregir a mano.
+
+---
+
+# SPEC-021 — Máquina de inspección y máquina que genera; defecto con autocompletado
+
+**Estado:** implementado (v1.12.0)
+
+### Por qué existe
+Un defecto muchas veces se detecta en una máquina distinta de la que lo
+provoca: una raya que se ve en el refilado puede venir de la impresora. Para
+corregirlo hay que saber **qué máquina lo genera**.
+
+### Qué hace
+- En el formulario de rechazo, «Máquina» pasa a ser **Máquina de inspección**
+  (donde se detecta el problema) y a su lado está **Máquina que genera** (la
+  que provoca el defecto). Las dos son obligatorias al capturar y salen del
+  mismo catálogo de máquinas.
+- El **Defecto** de cada línea se escribe con **autocompletado**: al teclear se
+  sugieren los del catálogo, sin importar acentos ni mayúsculas, y al salir del
+  campo se escribe tal como está en el catálogo. Un texto que no sea un
+  defecto del catálogo no se acepta.
+
+### Reglas de negocio
+- **El foco cuenta los metros en la máquina que genera.** «Qué vigilar en esta
+  máquina» habla de las variables que esa máquina tiene que controlar, y el
+  defecto se origina ahí, aunque se haya visto en otra. Los rechazos sin
+  máquina que genera (anteriores a esta versión, o de un Excel que no la trae)
+  cuentan en la máquina de inspección.
+- Al editar un rechazo anterior sin máquina que genera, puede seguir sin ella.
+
+### Excel y tabla
+- Columnas **Máquina de inspección** y **Máquina que genera**. Al cargar, se
+  sigue aceptando `Máquina` o `Linea` como máquina de inspección. La máquina que
+  genera es opcional en el archivo; si viene, debe estar en el catálogo y ser
+  la misma en todos los renglones del folio.
+
+### Datos
+`maquina` es la máquina de inspección (el nombre del campo no cambia, para no
+romper lo anterior) y `maquinaGenera` la que genera.
+
+---
+
+# SPEC-022 — Catálogo de defectos editable; editar y borrar etiquetas
+
+**Estado:** implementado (v1.12.0)
+
+### Catálogo de defectos
+- En la pestaña **Galería**, debajo de las etiquetas, una tabla **Defectos**
+  con el catálogo. La ven los tres papeles; `ADMIN` tiene **Nuevo defecto** y
+  las columnas **Editar** y **Borrar**.
+- Vive en `cal/defectos/<id>` (`nombre`, quién y cuándo). La primera vez que un
+  administrador abre la app sin catálogo en la base, se siembra con los 40 del
+  código.
+- Los nombres van en mayúsculas, no se repiten (sin importar acentos) y no
+  pueden llevar `.`, `#`, `$`, `/`, `[` ni `]`.
+- **Nuevo defecto** queda disponible de inmediato en el formulario de rechazo,
+  la inspección, la matriz, Comportamiento y la carga de Excel.
+- **Editar (renombrar)** cambia el nombre **en todo lo registrado** para que no
+  queden dos nombres para lo mismo: rechazos, hallazgos y matriz se actualizan,
+  el resumen del foco se recalcula, y para la base histórica (que no se puede
+  reescribir) se guarda el cambio en `cal/defectosRenombrados`, que el foco
+  aplica al leerla. Las copias de rechazos editados o borrados se quedan como
+  estaban, porque son rastro. No se puede renombrar a un nombre que ya existe.
+- **Borrar** lo quita del catálogo: ya no se puede elegir. Lo que ya está
+  registrado con ese defecto lo conserva y sigue contando en el foco.
+
+### Etiquetas
+- En la tabla de etiquetas, `ADMIN` tiene las columnas **Editar** y **Borrar**,
+  después de `Etiq`. Editar abre el formulario de la etiqueta (SPEC-015).
+- **Borrar** pide confirmación, quita la etiqueta de `cal/etiquetas` y guarda
+  una copia en `cal/etiquetasBorradas/<Etiq>` con quién y cuándo. Los
+  rechazos e inspecciones que ya la tienen conservan su copia de nombre,
+  cliente y medidas (SPEC-009).
 
 ---
 

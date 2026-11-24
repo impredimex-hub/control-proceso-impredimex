@@ -3,7 +3,7 @@
 Lo que necesita saber quien reciba esta aplicación para operarla, corregirla y
 extenderla sin depender de quien la construyó.
 
-**Versión de la aplicación:** 1.11.0
+**Versión de la aplicación:** 1.12.0
 **Última actualización de este documento:** 24 de noviembre de 2026
 **Desarrollo original:** Victor Moreno
 
@@ -151,11 +151,14 @@ en la SPEC-010.
 | `cal/hallazgos/<id>` | Inspector, Admin; al cerrar, Supervisor o Admin | Lo de la inspección más `defecto`, `causa`, `causaDeterminada`, `metros`, `paro`, `obs`, `estado`; al cerrar, `correccion`, `cerradoPorNomina`, `cerradoPorNombre`, `fechaCierre`, `tsCierre` |
 | `cal/matriz/<defecto>@<máquina>` | Admin | `defecto`, `maquina` (vacía = todas), `vars: [{nombre, peso}]`, `actualizadoPor`, `actualizadoEn` |
 | `cal/merma` | Ya nadie (hasta la v1.7.0, Admin) | La última carga del cargador anterior: `datos[línea][defecto][AAAA-MM] = metros`, `registros`, `ultimoMes`, `cargadoPor`, `cargadoEn`. Si existe, es la base histórica del foco (SPEC-018) |
-| `cal/merma2/<AAAA-MM-DD>_<id>` | Los tres papeles (formulario); Admin (Excel) | Cada rechazo. La clave empieza con su fecha para leer un mes sin índices; los de antes de la v1.8.0 tienen clave sin fecha. Campos: `origen` (`formulario` o `excel`), `folio`, `etiqueta`, `etiquetaNombre`, `etiquetaCliente`, `etiquetaEnGaleria`, `maquina`, nómina y nombre de supervisor, operador e inspector, `defectos: [{defecto, etiquetas, metros, bobinas}]`, `etiquetasTotal`, `metrosTotal`, `bobinasTotal`, `medDes` y `repeticiones` (copia de las medidas con que se calcularon los metros, SPEC-020), `fecha`, `turno`, `ts`, `capturoNomina`, `capturoNombre` (SPEC-017) |
+| `cal/merma2/<AAAA-MM-DD>_<id>` | Los tres papeles (formulario); Admin (Excel) | Cada rechazo. La clave empieza con su fecha para leer un mes sin índices; los de antes de la v1.8.0 tienen clave sin fecha. Campos: `origen` (`formulario` o `excel`), `folio`, `etiqueta`, `etiquetaNombre`, `etiquetaCliente`, `etiquetaEnGaleria`, `maquina` (de inspección), `maquinaGenera` (la que genera el defecto; con ella cuenta el foco, SPEC-021), nómina y nombre de supervisor, operador e inspector, `defectos: [{defecto, etiquetas, metros, bobinas}]`, `etiquetasTotal`, `metrosTotal`, `bobinasTotal`, `medDes` y `repeticiones` (copia de las medidas con que se calcularon los metros, SPEC-020), `fecha`, `turno`, `ts`, `capturoNomina`, `capturoNombre` (SPEC-017) |
 | `cal/merma2Folios/<folio>` | Los tres papeles | El `<id>` del rechazo con ese folio. Es lo que impide repetir un folio |
 | `cal/merma2Ediciones/<clave>/<n>` | Admin, al editar | `antes` (el rechazo como estaba), `editadoPorNomina`, `editadoPorNombre`, `editadoEn` (SPEC-019) |
 | `cal/merma2Borrados/<clave>` | Admin, al borrar | Copia de cada rechazo borrado con `borradoPorNomina`, `borradoPorNombre`, `borradoEn` y `motivo` (SPEC-019) |
 | `cal/mermaResumen/<máquina>/<defecto>/<AAAA-MM>` | Se escribe solo | Metros de los rechazos sumados por mes. Es lo que lee el foco, para no descargar todos los rechazos en cada apertura. Cada rechazo suma aquí en la misma escritura en que se guarda (SPEC-018) |
+| `cal/defectos/<id>` | Admin | `nombre`, `creadoPor`, `creadoEn` y, si se renombró, `editadoPor`, `editadoEn` (SPEC-022) |
+| `cal/defectosRenombrados/<anterior>` | Admin, al renombrar | Nombre nuevo; el foco lo aplica a la base histórica |
+| `cal/etiquetasBorradas/<Etiq>` | Admin, al borrar | La etiqueta como estaba, más `borradoPorNomina`, `borradoPorNombre`, `borradoEn` |
 | `cal/etiquetas/<Etiq>` | Admin | Los 15 campos de la galería con el nombre de su encabezado (`Etiq`, `Nombre_etiq`, `Tipo`, … `Tipo_tinta`), más `actualizadoPor`, `actualizadoEn` y `origen` (`excel` o `manual`). Los vacíos no se guardan |
 
 La columna «Quién escribe» es lo que permite la pantalla. **Las reglas de la
@@ -170,8 +173,18 @@ cada apertura de la app descargaría ese peso: revisar antes el consumo del
 plan.
 
 Para corregir muchas etiquetas a la vez, lo más simple es subir un Excel solo
-con esas filas: agrega o actualiza, nunca borra. Para borrar una etiqueta hay
-que hacerlo en la consola de Firebase; la app no lo permite a propósito.
+con esas filas: agrega o actualiza, nunca borra. Una por una, el administrador
+las edita o las borra desde la tabla (SPEC-022); al borrar se guarda una copia
+en `cal/etiquetasBorradas`.
+
+### El catálogo de defectos
+
+Vive en `cal/defectos` y se administra en Galería → Defectos (SPEC-022). Al
+**renombrar** un defecto la app lo cambia en rechazos, hallazgos y matriz,
+recalcula el resumen y anota el renombre en `cal/defectosRenombrados` para la
+base histórica. Al **borrar**, lo ya registrado lo conserva. Si se borra
+`cal/defectos` completo en la consola, el siguiente administrador que entre lo
+vuelve a sembrar con los 40 del código.
 
 ### De dónde sale el foco (SPEC-018)
 

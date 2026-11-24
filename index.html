@@ -236,6 +236,15 @@ input:focus,select:focus,textarea:focus{border-color:var(--navy-mid)}
 .item h4{margin:0 0 3px;font-size:14px}
 .item .meta{font-size:11.5px;color:var(--text2)}
 
+/* ── Turno y etiqueta en la inspección (SPEC-016) ── */
+.campo-fijo{padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--bg);
+  font-weight:600;color:var(--navy-dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.campo-fijo span{font-weight:400;color:var(--text3);font-size:11.5px;margin-left:4px}
+.etq-info{margin-top:10px;padding:9px 12px;border-radius:9px;background:var(--navy-light);
+  font-size:12.5px;line-height:1.45;color:var(--text2)}
+.etq-info b{display:block;color:var(--navy-dark);font-size:13px}
+.etq-no{background:var(--amber-bg);color:var(--amber)}
+
 /* ── Galería de etiquetas (SPEC-015) ──
    La tabla se desplaza a lo ancho dentro de su caja, con el encabezado y la
    columna Etiq fijos: con 15 columnas, en el teléfono es la única forma de no
@@ -378,15 +387,17 @@ main.ancha{max-width:1400px}
             <option value="arranque">Arranque</option>
             <option value="proceso" selected>En proceso</option>
           </select></div>
-        <div><label>Turno</label>
-          <select id="f-turno">
-            <option>Matutino</option><option>Vespertino</option><option>Nocturno</option>
-          </select></div>
+        <!-- SPEC-016: el turno sale de la hora; no se elige -->
+        <div><label>Turno · automático</label>
+          <div id="f-turno" class="campo-fijo">—</div></div>
       </div>
       <div class="row">
         <div><label>Máquina</label><select id="f-maquina" onchange="pintarFoco()"></select></div>
-        <div><label>Etiqueta</label><input id="f-etiqueta" inputmode="numeric" placeholder="Núm. de etiqueta"></div>
+        <!-- SPEC-016: acepta letras (hay claves como D0018) y busca en la galería -->
+        <div><label>Etiqueta</label><input id="f-etiqueta" autocapitalize="characters" autocomplete="off"
+          placeholder="Núm. de etiqueta" oninput="etiquetaEscrita()" onchange="buscarEtiqueta(true)"></div>
       </div>
+      <div id="f-etiqueta-info"></div>
     </div>
 
     <div class="card">
@@ -698,6 +709,7 @@ function poblarSelects(){
   $('m-maquina').innerHTML = '<option value="">— Todas —</option>' + om;
   const od = DEFECTOS.map(d=>`<option>${d}</option>`).join('');
   $('t-defecto').innerHTML = od; $('m-defecto').innerHTML = od;
+  pintarTurno();
   pintarFoco();
 }
 
@@ -891,14 +903,20 @@ function variablesDe(defecto, maquina){
 }
 
 /* ═══════════════ INSPECCIÓN (SPEC-004, SPEC-007) ═══════════════ */
-function resolver(pasa){
-  const etiqueta = $('f-etiqueta').value.trim();
+async function resolver(pasa){
   // SPEC-004: la etiqueta es obligatoria; sin ella el foco por etiqueta es imposible.
-  if(!etiqueta){ toast('Escribe el número de etiqueta'); return; }
+  if(!$('f-etiqueta').value.trim()){ toast('Escribe el número de etiqueta'); return; }
+  // SPEC-016: se asegura la consulta a la galería aunque no haya salido del campo.
+  const info = await buscarEtiqueta(true);
+  const etiqueta = info.clave;
+  const enGaleria = info.encontrada===true ? {etiquetaNombre: info.nombre, etiquetaCliente: info.cliente,
+                                               etiquetaEnGaleria: true}
+                  : info.encontrada===false ? {etiquetaEnGaleria: false} : {};
   const base = {
-    etapa: $('f-etapa').value, turno: $('f-turno').value,   // SPEC-003
-    maquina: $('f-maquina').value, etiqueta,
-    fecha: new Date().toISOString().slice(0,10),
+    etapa: $('f-etapa').value,                    // SPEC-003
+    turno: turnoDe(new Date()),                   // SPEC-016: el de la hora de registro
+    maquina: $('f-maquina').value, etiqueta, ...enGaleria,
+    fecha: fechaLocal(),                          // SPEC-016: fecha local, no universal
     ts: Date.now(),
     // SPEC-009: copia, no referencia. Quién inspeccionó queda grabado con nombre y
     // nómina tal como estaban. El inspector es quien inició sesión, no un
@@ -911,7 +929,7 @@ function resolver(pasa){
   };
   if(pasa){
     db.ref('cal/inspecciones').push(base)
-      .then(()=>{ toast('Inspección registrada'); $('f-etiqueta').value=''; })
+      .then(()=>{ toast('Inspección registrada'); $('f-etiqueta').value=''; etiquetaEscrita(); })
       .catch(e=>toast('Error: '+e.message));
   } else {
     pendiente = base; abrirHallazgo();
@@ -928,6 +946,7 @@ function abrirHallazgo(){
     <div class="modal-t">Registrar hallazgo</div>
     <div style="font-size:12.5px;color:var(--text2);margin-bottom:10px">
       ${esc(pendiente.maquina)} · etiqueta ${esc(pendiente.etiqueta)} · ${esc(pendiente.turno)}
+      ${pendiente.etiquetaNombre ? '<br>'+esc(pendiente.etiquetaNombre)+' · '+esc(pendiente.etiquetaCliente||'') : ''}
     </div>
     <label>Defecto encontrado</label>
     <select id="h-defecto" onchange="sugerirCausas()">
@@ -1001,7 +1020,7 @@ function guardarHallazgo(){
     .then(()=>{
       cerrarModal('modal-hallazgo');
       toast(h.paro ? 'Hallazgo registrado. Avisa al supervisor del paro.' : 'Hallazgo registrado');
-      $('f-etiqueta').value=''; pendiente=null;
+      $('f-etiqueta').value=''; etiquetaEscrita(); pendiente=null;
     })
     .catch(e=>toast('Error: '+e.message));
 }
@@ -1028,6 +1047,7 @@ function pintarAcciones(){
         <span class="pill ${cerrada?'p-green':'p-red'}">${cerrada?'cerrada':'abierta'}</span>
       </div>
       <div class="meta">${esc(h.maquina)} · etiqueta ${esc(h.etiqueta)} · ${esc(h.fecha)} · ${esc(h.turno)}</div>
+      ${datosEtiqueta(h)}
       <div class="meta">Detectó: ${esc(h.inspectorNombre)} (${esc(h.inspectorNomina)})</div>
       <div class="meta">Causa: ${esc(h.causa)}${h.causaDeterminada===false?' <span class="pill p-amber">sin determinar</span>':''}</div>
       ${h.paro?'<div class="meta"><span class="pill p-red">paro de máquina</span></div>':''}
@@ -1073,7 +1093,7 @@ function confirmarCierre(id){
     causa: $('c-causa').value.trim(),
     causaDeterminada: true,
     cerradoPorNomina: sesion.nomina, cerradoPorNombre: sesion.nombre,
-    fechaCierre: new Date().toISOString().slice(0,10), tsCierre: Date.now()
+    fechaCierre: fechaLocal(), tsCierre: Date.now()
   }).then(()=>{ cerrarModal('modal-cierre'); toast('Acción cerrada'); pintarAcciones(); })
     .catch(e=>toast('Error: '+e.message));
 }
@@ -1088,6 +1108,7 @@ function pintarHistorial(){
       <h4>${esc(i.maquina)} · etiqueta ${esc(i.etiqueta)}</h4>
       <span class="pill ${i.resultado==='pasa'?'p-green':'p-red'}">${esc(i.resultado)}</span>
     </div>
+    ${datosEtiqueta(i)}
     <div class="meta">${esc(i.fecha)} · ${esc(i.turno)} · ${i.etapa==='arranque'?'arranque':'en proceso'}</div>
     <div class="meta">${esc(i.inspectorNombre)} (${esc(i.inspectorNomina)})</div>
   </div>`).join('');
@@ -1257,6 +1278,85 @@ function guardarMatriz(){
     actualizadoPor: sesion.nomina, actualizadoEn: Date.now()
   }).then(()=>{ toast('Matriz guardada'); pintarFoco(); })
     .catch(e=>toast('Error: '+e.message));
+}
+
+/* ═══════════════ ETIQUETA Y TURNO AUTOMÁTICOS (SPEC-016) ═══════════════ */
+// Cada límite pertenece al turno que empieza: 14:00 ya es vespertino.
+const TURNOS = [
+  {nom:'Matutino',   desde: 6*60,     hasta:14*60,    horario:'06:00 a 14:00'},
+  {nom:'Vespertino', desde:14*60,     hasta:21*60+30, horario:'14:00 a 21:30'},
+  {nom:'Nocturno',   desde:21*60+30,  hasta: 6*60,    horario:'21:30 a 06:00'}
+];
+function turnoDe(d){
+  const m = d.getHours()*60 + d.getMinutes();
+  const t = TURNOS.find(x => x.desde < x.hasta ? (m>=x.desde && m<x.hasta) : (m>=x.desde || m<x.hasta));
+  return t.nom;
+}
+function pintarTurno(){
+  const e = $('f-turno'); if(!e) return;
+  const t = TURNOS.find(x=>x.nom===turnoDe(new Date()));
+  e.innerHTML = `${t.nom}<span>${t.horario}</span>`;
+}
+setInterval(pintarTurno, 60000);
+
+// Fecha del calendario del teléfono. toISOString() da la de hora universal, que
+// en México ya es «mañana» después de las 18:00.
+function fechaLocal(d){
+  d = d || new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
+// Línea con nombre y cliente para Historial y Acciones.
+function datosEtiqueta(r){
+  if(r.etiquetaNombre) return `<div class="meta">${esc(r.etiquetaNombre)}${r.etiquetaCliente?' · '+esc(r.etiquetaCliente):''}</div>`;
+  if(r.etiquetaEnGaleria===false) return `<div class="meta"><span class="pill p-amber">etiqueta fuera de galería</span></div>`;
+  return '';
+}
+
+let etiqInfo = null;      // resultado de la última búsqueda: {clave, encontrada, nombre, cliente}
+let etiqTimer = null;
+const cacheEtiq = {};     // etiquetas ya consultadas en la sesión
+
+function etiquetaEscrita(){
+  etiqInfo = null; $('f-etiqueta-info').innerHTML = '';
+  clearTimeout(etiqTimer);
+  if($('f-etiqueta').value.trim().length >= 5) etiqTimer = setTimeout(()=>buscarEtiqueta(false), 250);
+}
+
+/* Busca la etiqueta escrita. Consulta solo ese registro (cal/etiquetas/<Etiq>),
+   no la galería completa; si la galería ya se abrió en la sesión, usa esa copia.
+   `fijar`: deja escrita la clave normalizada (2086 → 02086).
+   Devuelve {clave, encontrada: true | false | null (no se pudo consultar)}. */
+async function buscarEtiqueta(fijar){
+  clearTimeout(etiqTimer);
+  const campo = $('f-etiqueta'), caja = $('f-etiqueta-info');
+  const k = claveEtiq(campo.value);
+  if(!k){ etiqInfo = null; caja.innerHTML = ''; return {clave:'', encontrada:null}; }
+  if(fijar && campo.value !== k) campo.value = k;
+  if(etiqInfo && etiqInfo.clave === k) return etiqInfo;
+
+  let e, fallo = false;
+  if(!claveValida(k)) e = null;
+  else if(GALERIA) e = GALERIA[k] || null;
+  else if(k in cacheEtiq) e = cacheEtiq[k];
+  else {
+    caja.innerHTML = '<div class="etq-info">Buscando en la galería…</div>';
+    try{ e = (await db.ref('cal/etiquetas/'+k).once('value')).val(); cacheEtiq[k] = e; }
+    catch(err){ console.error('Galería:', err); fallo = true; }
+  }
+  const info = fallo ? {clave:k, encontrada:null}
+             : {clave:k, encontrada:!!e, nombre:(e&&e.Nombre_etiq)||'', cliente:(e&&e.Cliente)||''};
+  // Si el inspector siguió escribiendo mientras se consultaba, esta respuesta
+  // ya no corresponde a lo que hay en el campo: no se pinta.
+  if(claveEtiq(campo.value) !== k) return info;
+  etiqInfo = fallo ? null : info;
+  caja.innerHTML = fallo
+    ? `<div class="etq-info etq-no">No se pudo consultar la galería. La inspección se puede registrar igual.</div>`
+    : info.encontrada
+      ? `<div class="etq-info"><b>${esc(info.nombre)}</b>${esc(info.cliente)}</div>`
+      : `<div class="etq-info etq-no">La etiqueta ${esc(k)} no está en la galería. Puedes registrar la
+          inspección; avisa a un administrador para darla de alta.</div>`;
+  return info;
 }
 
 /* ═══════════════ GALERÍA DE ETIQUETAS (SPEC-015) ═══════════════

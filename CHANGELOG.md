@@ -11,6 +11,31 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.4.0] — 2026-11-24
+
+### Agregado
+
+- **Nombre y cliente de la etiqueta en la inspección** (SPEC-016). Al escribir
+  el número, la app lo busca en la galería y los muestra debajo. Si no está,
+  avisa pero deja registrar. Se guardan con la inspección y el hallazgo, y se
+  ven en Historial y Acciones.
+- El campo de etiqueta acepta letras (`D0018`) y completa con ceros una clave
+  corta (`2086` → `02086`).
+
+### Cambiado
+
+- **El turno se calcula solo** con la hora del registro: matutino de 06:00 a
+  14:00, vespertino de 14:00 a 21:30 y nocturno de 21:30 a 06:00. Ya no se
+  elige.
+
+### Corregido
+
+- **La fecha de inspecciones, hallazgos y cierres se tomaba en hora
+  universal**: lo registrado después de las 18:00 quedaba con la fecha del día
+  siguiente. Ahora es la fecha local del teléfono.
+
+---
+
 ## [1.3.0] — 2026-11-24
 
 ### Agregado

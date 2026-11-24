@@ -3,7 +3,7 @@
 Lo que necesita saber quien reciba esta aplicación para operarla, corregirla y
 extenderla sin depender de quien la construyó.
 
-**Versión de la aplicación:** 1.3.0
+**Versión de la aplicación:** 1.4.0
 **Última actualización de este documento:** 24 de noviembre de 2026
 **Desarrollo original:** Victor Moreno
 
@@ -147,7 +147,7 @@ en la SPEC-010.
 
 | Ruta | Quién escribe | Qué guarda |
 |---|---|---|
-| `cal/inspecciones/<id>` | Inspector, Admin | Etapa, turno, máquina, etiqueta, fecha, `ts`, `inspectorNomina`, `inspectorNombre`, `resultado`, `variables`, `variablesDesviadas` y, si no pasó, `hallazgoId` |
+| `cal/inspecciones/<id>` | Inspector, Admin | Etapa, turno, máquina, etiqueta, `etiquetaNombre`, `etiquetaCliente`, `etiquetaEnGaleria`, fecha (local, `AAAA-MM-DD`), `ts`, `inspectorNomina`, `inspectorNombre`, `resultado`, `variables`, `variablesDesviadas` y, si no pasó, `hallazgoId` |
 | `cal/hallazgos/<id>` | Inspector, Admin; al cerrar, Supervisor o Admin | Lo de la inspección más `defecto`, `causa`, `causaDeterminada`, `metros`, `paro`, `obs`, `estado`; al cerrar, `correccion`, `cerradoPorNomina`, `cerradoPorNombre`, `fechaCierre`, `tsCierre` |
 | `cal/matriz/<defecto>@<máquina>` | Admin | `defecto`, `maquina` (vacía = todas), `vars: [{nombre, peso}]`, `actualizadoPor`, `actualizadoEn` |
 | `cal/merma` | Admin | `datos[línea][defecto][AAAA-MM] = metros`, `registros`, `ultimoMes`, `cargadoPor`, `cargadoEn` |
@@ -231,6 +231,8 @@ igual a lo publicado.
 | El foco dice «Sin historia suficiente» | La máquina no tiene merma ni hallazgos en ningún periodo revisado | Normal para máquinas sin registros; se llena con hallazgos |
 | «Todavía no hay variables asociadas» | La matriz está vacía para esos defectos | Capturarla en la pestaña Matriz (solo Admin) |
 | Un cambio publicado no se ve en el teléfono | Copia guardada por el service worker | Confirmar que se subió `CACHE` en `sw.js`; cerrar y abrir la app dos veces |
+| El turno o la fecha salen mal | La hora o la zona horaria del teléfono están mal | Ajustar el teléfono a la hora automática. El turno y la fecha salen de su reloj (SPEC-016) |
+| «La etiqueta … no está en la galería» | No se ha dado de alta | Darla de alta en Galería; la inspección se puede registrar igual |
 | La pantalla de marca IMPREDIMEX dura hasta 8 s | La nota de sesión compartida quedó vieja | Se quita sola; aparece la contraseña (SPEC-013) |
 
 ---

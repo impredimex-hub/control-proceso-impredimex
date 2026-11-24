@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.3.0 — estados revisados contra el código el 24 de
+**Versión vigente:** 1.4.0 — estados revisados contra el código el 24 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -47,6 +47,7 @@ se puede ir del documento al código y de regreso.
 | 013 | Abrir sin mostrar la contraseña de paso | Implementado |
 | 014 | Historial de inspecciones | Implementado |
 | 015 | Galería de etiquetas | Implementado |
+| 016 | Etiqueta y turno automáticos en la inspección | Implementado |
 
 ---
 
@@ -583,7 +584,7 @@ Proyecto `impredimex-procesos`, Realtime Database, todo bajo el nodo `cal/`:
 
 | Ruta | Qué guarda |
 |---|---|
-| `cal/inspecciones/<id>` | Cada inspección: etapa, turno, máquina, etiqueta, fecha, inspector, resultado y variables revisadas |
+| `cal/inspecciones/<id>` | Cada inspección: etapa, turno, máquina, etiqueta con su nombre y cliente, fecha, inspector, resultado y variables revisadas |
 | `cal/hallazgos/<id>` | Cada hallazgo y, al cerrarse, su acción correctiva |
 | `cal/matriz/<defecto>@<máquina>` | La matriz de la SPEC-005 |
 | `cal/merma` | La última carga del histórico de merma (SPEC-011) |
@@ -693,7 +694,8 @@ especificación
 ### Qué hace
 La pestaña **Historial** muestra las **60 inspecciones más recientes**, de la
 más nueva a la más vieja: máquina, etiqueta, resultado (pasa / no pasa),
-fecha, turno, etapa e inspector con su nómina.
+nombre y cliente de la etiqueta (desde la v1.4.0, SPEC-016), fecha, turno,
+etapa e inspector con su nómina.
 
 ### Reglas de negocio
 - La ven los tres papeles.
@@ -779,9 +781,60 @@ límite de 10 GB al mes del plan gratuito, alcanza para unas 5 800 aperturas al
 mes.
 
 ### Lo que no hace todavía
-- La inspección no consulta la galería: el número de etiqueta se sigue
-  escribiendo a mano y no se valida contra ella.
 - No se exporta a Excel.
+
+La inspección consulta la galería desde la v1.4.0 (SPEC-016).
+
+---
+
+# SPEC-016 — Etiqueta y turno automáticos en la inspección
+
+**Estado:** implementado (v1.4.0)
+
+### Por qué existe
+El inspector escribía el número de etiqueta sin ver de qué producto se trataba,
+y elegía el turno a mano. Un número mal tecleado pasaba sin aviso, y el turno
+dependía de que alguien se acordara de cambiarlo.
+
+### Etiqueta
+- Al escribir el número de etiqueta, la app la busca en la galería (SPEC-015)
+  y muestra debajo **su nombre y su cliente**.
+- La búsqueda se hace al llegar a 5 caracteres o al salir del campo. Se aplica
+  la misma regla de clave de la galería: mayúsculas, y una clave de solo dígitos
+  con menos de 5 se completa con ceros (`2086` → `02086`).
+- El campo acepta letras, porque hay claves como `D0018`.
+- **Si la etiqueta no está en la galería, se avisa pero no se bloquea.** La
+  galería puede ir atrasada respecto de lo que se corre en piso, y detener la
+  inspección por eso sería peor que registrarla. La inspección queda marcada
+  como etiqueta fuera de galería.
+- **Se consulta solo esa etiqueta**, no la galería completa: unos cuantos bytes
+  por búsqueda, en lugar de 1.7 MB cada vez que un inspector abre la app. Si la
+  galería ya se había abierto en la sesión, se usa esa copia.
+- La inspección (y el hallazgo, si lo hay) guarda **copia** del nombre y el
+  cliente tal como estaban (SPEC-009): `etiquetaNombre`, `etiquetaCliente` y
+  `etiquetaEnGaleria` (`true` o `false`). Historial y Acciones los muestran.
+
+### Turno
+El turno lo calcula la app con la hora del teléfono; el inspector no lo elige.
+
+| Turno | Desde | Hasta |
+|---|---|---|
+| Matutino | 06:00 | 14:00 |
+| Vespertino | 14:00 | 21:30 |
+| Nocturno | 21:30 | 06:00 del día siguiente |
+
+- **Cada límite pertenece al turno que empieza:** las 14:00 en punto ya son
+  vespertino; las 21:30, nocturno; las 06:00, matutino.
+- La pantalla muestra el turno vigente y se actualiza cada minuto. **El que se
+  graba es el de la hora en que se registra la inspección**, no el de la hora
+  en que se abrió la pantalla.
+
+### Fecha
+- La fecha de la inspección, del hallazgo y del cierre es la **fecha local** del
+  teléfono. Antes se tomaba en hora universal y, en México, todo lo registrado
+  después de las 18:00 quedaba con la fecha del día siguiente.
+- En el turno nocturno la fecha es la del calendario: una inspección a la 01:00
+  lleva la fecha del día que empieza, no la del día en que arrancó el turno.
 
 ---
 

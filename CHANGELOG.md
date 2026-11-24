@@ -11,6 +11,27 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.3.0] — 2026-11-24
+
+### Agregado
+
+- **Galería de etiquetas** (SPEC-015). Pestaña nueva con una tabla de 15
+  columnas: `Etiq`, `Nombre_etiq`, `Tipo`, `Cliente`, `Estatus`, `Tintas`,
+  `Engrane`, `Med_des`, `Med_eje`, `Repeticiones`, `Sustrato1`, `Sustrato2`,
+  `Sustrato3`, `Ancho` y `Tipo_tinta`.
+  - Búsqueda por clave, nombre o cliente, filtro por tipo y ficha completa al
+    tocar un renglón. Encabezado y columna `Etiq` fijos al desplazarse.
+  - **Carga desde Excel** con resumen previo: agrega las nuevas, actualiza las
+    que cambian y no borra las que no vienen.
+  - **Alta y edición** de etiquetas una por una.
+  - La ven los tres papeles; cargar, dar de alta y editar es de `ADMIN`.
+
+### Cambiado
+
+- Caché del service worker a `calidad-v1.3.0`.
+
+---
+
 ## [1.2.1] — 2026-11-24
 
 ### Agregado

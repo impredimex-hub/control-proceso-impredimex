@@ -236,6 +236,34 @@ input:focus,select:focus,textarea:focus{border-color:var(--navy-mid)}
 .item h4{margin:0 0 3px;font-size:14px}
 .item .meta{font-size:11.5px;color:var(--text2)}
 
+/* ── Galería de etiquetas (SPEC-015) ──
+   La tabla se desplaza a lo ancho dentro de su caja, con el encabezado y la
+   columna Etiq fijos: con 15 columnas, en el teléfono es la única forma de no
+   perder de vista de qué etiqueta es cada renglón. */
+main.ancha{max-width:1400px}
+.gal-barra{display:flex;gap:8px;flex-wrap:wrap}
+.gal-barra input{flex:2 1 220px;width:auto}
+.gal-barra select{flex:1 1 160px;width:auto}
+.gal-acciones{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:10px 0}
+#g-cuenta{flex:1 1 180px;font-size:12px;color:var(--text2)}
+.gal-tabla-wrap{overflow:auto;max-height:68vh;border:1px solid var(--line);border-radius:9px;
+  -webkit-overflow-scrolling:touch}
+.gal-tabla{border-collapse:separate;border-spacing:0;font-size:12px;width:max-content;min-width:100%}
+.gal-tabla th{position:sticky;top:0;z-index:2;background:var(--navy);color:#fff;font-weight:700;
+  text-align:left;padding:8px 10px;white-space:nowrap}
+.gal-tabla td{padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:#fff}
+.gal-tabla tbody tr:nth-child(even) td{background:#F8FAFD}
+.gal-tabla tbody tr{cursor:pointer}
+.gal-tabla tbody tr:hover td{background:var(--navy-light)}
+.gal-tabla td:first-child{position:sticky;left:0;z-index:1;font-weight:700;color:var(--navy-dark);
+  box-shadow:1px 0 0 var(--line)}
+.gal-tabla th:first-child{position:sticky;left:0;z-index:3}
+.gal-tabla .num{text-align:right}
+.ficha-fila{display:flex;justify-content:space-between;gap:12px;padding:7px 0;
+  border-bottom:1px solid var(--line);font-size:13px}
+.ficha-fila span:first-child{color:var(--text2);font-size:12px}
+.ficha-fila span:last-child{font-weight:600;text-align:right}
+
 /* ── Modal ── */
 .modal{position:fixed;inset:0;background:rgba(0,32,96,.45);display:flex;align-items:center;
   justify-content:center;padding:16px;z-index:100}
@@ -419,6 +447,27 @@ input:focus,select:focus,textarea:focus{border-color:var(--navy-mid)}
         <div><label>Defecto</label><select id="t-defecto" onchange="pintarTendencia()"></select></div>
       </div>
       <div id="tendencia" style="margin-top:14px"></div>
+    </div>
+  </section>
+
+  <!-- Galería de etiquetas (SPEC-015) -->
+  <section id="pg-galeria" class="hide">
+    <div class="card">
+      <div class="card-t">Galería de etiquetas</div>
+      <div class="gal-barra">
+        <input id="g-buscar" placeholder="Buscar por etiqueta, nombre o cliente" oninput="galLimite=100;pintarGaleria()">
+        <select id="g-tipo" onchange="galLimite=100;pintarGaleria()"><option value="">Todos los tipos</option></select>
+      </div>
+      <div class="gal-acciones">
+        <span id="g-cuenta">—</span>
+        <button class="btn btn-2 btn-sm" onclick="leerGaleria(true)">Actualizar</button>
+        <button class="btn btn-2 btn-sm g-admin" onclick="document.getElementById('g-excel').click()">Cargar Excel</button>
+        <button class="btn btn-sm g-admin" onclick="abrirEtiqueta(null)">Nueva etiqueta</button>
+      </div>
+      <input type="file" id="g-excel" accept=".xlsx,.xls" style="display:none" onchange="leerExcelGaleria(event)">
+      <div id="g-previa"></div>
+      <div class="gal-tabla-wrap"><table class="gal-tabla" id="g-tabla"></table></div>
+      <div id="g-mas"></div>
     </div>
   </section>
 
@@ -619,6 +668,7 @@ const PAGINAS = [
   {id:'acciones',   nom:'Acciones',      roles:['INSPECTOR','SUPERVISOR','ADMIN']},
   {id:'historial',  nom:'Historial',     roles:['INSPECTOR','SUPERVISOR','ADMIN']},
   {id:'tendencia',  nom:'Comportamiento',roles:['INSPECTOR','SUPERVISOR','ADMIN']},
+  {id:'galeria',    nom:'Galería',       roles:['INSPECTOR','SUPERVISOR','ADMIN']},   // SPEC-015
   {id:'matriz',     nom:'Matriz',        roles:['ADMIN']},
   {id:'merma',      nom:'Merma',         roles:['ADMIN']}
 ];
@@ -637,6 +687,9 @@ function verPagina(id, btn){
   if(id==='tendencia') pintarTendencia();
   if(id==='matriz')    cargarMatriz();
   if(id==='merma')     pintarEstadoMerma();
+  if(id==='galeria')   leerGaleria(false);
+  // SPEC-015: la tabla de la galería aprovecha la pantalla ancha.
+  document.querySelector('main').classList.toggle('ancha', id==='galeria');
 }
 
 function poblarSelects(){
@@ -1204,6 +1257,329 @@ function guardarMatriz(){
     actualizadoPor: sesion.nomina, actualizadoEn: Date.now()
   }).then(()=>{ toast('Matriz guardada'); pintarFoco(); })
     .catch(e=>toast('Error: '+e.message));
+}
+
+/* ═══════════════ GALERÍA DE ETIQUETAS (SPEC-015) ═══════════════
+   Catálogo de etiquetas en cal/etiquetas/<Etiq>. Pesa cerca de 1.7 MB, así
+   que se lee la primera vez que se abre la pestaña y no queda escuchando:
+   «Actualizar» la vuelve a leer. */
+const GAL_CAMPOS = ['Etiq','Nombre_etiq','Tipo','Cliente','Estatus','Tintas','Engrane',
+  'Med_des','Med_eje','Repeticiones','Sustrato1','Sustrato2','Sustrato3','Ancho','Tipo_tinta'];
+const GAL_NUMERICOS = new Set(['Tintas','Engrane','Med_des','Med_eje','Repeticiones','Ancho']);
+let GALERIA = null;          // {Etiq: registro}; null mientras no se ha leído
+let galLeyendo = null;       // promesa de la lectura en curso
+let galLimite = 100;         // renglones visibles: se amplía de 100 en 100
+let previaGaleria = null;
+
+// Sin acentos ni mayúsculas, para buscar y para reconocer encabezados.
+const norm = t => String(t==null?'':t).normalize('NFD').replace(/[̀-ͯ]/g,'')
+                    .toLowerCase().replace(/\s+/g,' ').trim();
+
+// SPEC-015: la clave va en mayúsculas, y si es solo de dígitos y llegó corta
+// (Excel pierde el cero inicial en una celda numérica), se rellena a 5.
+function claveEtiq(v){
+  let s = (typeof v==='number') ? String(Math.round(v)) : String(v==null?'':v).trim().toUpperCase();
+  if(/^\d+$/.test(s) && s.length<5) s = s.padStart(5,'0');
+  return s;
+}
+const claveValida = k => !!k && !/[.#$\/\[\]]/.test(k);
+
+// Valor numérico de una celda: '' → null; texto que no es número → NaN.
+function numDe(v){
+  if(v===null || v===undefined) return null;
+  if(typeof v==='number') return v;
+  const t = String(v).trim().replace(',', '.');
+  if(t==='') return null;
+  return /^-?\d+(\.\d+)?$/.test(t) ? parseFloat(t) : NaN;
+}
+// Las medidas traen hasta seis decimales; en la tabla bastan cuatro.
+const fmtGal = (campo, v) => v==null ? '' :
+  (GAL_NUMERICOS.has(campo) && typeof v==='number' ? String(+v.toFixed(4)) : String(v));
+
+function leerGaleria(forzar){
+  if(GALERIA && !forzar){ pintarGaleria(); return Promise.resolve(GALERIA); }
+  if(galLeyendo) return galLeyendo;
+  $('g-cuenta').textContent = 'Cargando galería…';
+  galLeyendo = db.ref('cal/etiquetas').once('value').then(s=>{
+    GALERIA = s.val() || {};
+    galLimite = 100; poblarTiposGaleria(); pintarGaleria();
+    return GALERIA;
+  }).catch(e=>{
+    $('g-cuenta').textContent = 'No se pudo leer la galería: ' + e.message;
+    throw e;
+  }).finally(()=>{ galLeyendo = null; });
+  return galLeyendo;
+}
+
+function poblarTiposGaleria(){
+  const sel = $('g-tipo'), actual = sel.value;
+  const tipos = [...new Set(Object.values(GALERIA||{}).map(e=>e.Tipo).filter(Boolean))]
+                  .sort((a,b)=>a.localeCompare(b,'es'));
+  sel.innerHTML = '<option value="">Todos los tipos</option>' +
+    tipos.map(t=>`<option${t===actual?' selected':''}>${esc(t)}</option>`).join('');
+}
+
+function galFiltradas(){
+  const q = norm($('g-buscar').value), tipo = $('g-tipo').value;
+  return Object.values(GALERIA||{})
+    .filter(e => (!tipo || e.Tipo===tipo) &&
+                 (!q || norm(e.Etiq+' '+(e.Nombre_etiq||'')+' '+(e.Cliente||'')).includes(q)))
+    .sort((a,b)=>String(a.Etiq).localeCompare(String(b.Etiq)));
+}
+
+function pintarGaleria(){
+  const esAdmin = sesion.rol==='ADMIN';
+  document.querySelectorAll('.g-admin').forEach(b=>b.classList.toggle('hide', !esAdmin));
+  if(!GALERIA) return;
+  const total = Object.keys(GALERIA).length, lista = galFiltradas();
+  const filtrando = $('g-buscar').value.trim() || $('g-tipo').value;
+  $('g-cuenta').textContent = filtrando
+    ? `${lista.length.toLocaleString('es-MX')} de ${total.toLocaleString('es-MX')} etiquetas`
+    : `${total.toLocaleString('es-MX')} etiquetas`;
+  if(!total){
+    $('g-tabla').innerHTML = '';
+    $('g-mas').innerHTML = `<div class="vacio">La galería está vacía.${esAdmin
+      ? '<br>Carga el archivo de Excel o da de alta la primera etiqueta.' : ''}</div>`;
+    return;
+  }
+  const vis = lista.slice(0, galLimite);
+  $('g-tabla').innerHTML =
+    '<thead><tr>' + GAL_CAMPOS.map(c=>`<th class="${GAL_NUMERICOS.has(c)?'num':''}">${c}</th>`).join('') + '</tr></thead>' +
+    '<tbody>' + vis.map(e=>`<tr data-etiq="${esc(e.Etiq)}">` +
+      GAL_CAMPOS.map(c=>`<td class="${GAL_NUMERICOS.has(c)?'num':''}">${esc(fmtGal(c, e[c]))}</td>`).join('') +
+    '</tr>').join('') + '</tbody>';
+  $('g-mas').innerHTML = !lista.length
+    ? '<div class="vacio">Ninguna etiqueta coincide con la búsqueda.</div>'
+    : (lista.length > galLimite
+      ? `<button class="btn btn-2" onclick="galLimite+=100;pintarGaleria()">Mostrar 100 más
+           (${(lista.length-galLimite).toLocaleString('es-MX')} restantes)</button>` : '');
+}
+// Un solo manejador para toda la tabla, en vez de uno por renglón.
+document.addEventListener('click', ev=>{
+  const tr = ev.target.closest && ev.target.closest('#g-tabla tbody tr');
+  if(tr) verEtiqueta(tr.dataset.etiq);
+});
+
+/* Ficha de la etiqueta: los 15 datos completos, sin redondear. */
+function verEtiqueta(k){
+  const e = (GALERIA||{})[k]; if(!e) return;
+  cerrarModal('modal-etiqueta');
+  const c = document.createElement('div'); c.className='modal'; c.id='modal-etiqueta';
+  const origen = {excel:'desde Excel', manual:'a mano'}[e.origen] || '';
+  c.innerHTML = `<div class="modal-box">
+    <div class="modal-t">Etiqueta ${esc(e.Etiq)}</div>
+    <div style="font-size:12.5px;color:var(--text2);margin-bottom:10px">${esc(e.Nombre_etiq||'')}</div>
+    ${GAL_CAMPOS.slice(2).map(f=>`<div class="ficha-fila"><span>${f}</span><span>${esc(e[f]==null?'—':e[f])}</span></div>`).join('')}
+    ${e.actualizadoPor ? `<div style="font-size:11px;color:var(--text3);margin-top:10px">
+      Última modificación: nómina ${esc(e.actualizadoPor)}, ${esc(String(e.actualizadoEn||'').slice(0,10))}
+      ${origen?'· '+origen:''}</div>` : ''}
+    <div class="row" style="margin-top:14px">
+      <button class="btn btn-2" style="margin:0" onclick="cerrarModal('modal-etiqueta')">Cerrar</button>
+      ${sesion.rol==='ADMIN' ? `<button class="btn" style="margin:0" onclick="abrirEtiqueta('${esc(e.Etiq)}')">Editar</button>` : ''}
+    </div>
+  </div>`;
+  document.body.appendChild(c);
+}
+
+/* Alta (k = null) o edición de una etiqueta. Solo ADMIN. */
+function abrirEtiqueta(k){
+  if(sesion.rol!=='ADMIN') return;
+  const e = k ? (GALERIA||{})[k] : null;
+  cerrarModal('modal-etiqueta');
+  // Sugerencias con los valores que ya existen, para escribirlos igual.
+  const opciones = campos => [...new Set(Object.values(GALERIA||{})
+      .flatMap(x=>campos.map(f=>x[f])).filter(Boolean))].sort()
+      .map(v=>`<option value="${esc(v)}">`).join('');
+  const listas = {
+    Tipo: opciones(['Tipo']), Cliente: opciones(['Cliente']), Estatus: opciones(['Estatus']),
+    Sustrato1: opciones(['Sustrato1','Sustrato2','Sustrato3']), Tipo_tinta: opciones(['Tipo_tinta'])
+  };
+  listas.Sustrato2 = listas.Sustrato3 = listas.Sustrato1;
+  const campo = f => {
+    const v = e && e[f]!=null ? e[f] : (f==='Estatus' && !e ? 'A' : '');
+    const lista = listas[f] ? `list="dl-${f}"` : '';
+    const extra = GAL_NUMERICOS.has(f) ? 'inputmode="decimal"' : '';
+    const ro = (f==='Etiq' && e) ? 'readonly style="background:var(--bg)"' : '';
+    return `<div><label>${f}</label><input id="ge-${f}" value="${esc(v)}" ${lista} ${extra} ${ro}
+      ${f==='Etiq'?'autocapitalize="characters" maxlength="20"':''}></div>`;
+  };
+  const par = (a,b) => `<div class="row">${campo(a)}${campo(b)}</div>`;
+  const c = document.createElement('div'); c.className='modal'; c.id='modal-etiqueta';
+  c.innerHTML = `<div class="modal-box">
+    <div class="modal-t">${e ? 'Editar etiqueta '+esc(e.Etiq) : 'Nueva etiqueta'}</div>
+    ${Object.keys(listas).map(f=>`<datalist id="dl-${f}">${listas[f]}</datalist>`).join('')}
+    ${par('Etiq','Estatus')}
+    ${campo('Nombre_etiq')}
+    ${par('Tipo','Cliente')}
+    ${par('Tintas','Engrane')}
+    ${par('Med_des','Med_eje')}
+    ${par('Repeticiones','Ancho')}
+    ${par('Sustrato1','Sustrato2')}
+    ${par('Sustrato3','Tipo_tinta')}
+    <div id="ge-err" style="color:var(--red);font-size:12.5px;margin-top:10px"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn btn-2" style="margin:0" onclick="cerrarModal('modal-etiqueta')">Cancelar</button>
+      <button class="btn" style="margin:0" id="ge-guardar" onclick="guardarEtiqueta(${e?'true':'false'})">Guardar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(c);
+}
+
+function guardarEtiqueta(editando){
+  const err = m => { $('ge-err').innerHTML = m; };
+  const k = claveEtiq($('ge-Etiq').value);
+  if(!k) return err('Escribe la clave de la etiqueta.');
+  if(!claveValida(k)) return err('La clave no puede llevar . # $ / [ ]');
+  // SPEC-015: el alta no pisa una etiqueta que ya existe.
+  if(!editando && GALERIA[k]) return err(`La etiqueta ${esc(k)} ya existe.
+    <a href="#" onclick="verEtiqueta('${esc(k)}');return false">Ver su ficha</a>`);
+  const r = {Etiq:k};
+  for(const f of GAL_CAMPOS.slice(1)){
+    const raw = $('ge-'+f).value;
+    if(GAL_NUMERICOS.has(f)){
+      const n = numDe(raw);
+      if(Number.isNaN(n)) return err(`${f} debe ser un número.`);
+      if(n!==null) r[f] = n;
+    } else if(raw.trim()) r[f] = raw.trim();
+  }
+  r.actualizadoPor = sesion.nomina; r.actualizadoEn = new Date().toISOString(); r.origen = 'manual';
+  $('ge-guardar').disabled = true;
+  db.ref('cal/etiquetas/'+k).set(r).then(()=>{
+    GALERIA[k] = r;
+    cerrarModal('modal-etiqueta'); poblarTiposGaleria(); pintarGaleria();
+    toast(editando ? 'Etiqueta actualizada' : 'Etiqueta '+k+' agregada');
+  }).catch(e=>{ $('ge-guardar').disabled=false; err('No se pudo guardar: '+esc(e.message)); });
+}
+
+/* ── Carga desde Excel: agrega las nuevas y actualiza las existentes ── */
+function leerExcelGaleria(ev){
+  const file = ev.target.files[0]; if(!file) return;
+  const lector = new FileReader();
+  lector.onload = async e => {
+    try{
+      const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+      const filas = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:'', raw:true});
+      await leerGaleria(false);          // hace falta para saber qué es nuevo
+      procesarGaleria(filas);
+    }catch(err){ toast('No se pudo leer el archivo: '+err.message); }
+    ev.target.value='';
+  };
+  lector.onerror = ()=>{ toast('Error al leer el archivo'); ev.target.value=''; };
+  lector.readAsArrayBuffer(file);
+}
+
+function procesarGaleria(filas){
+  // «Nombre_etiq», «nombre etiq» y «NOMBRE_ETIQ » cuentan como el mismo encabezado.
+  const llave = h => norm(h).replace(/[ _]/g,'');
+  const enc = (filas[0]||[]).map(llave);
+  const col = {};                        // campo → índice de columna en el archivo
+  GAL_CAMPOS.forEach(f=>{ const i = enc.indexOf(llave(f)); if(i>=0) col[f]=i; });
+  if(col.Etiq===undefined){
+    $('g-previa').innerHTML = `<div class="aviso aviso-amber">El archivo no trae la columna
+      <b>Etiq</b> en el primer renglón. Revisa que sea el formato de la galería.</div>`;
+    return;
+  }
+  const faltan = GAL_CAMPOS.filter(f=>col[f]===undefined);
+  const enArchivo = {}, rechazadas = [];
+  let repetidas = 0;
+
+  filas.slice(1).forEach((r,i)=>{
+    const fila = i+2;
+    if(!r || r.every(v=>String(v).trim()==='')) return;          // renglón vacío
+    const k = claveEtiq(r[col.Etiq]);
+    if(!k){ rechazadas.push({fila, motivo:'sin clave en Etiq'}); return; }
+    if(!claveValida(k)){ rechazadas.push({fila, motivo:'clave con . # $ / [ ]'}); return; }
+    const reg = {Etiq:k};
+    for(const f of GAL_CAMPOS.slice(1)){
+      if(col[f]===undefined) continue;   // columna ausente: no se toca
+      const v = r[col[f]];
+      if(GAL_NUMERICOS.has(f)){
+        const n = numDe(v);
+        if(Number.isNaN(n)){ rechazadas.push({fila, motivo:'texto en '+f}); return; }
+        reg[f] = n;                       // null borra el dato al guardar
+      } else {
+        const t = String(v==null?'':v).trim();
+        reg[f] = t || null;
+      }
+    }
+    if(enArchivo[k]) repetidas++;
+    enArchivo[k] = reg;                   // si se repite, gana la última fila
+  });
+
+  // Qué cambia respecto de lo guardado.
+  const nuevas = [], cambian = [];
+  let iguales = 0;
+  Object.values(enArchivo).forEach(reg=>{
+    const ant = GALERIA[reg.Etiq];
+    if(!ant){ nuevas.push(reg); return; }
+    const difiere = Object.keys(reg).some(f=> (reg[f]==null ? null : reg[f]) !== (ant[f]==null ? null : ant[f]));
+    if(difiere) cambian.push(reg); else iguales++;
+  });
+
+  previaGaleria = {nuevas, cambian};
+  const porMotivo = {};
+  rechazadas.forEach(r=>{ (porMotivo[r.motivo] = porMotivo[r.motivo] || []).push(r.fila); });
+  const nada = !nuevas.length && !cambian.length;
+  const linea = (t,n) => `<div class="foco-item"><div class="foco-nom">${t}</div>
+    <div class="foco-pct">${n.toLocaleString('es-MX')}</div></div>`;
+
+  $('g-previa').innerHTML = `
+    <div class="card" style="margin-top:4px;box-shadow:none">
+      <div class="card-t">Revisa antes de guardar</div>
+      <div class="aviso">Todavía no se ha guardado nada. Al confirmar se <b>agregan</b> las
+        etiquetas nuevas y se <b>actualizan</b> las que cambian; las que no vienen en el
+        archivo se quedan como están.</div>
+      ${linea('Etiquetas nuevas', nuevas.length)}
+      ${linea('Etiquetas que cambian', cambian.length)}
+      ${linea('Sin cambio', iguales)}
+      ${linea('Filas rechazadas', rechazadas.length)}
+      ${repetidas ? linea('Claves repetidas en el archivo (gana la última)', repetidas) : ''}
+      ${rechazadas.length ? `<div style="font-size:11.5px;color:var(--text2);margin-top:9px;line-height:1.6">
+        ${Object.keys(porMotivo).map(m=>`${porMotivo[m].length} × ${esc(m)} (fila${porMotivo[m].length>1?'s':''}
+          ${porMotivo[m].slice(0,5).join(', ')}${porMotivo[m].length>5?'…':''})`).join('<br>')}</div>` : ''}
+      ${faltan.length ? `<div class="aviso aviso-amber" style="margin:10px 0 0">El archivo no trae
+        ${faltan.map(f=>'<b>'+f+'</b>').join(', ')}. Esas columnas no se tocan.</div>` : ''}
+      <div id="g-progreso" style="font-size:12px;color:var(--text2);margin-top:10px"></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn btn-2" style="margin:0" onclick="cancelarGaleria()">Cancelar</button>
+        <button class="btn" style="margin:0" id="g-confirmar" onclick="confirmarGaleria()" ${nada?'disabled':''}>
+          ${nada ? 'Nada que guardar' : 'Guardar'}</button>
+      </div>
+    </div>`;
+}
+
+function cancelarGaleria(){ previaGaleria=null; $('g-previa').innerHTML=''; }
+
+// Se guarda de 500 en 500, con varias rutas por escritura: una carga de miles
+// de etiquetas no se hace en una sola petición gigante y se ve el avance.
+async function confirmarGaleria(){
+  if(!previaGaleria) return;
+  const meta = {actualizadoPor: sesion.nomina, actualizadoEn: new Date().toISOString(), origen:'excel'};
+  const limpio = o => { const x={}; Object.keys(o).forEach(f=>{ if(o[f]!=null && o[f]!=='') x[f]=o[f]; }); return x; };
+  const registros = [
+    ...previaGaleria.nuevas.map(r => limpio({...r, ...meta})),
+    ...previaGaleria.cambian.map(r => limpio({...GALERIA[r.Etiq], ...r, ...meta}))
+  ];
+  $('g-confirmar').disabled = true;
+  try{
+    for(let i=0; i<registros.length; i+=500){
+      const lote = registros.slice(i, i+500), upd = {};
+      lote.forEach(r=>{ upd[r.Etiq] = r; });
+      $('g-progreso').textContent = `Guardando ${Math.min(i+500, registros.length).toLocaleString('es-MX')}
+        de ${registros.length.toLocaleString('es-MX')}…`;
+      await db.ref('cal/etiquetas').update(upd);
+      lote.forEach(r=>{ GALERIA[r.Etiq] = r; });
+    }
+    const n = previaGaleria.nuevas.length, c = previaGaleria.cambian.length;
+    cancelarGaleria(); poblarTiposGaleria(); pintarGaleria();
+    toast(`Galería actualizada: ${n} nuevas, ${c} actualizadas`);
+  }catch(e){
+    // Guardar otra vez reescribe los lotes que ya entraron con los mismos
+    // datos, así que repetir es seguro.
+    $('g-confirmar').disabled = false;
+    $('g-progreso').textContent = 'Se detuvo: '+e.message+'. Presiona Guardar otra vez para terminar.';
+    pintarGaleria();
+  }
 }
 
 /* ═══════════════ ARRANQUE (SPEC-001, SPEC-013) ═══════════════ */

@@ -4,7 +4,7 @@ Inspección de calidad en línea: foco por máquina, hallazgos con causa y
 acciones correctivas que se cierran.
 
 **Dirección:** https://impredimex-hub.github.io/control-proceso-impredimex/
-**Versión vigente:** 1.2.1 (ver [`CHANGELOG.md`](./CHANGELOG.md))
+**Versión vigente:** 1.3.0 (ver [`CHANGELOG.md`](./CHANGELOG.md))
 **Estado:** reconstruida y publicada; varias especificaciones están parciales
 (ver la tabla de estado en [`SPECS.md`](./SPECS.md))
 
@@ -36,6 +36,9 @@ y se entra desde el portal https://impredimex-hub.github.io/.
 - **Comportamiento** de cada defecto mes a mes en todo el histórico
 - **Carga del histórico de merma** desde Excel, con revisión previa
 - **Editor de la matriz** defecto ↔ variable para la junta de calidad
+- **Galería de etiquetas**: tabla con los datos técnicos de cada etiqueta
+  (tintas, engrane, medidas, sustratos), con búsqueda, carga desde Excel y
+  alta manual
 - Se instala como aplicación desde el navegador; no requiere tienda
 
 ---
@@ -78,7 +81,7 @@ Los permisos se asignan desde la app de RRHH. Ver [`HANDOVER.md`](./HANDOVER.md)
 | Datos | Firebase Realtime Database, proyecto `impredimex-procesos` |
 | Identidad | Firebase Authentication del proyecto `impredimex-suite` |
 | Hospedaje | GitHub Pages |
-| Lectura de Excel | SheetJS (xlsx 0.18.5) |
+| Lectura de Excel | SheetJS (xlsx 0.18.5): merma y galería de etiquetas |
 
 ---
 

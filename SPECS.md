@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.2.1 — estados revisados contra el código el 24 de
+**Versión vigente:** 1.3.0 — estados revisados contra el código el 24 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -46,6 +46,7 @@ se puede ir del documento al código y de regreso.
 | 012 | Encabezado estándar de la suite | Implementado |
 | 013 | Abrir sin mostrar la contraseña de paso | Implementado |
 | 014 | Historial de inspecciones | Implementado |
+| 015 | Galería de etiquetas | Implementado |
 
 ---
 
@@ -148,6 +149,8 @@ Las pestañas se muestran según el papel:
 | Comportamiento | ✓ | ✓ | ✓ |
 | Matriz | | | ✓ |
 | Merma | | | ✓ |
+| Galería (consulta) | ✓ | ✓ | ✓ |
+| Galería (cargar, alta y edición) | | | ✓ |
 
 El botón «Atender y cerrar» solo aparece a `SUPERVISOR` y `ADMIN`.
 
@@ -584,6 +587,7 @@ Proyecto `impredimex-procesos`, Realtime Database, todo bajo el nodo `cal/`:
 | `cal/hallazgos/<id>` | Cada hallazgo y, al cerrarse, su acción correctiva |
 | `cal/matriz/<defecto>@<máquina>` | La matriz de la SPEC-005 |
 | `cal/merma` | La última carga del histórico de merma (SPEC-011) |
+| `cal/etiquetas/<Etiq>` | La galería de etiquetas (SPEC-015) |
 
 La app abre una **sesión anónima** en este proyecto después de validar a la
 persona contra la suite.
@@ -696,6 +700,88 @@ fecha, turno, etapa e inspector con su nómina.
 - Es de consulta: no se edita ni se borra nada desde aquí.
 - El límite de 60 es para que la lista abra rápido en el teléfono. No hay
   todavía filtros ni forma de ver inspecciones más antiguas desde la app.
+
+---
+
+# SPEC-015 — Galería de etiquetas
+
+**Estado:** implementado (v1.3.0)
+
+### Por qué existe
+La inspección registra qué etiqueta se está corriendo (SPEC-004), pero la app no
+sabía nada de ella: ni nombre, ni cliente, ni con qué tintas, sustratos o
+medidas se produce. La galería es ese catálogo, dentro de la app. Arranca con
+las **5 642 etiquetas** del archivo `Galeria.xlsx` de Calidad.
+
+### Qué hace
+Una pestaña **Galería** con una tabla de 15 columnas, en este orden y con estos
+encabezados:
+
+`Etiq`, `Nombre_etiq`, `Tipo`, `Cliente`, `Estatus`, `Tintas`, `Engrane`,
+`Med_des`, `Med_eje`, `Repeticiones`, `Sustrato1`, `Sustrato2`, `Sustrato3`,
+`Ancho`, `Tipo_tinta`
+
+- **Búsqueda** por clave, nombre o cliente, y **filtro por tipo**. Arriba se
+  indica cuántas etiquetas coinciden con la búsqueda y cuántas hay en total.
+- La tabla se desplaza a lo ancho; la columna `Etiq` queda fija a la izquierda
+  para no perder de vista de qué etiqueta es cada renglón.
+- Se muestran 100 renglones y un botón «Mostrar 100 más», para que la tabla abra
+  rápido en el teléfono aunque haya miles de etiquetas.
+- Al tocar un renglón se abre la **ficha** de la etiqueta con los 15 datos.
+
+### Seguir cargando etiquetas
+Dos maneras, ambas solo para `ADMIN`:
+
+**Desde Excel.** Se lee la primera hoja. Los encabezados se reconocen aunque
+traigan espacios o cambie la mayúscula, así se puede subir el mismo formato que
+el archivo de origen. Antes de guardar se muestra un resumen: etiquetas
+nuevas, etiquetas que cambian, sin cambio, filas rechazadas por motivo y
+columnas que no vienen en el archivo.
+
+**Una por una.** El botón «Nueva etiqueta» abre un formulario con los 15
+campos. Desde la ficha, el administrador puede **editar** una etiqueta.
+
+### Reglas de negocio
+- **La clave es `Etiq`, y no se repite.** Cargar un archivo **agrega las nuevas
+  y actualiza las existentes**; no borra las que no vengan. Es lo contrario de
+  la merma (SPEC-011), que reemplaza todo: un archivo de etiquetas puede traer
+  solo las altas del mes.
+- **Al actualizar, solo se tocan las columnas que trae el archivo.** Una celda
+  vacía sí borra el dato de esa columna, porque el archivo se toma como la
+  versión vigente de esa etiqueta. Una columna que no viene, no se toca.
+- Si una clave se repite dentro del mismo archivo, gana la última fila y el
+  resumen lo indica.
+- **`Etiq` se guarda como texto, en mayúsculas.** Las claves tienen 5
+  caracteres (`02086`, `D0018`). Si una clave solo de dígitos llega con menos
+  de 5, se rellena con ceros a la izquierda, porque Excel pierde el cero
+  inicial cuando la celda es numérica. No puede llevar `.`, `#`, `$`, `/`, `[`
+  ni `]`, que la base no acepta en una clave.
+- `Tintas`, `Engrane`, `Med_des`, `Med_eje`, `Repeticiones` y `Ancho` son
+  numéricos. Una fila con texto en alguno de ellos se rechaza.
+- **No se borra ninguna etiqueta desde la app.** Para retirarla se cambia su
+  `Estatus`. Hoy todas están en `A`.
+- El alta manual rechaza una clave que ya existe y ofrece abrir su ficha.
+- Cada etiqueta guarda quién la cargó o modificó por última vez, cuándo, y si
+  fue desde Excel o a mano.
+- **Ven la galería los tres papeles**; cargar, dar de alta y editar es de
+  `ADMIN`.
+
+### Datos
+`cal/etiquetas/<Etiq>` en `impredimex-procesos`, con los 15 campos con el
+nombre de su encabezado, más `actualizadoPor`, `actualizadoEn` y `origen`
+(`excel` o `manual`). Los campos vacíos no se guardan.
+
+### Costo de descarga
+Las 5 642 etiquetas pesan unos **1.7 MB**. Por eso la galería **no se descarga
+al abrir la app**, sino la primera vez que se abre la pestaña en la sesión, y
+no queda escuchando cambios: el botón «Actualizar» la vuelve a leer. Con el
+límite de 10 GB al mes del plan gratuito, alcanza para unas 5 800 aperturas al
+mes.
+
+### Lo que no hace todavía
+- La inspección no consulta la galería: el número de etiqueta se sigue
+  escribiendo a mano y no se valida contra ella.
+- No se exporta a Excel.
 
 ---
 

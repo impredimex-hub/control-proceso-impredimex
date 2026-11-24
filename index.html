@@ -722,7 +722,7 @@ async function abrirSesion(user){
   $('login').classList.add('hide'); $('app').classList.remove('hide');
   arranqueListo(true);
 
-  armarNav(); poblarSelects(); conectar();
+  armarNav(); poblarSelects(); baseLista = conectar();
 }
 
 /**
@@ -805,35 +805,46 @@ function poblarSelects(){
 }
 
 /* ═══════════════ DATOS (SPEC-010) ═══════════════ */
-function conectar(){
+// Se cumple cuando la sesión en la base de Calidad está abierta. Las lecturas
+// que dispara el usuario (galería, etiqueta, tabla de rechazos) la esperan.
+let baseLista = new Promise(()=>{});
+async function conectar(){
   db = firebase.database();
-  // SPEC-010: las reglas de este proyecto piden sesión, y hoy la anónima basta.
-  // No identifica a nadie; la trazabilidad viene de lo que graba cada registro.
-  firebase.auth().signInAnonymously().catch(e=>{
+  // SPEC-010: las reglas piden sesión en cal/, y hoy la anónima basta. No
+  // identifica a nadie; la trazabilidad viene de lo que graba cada registro.
+  // Las escuchas se abren DESPUÉS de tener la sesión: una lectura que llega
+  // sin sesión la rechazan las reglas y Firebase ya no la reintenta.
+  try{
+    await firebase.auth().signInAnonymously();
+  }catch(e){
     console.error('Sesión anónima:', e);
-    toast('Sin acceso a la base. Avisa a sistemas.');
-  });
+    const motivo = e && e.code==='auth/admin-restricted-operation'
+      ? 'el acceso anónimo está deshabilitado en Firebase' : (e && (e.code || e.message)) || 'error desconocido';
+    toast('Sin acceso a la base ('+motivo+'). Avisa a sistemas.');
+    throw e;
+  }
+  const fallo = ruta => e => { console.error('Lectura de '+ruta+':', e); toast('No se pudo leer '+ruta+': '+e.code); };
   ['hallazgos','inspecciones'].forEach(k=>{
     db.ref('cal/'+k).on('value', s=>{
       const v=s.val()||{};
       DB[k] = Object.keys(v).map(id=>({_id:id, ...v[id]}));
       pintarFoco();
-    });
+    }, fallo('cal/'+k));
   });
-  db.ref('cal/matriz').on('value', s=>{ DB.matriz = s.val()||{}; pintarFoco(); });
+  db.ref('cal/matriz').on('value', s=>{ DB.matriz = s.val()||{}; pintarFoco(); }, fallo('cal/matriz'));
   db.ref('cal/merma').on('value', s=>{
     const v = s.val();
     SEMILLA_CARGADA = v && v.datos ? v.datos : null;
     DB.mermaMeta = v ? {cargadoEn:v.cargadoEn, cargadoPor:v.cargadoPor,
                         registros:v.registros, ultimoMes:v.ultimoMes} : null;
     MERMA_COMBINADA = null; pintarFoco(); pintarFuenteMerma();
-  });
+  }, fallo('cal/merma'));
   // SPEC-018: el resumen de los rechazos. Si no existe, se arma una vez.
   db.ref('cal/mermaResumen').on('value', s=>{
     RESUMEN = s.val();
     if(RESUMEN===null && !resumenAutoHecho){ resumenAutoHecho = true; recalcularResumen(false); }
     MERMA_COMBINADA = null; pintarFoco(); pintarFuenteMerma();
-  });
+  }, fallo('cal/mermaResumen'));
 }
 
 /* ═══════════════ VENTANAS DE TIEMPO (SPEC-004) ═══════════════
@@ -1323,6 +1334,7 @@ async function etiquetaDeGaleria(k){
   if(!claveValida(k)) return null;
   if(GALERIA) return GALERIA[k] || null;
   if(k in cacheEtiq) return cacheEtiq[k];
+  await baseLista;
   const e = (await db.ref('cal/etiquetas/'+k).once('value')).val();
   cacheEtiq[k] = e;
   return e;
@@ -1682,7 +1694,8 @@ function pintarMesesExcel(){
    rechazos de antes de la v1.8.0 tienen clave sin fecha (empieza con «-») y
    se leen aparte. */
 let rTablaRefs = [];
-function leerTablaRechazos(){
+async function leerTablaRechazos(){
+  try{ await baseLista; }catch(e){ $('r-lista').innerHTML = '<div class="vacio">Sin acceso a la base.</div>'; return; }
   rTablaRefs.forEach(([q,f])=>q.off('value', f)); rTablaRefs = [];
   const mes = $('r-mes').value, partes = {};
   $('r-lista').innerHTML = '<div class="vacio">Cargando…</div>';
@@ -1789,6 +1802,7 @@ function incrementosResumen(recs){
 async function recalcularResumen(manual){
   if(resumenRecalculando) return;
   resumenRecalculando = true;
+  await baseLista.catch(()=>{});
   const btn = $('m-recalcular'); if(manual && btn){ btn.disabled = true; btn.textContent = 'Recalculando…'; }
   try{
     const v = (await db.ref('cal/merma2').once('value')).val() || {};
@@ -2128,7 +2142,7 @@ function leerGaleria(forzar){
   if(GALERIA && !forzar){ pintarGaleria(); return Promise.resolve(GALERIA); }
   if(galLeyendo) return galLeyendo;
   $('g-cuenta').textContent = 'Cargando galería…';
-  galLeyendo = db.ref('cal/etiquetas').once('value').then(s=>{
+  galLeyendo = baseLista.then(()=>db.ref('cal/etiquetas').once('value')).then(s=>{
     GALERIA = s.val() || {};
     galLimite = 100; poblarTiposGaleria(); pintarGaleria();
     return GALERIA;

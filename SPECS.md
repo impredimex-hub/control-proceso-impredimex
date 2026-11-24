@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.8.0 — estados revisados contra el código el 24 de
+**Versión vigente:** 1.8.1 — estados revisados contra el código el 24 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -606,7 +606,10 @@ Proyecto `impredimex-procesos`, Realtime Database, todo bajo el nodo `cal/`:
 | `cal/mermaResumen/<máquina>/<defecto>/<AAAA-MM>` | Metros de los rechazos sumados por mes, para el foco (SPEC-018) |
 
 La app abre una **sesión anónima** en este proyecto después de validar a la
-persona contra la suite.
+persona contra la suite, y **solo después** abre sus lecturas (v1.8.1). Una
+lectura que llega sin sesión la rechazan las reglas y Firebase no la
+reintenta. Si la sesión anónima falla, la app lo dice con el motivo (por
+ejemplo, que el acceso anónimo está deshabilitado en Firebase).
 
 ### Lo que falta
 - **Las reglas (`database.rules.json`) solo piden sesión**, y una sesión

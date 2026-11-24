@@ -11,6 +11,21 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.8.1] — 2026-11-24
+
+### Corregido
+
+- **Con reglas que exigen sesión, la app no podía leer la base.** Abría sus
+  lecturas al mismo tiempo que la sesión anónima, y las que llegaban antes de
+  tenerla eran rechazadas sin reintento. Con las reglas públicas no se notaba.
+  Ahora espera la sesión: las escuchas al arrancar, y la galería, la búsqueda
+  de etiqueta y la tabla de Merma cuando se abren en el primer instante.
+- Si la sesión anónima falla, el aviso dice el motivo, y una lectura rechazada
+  se informa en lugar de quedar en silencio.
+- Caché del service worker a `calidad-v1.8.1`.
+
+---
+
 ## [1.8.0] — 2026-11-24
 
 ### Cambiado

@@ -245,7 +245,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--navy-mid)}
 .etq-info b{display:block;color:var(--navy-dark);font-size:13px}
 .etq-no{background:var(--amber-bg);color:var(--amber)}
 
-/* ── Merma 2 (SPEC-017): los campos que se derivan se ven en gris ── */
+/* ── Formulario de rechazo (SPEC-017): los campos que se derivan se ven en gris ── */
 /* Textarea de un renglón que crece con el texto: un nombre del padrón llega a
    pasar de 70 caracteres y en el teléfono no cabe en una casilla. */
 textarea.derivado{resize:none;overflow:hidden;line-height:1.35;min-height:44px;display:block}
@@ -518,28 +518,9 @@ main.ancha{max-width:1400px}
     </div>
   </section>
 
-  <!-- Merma, solo ADMIN (SPEC-011) -->
+  <!-- Merma (SPEC-018): formulario del día a día, carga de Excel mientras se
+       estandariza el formulario, y la tabla. Una sola fuente de datos. -->
   <section id="pg-merma" class="hide">
-    <div class="card">
-      <div class="card-t">Histórico de merma</div>
-      <div class="aviso" id="merma-estado">—</div>
-      <div style="font-size:12.5px;color:var(--text2);line-height:1.55;margin-bottom:12px">
-        Es lo que alimenta el foco de cada máquina. Los datos vienen de las papeletas
-        que se llenan a mano y se transcriben, así que si nadie recarga el archivo, el
-        foco se queda hablando del año pasado.<br><br>
-        Columnas requeridas: <code>Fecha</code>, <code>Linea</code>, <code>Defecto</code>
-        y <code>Mts rechazados</code>. Verás un resumen antes de que se guarde nada.
-      </div>
-      <input type="file" id="f-excel" accept=".xlsx,.xls" style="display:none" onchange="leerExcelMerma(event)">
-      <button class="btn btn-2" onclick="document.getElementById('f-excel').click()">
-        Seleccionar archivo de merma
-      </button>
-      <div id="merma-previa"></div>
-    </div>
-  </section>
-
-  <!-- Merma 2: registro de rechazos (SPEC-017) -->
-  <section id="pg-merma2" class="hide">
     <div class="card">
       <div class="card-t">Registro de rechazo</div>
       <div class="row">
@@ -578,11 +559,30 @@ main.ancha{max-width:1400px}
       <div id="r-err" style="color:var(--red);font-size:12.5px;margin-top:10px"></div>
       <button class="btn" id="r-guardar" onclick="guardarRechazo()">Registrar rechazo</button>
     </div>
+    <!-- SPEC-018: solo ADMIN -->
+    <div class="card hide" id="m-carga">
+      <div class="card-t">Cargar Excel</div>
+      <div style="font-size:12.5px;color:var(--text2);line-height:1.55;margin-bottom:10px">
+        Mientras se estandariza el formulario. El Excel lleva <b>las mismas columnas que el
+        formulario</b>, un renglón por defecto, y cada folio entra como si se hubiera capturado
+        aquí. Los folios que ya estén registrados se saltan. Verás un resumen antes de que se
+        guarde nada.
+      </div>
+      <div class="row">
+        <button class="btn btn-2" style="margin:0" onclick="descargarPlantilla()">Descargar plantilla</button>
+        <button class="btn" style="margin:0" onclick="document.getElementById('m-excel').click()">Cargar Excel</button>
+      </div>
+      <input type="file" id="m-excel" accept=".xlsx,.xls" style="display:none" onchange="leerExcelRechazos(event)">
+      <div id="m-previa"></div>
+      <div class="aviso" id="m-fuente" style="margin:14px 0 0">—</div>
+      <button class="btn btn-2 btn-sm" style="margin-top:10px" id="m-recalcular" onclick="recalcularResumen(true)">Recalcular resumen</button>
+    </div>
+
     <div class="card">
       <div class="card-t">Rechazos registrados</div>
       <div class="gal-acciones" style="margin-top:0">
         <span id="r-cuenta" class="r-cuenta">—</span>
-        <select id="r-mes" class="r-mes" aria-label="Periodo del Excel"></select>
+        <select id="r-mes" class="r-mes" aria-label="Periodo" onchange="leerTablaRechazos()"></select>
         <button class="btn btn-sm" id="r-exportar" onclick="exportarRechazos()">Exportar a Excel</button>
       </div>
       <div id="r-lista"><div class="vacio">Cargando…</div></div>
@@ -634,9 +634,11 @@ const DEFECTOS = DATOS.defectos;
 const MAQUINAS = DATOS.maquinas;
 
 let db=null, suiteAuth=null, suiteDb=null;
-let SEMILLA_CARGADA = null;   // la que suba el administrador desde Excel
+let SEMILLA_CARGADA = null;   // la última carga de la SPEC-011 en cal/merma, si existe
+let RESUMEN = null;           // SPEC-018: cal/mermaResumen, metros de los rechazos por mes
+let MERMA_COMBINADA = null;   // base histórica + rechazos, con corte (se arma al pedirla)
+let CORTE = null;             // primer mes con rechazos registrados
 let vigiladas = {};           // estado de las variables en la inspección en curso
-let previaMerma = null;
 let sesion=null;                       // {nomina, nombre, rol}
 let DB={hallazgos:[], inspecciones:[], matriz:{}};
 let pendiente=null;                    // inspección en curso, esperando defectos
@@ -770,8 +772,7 @@ const PAGINAS = [
   {id:'tendencia',  nom:'Comportamiento',roles:['INSPECTOR','SUPERVISOR','ADMIN']},
   {id:'galeria',    nom:'Galería',       roles:['INSPECTOR','SUPERVISOR','ADMIN']},   // SPEC-015
   {id:'matriz',     nom:'Matriz',        roles:['ADMIN']},
-  {id:'merma',      nom:'Merma',         roles:['ADMIN']},
-  {id:'merma2',     nom:'Merma 2',       roles:['INSPECTOR','SUPERVISOR','ADMIN']}   // SPEC-017
+  {id:'merma',      nom:'Merma',         roles:['INSPECTOR','SUPERVISOR','ADMIN']}   // SPEC-018
 ];
 function armarNav(){
   const vis = PAGINAS.filter(p=>p.roles.includes(sesion.rol));
@@ -787,9 +788,8 @@ function verPagina(id, btn){
   if(id==='historial') pintarHistorial();
   if(id==='tendencia') pintarTendencia();
   if(id==='matriz')    cargarMatriz();
-  if(id==='merma')     pintarEstadoMerma();
   if(id==='galeria')   leerGaleria(false);
-  if(id==='merma2')    prepararMerma2();
+  if(id==='merma')     prepararMerma();
   // SPEC-015: la tabla de la galería aprovecha la pantalla ancha.
   document.querySelector('main').classList.toggle('ancha', id==='galeria');
 }
@@ -826,7 +826,13 @@ function conectar(){
     SEMILLA_CARGADA = v && v.datos ? v.datos : null;
     DB.mermaMeta = v ? {cargadoEn:v.cargadoEn, cargadoPor:v.cargadoPor,
                         registros:v.registros, ultimoMes:v.ultimoMes} : null;
-    pintarFoco(); pintarEstadoMerma();
+    MERMA_COMBINADA = null; pintarFoco(); pintarFuenteMerma();
+  });
+  // SPEC-018: el resumen de los rechazos. Si no existe, se arma una vez.
+  db.ref('cal/mermaResumen').on('value', s=>{
+    RESUMEN = s.val();
+    if(RESUMEN===null && !resumenAutoHecho){ resumenAutoHecho = true; recalcularResumen(false); }
+    MERMA_COMBINADA = null; pintarFoco(); pintarFuenteMerma();
   });
 }
 
@@ -847,9 +853,31 @@ const nombreMes = m => {
           'septiembre','octubre','noviembre','diciembre'][+x] + ' ' + a;
 };
 
-// La semilla vigente: la que cargó el administrador si existe, y si no, la
-// que viene incrustada con el histórico de 2025 y 2026.
-function semillaVigente(){ return SEMILLA_CARGADA || SEMILLA; }
+/* SPEC-018: una sola fuente de metros por máquina, defecto y mes.
+   Desde el primer mes con rechazos registrados (CORTE), los rechazos; antes,
+   la base histórica: la última carga de la SPEC-011 si existe, y si no, la
+   semilla incrustada. Así un mismo mes nunca se cuenta de dos fuentes. */
+function combinarMerma(){
+  const base = SEMILLA_CARGADA || SEMILLA, res = RESUMEN || {};
+  let corte = null;
+  Object.values(res).forEach(dd=>Object.values(dd||{}).forEach(mm=>Object.keys(mm||{}).forEach(m=>{
+    if(mm[m]>0 && (!corte || m<corte)) corte = m;
+  })));
+  const out = {};
+  const sumar = (maq,def,mes,v)=>{
+    if(!(v>0)) return;
+    const d = ((out[maq] = out[maq]||{})[def] = out[maq][def]||{});
+    d[mes] = +((d[mes]||0) + v).toFixed(3);
+  };
+  Object.keys(base).forEach(maq=>Object.keys(base[maq]).forEach(def=>Object.keys(base[maq][def]).forEach(mes=>{
+    if(!corte || mes < corte) sumar(maq, def, mes, base[maq][def][mes]);
+  })));
+  Object.keys(res).forEach(maq=>Object.keys(res[maq]||{}).forEach(def=>Object.keys(res[maq][def]||{}).forEach(mes=>{
+    sumar(maq, def, mes, res[maq][def][mes]);
+  })));
+  MERMA_COMBINADA = out; CORTE = corte;
+}
+function semillaVigente(){ if(!MERMA_COMBINADA) combinarMerma(); return MERMA_COMBINADA; }
 
 // Metros por defecto de una máquina, en un conjunto de meses.
 function metrosPorDefecto(maquina, meses){
@@ -1228,127 +1256,6 @@ function pintarTendencia(){
     </div>`).join('');
 }
 
-/* ═══════════════ HISTÓRICO DE MERMA (SPEC-011) ═══════════════
-   Los datos vienen de papeletas transcritas a mano, así que si nadie recarga
-   el archivo el foco se queda viejo sin decirlo. Por eso la pantalla muestra
-   desde cuándo no se actualiza. */
-function pintarEstadoMerma(){
-  const e = $('merma-estado'); if(!e) return;
-  const m = DB.mermaMeta;
-  if(!m){
-    e.className='aviso';
-    e.innerHTML = `Se está usando el histórico incrustado en la aplicación, con los
-      datos de 2025 y 2026. Carga el archivo cuando quieras actualizarlo.`;
-    return;
-  }
-  const meses = mesesDesde(m.ultimoMes);
-  const viejo = meses >= 3;
-  e.className = 'aviso' + (viejo ? ' aviso-amber' : '');
-  e.innerHTML = `${m.registros} registros, hasta ${nombreMes(m.ultimoMes)}.
-    Cargado por ${esc(m.cargadoPor)} el ${esc((m.cargadoEn||'').slice(0,10))}.` +
-    (viejo ? `<br><b>El dato más reciente tiene ${meses} meses.</b> El foco está
-      hablando de un periodo que ya pasó; conviene recargar el archivo.` : '');
-}
-
-function mesesDesde(mes){
-  if(!mes) return 99;
-  const [a,m] = mes.split('-').map(Number), hoy = new Date();
-  return (hoy.getFullYear()-a)*12 + (hoy.getMonth()+1-m);
-}
-
-function leerExcelMerma(ev){
-  const file = ev.target.files[0]; if(!file) return;
-  const lector = new FileReader();
-  lector.onload = e => {
-    try{
-      const wb = XLSX.read(e.target.result, {type:'binary', cellDates:true});
-      const filas = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-      procesarMerma(filas);
-    }catch(err){ toast('No se pudo leer el archivo: '+err.message); }
-    ev.target.value='';
-  };
-  lector.onerror = ()=>{ toast('Error al leer el archivo'); ev.target.value=''; };
-  lector.readAsBinaryString(file);
-}
-
-function procesarMerma(filas){
-  const col = (r,...n) => { for(const k of n) if(r[k]!==undefined) return r[k]; return undefined; };
-  const datos = {}, rechazadas = [];
-  let usadas = 0, minMes = '9999-99', maxMes = '0000-00';
-  const validos = new Set(DEFECTOS);
-
-  filas.forEach((r,i)=>{
-    const fila = i+2;
-    const f  = col(r,'Fecha','FECHA','fecha');
-    const ln = String(col(r,'Linea','LINEA','Línea')||'').trim();
-    const de = String(col(r,'Defecto','DEFECTO','defecto')||'').trim().toUpperCase();
-    const mt = parseFloat(col(r,'Mts rechazados','MTS RECHAZADOS','Metros rechazados'));
-
-    if(!f || !ln || !de){ rechazadas.push({fila, motivo:'falta fecha, línea o defecto'}); return; }
-    if(isNaN(mt) || mt<=0){ rechazadas.push({fila, motivo:'metros rechazados inválidos'}); return; }
-    if(!validos.has(de)){ rechazadas.push({fila, motivo:'defecto fuera del catálogo: '+de}); return; }
-
-    const d = (f instanceof Date) ? f : new Date(f);
-    if(isNaN(d.getTime())){ rechazadas.push({fila, motivo:'fecha ilegible'}); return; }
-    const mes = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
-    if(mes < minMes) minMes = mes;
-    if(mes > maxMes) maxMes = mes;
-
-    datos[ln] = datos[ln] || {};
-    datos[ln][de] = datos[ln][de] || {};
-    datos[ln][de][mes] = (datos[ln][de][mes]||0) + Math.round(mt);
-    usadas++;
-  });
-
-  if(!usadas){
-    $('merma-previa').innerHTML = `<div class="aviso aviso-amber">No se pudo usar ninguna
-      fila. Revisa que el archivo traiga las columnas Fecha, Linea, Defecto y
-      Mts rechazados.</div>`;
-    return;
-  }
-
-  previaMerma = {datos, usadas, minMes, maxMes, lineas:Object.keys(datos).length};
-  const porMotivo = {};
-  rechazadas.forEach(r=>porMotivo[r.motivo]=(porMotivo[r.motivo]||0)+1);
-
-  $('merma-previa').innerHTML = `
-    <div class="card" style="margin-top:14px;box-shadow:none">
-      <div class="card-t">Revisa antes de guardar</div>
-      <div class="aviso">Todavía no se ha guardado nada. Al confirmar, esta carga
-        <b>reemplaza</b> la anterior, no se suma a ella.</div>
-      <div class="foco-item"><div class="foco-nom">Registros que se van a usar</div>
-        <div class="foco-pct">${previaMerma.usadas}</div></div>
-      <div class="foco-item"><div class="foco-nom">Líneas distintas</div>
-        <div class="foco-pct">${previaMerma.lineas}</div></div>
-      <div class="foco-item"><div class="foco-nom">Periodo</div>
-        <div class="foco-pct" style="min-width:150px">${nombreMes(minMes)} a ${nombreMes(maxMes)}</div></div>
-      <div class="foco-item"><div class="foco-nom">Filas rechazadas</div>
-        <div class="foco-pct">${rechazadas.length}</div></div>
-      ${rechazadas.length ? `<div style="font-size:11.5px;color:var(--text2);margin-top:9px;line-height:1.6">
-        ${Object.keys(porMotivo).map(m=>`${porMotivo[m]} × ${esc(m)}`).join('<br>')}</div>` : ''}
-      <div class="row" style="margin-top:14px">
-        <button class="btn btn-2" style="margin:0" onclick="cancelarMerma()">Cancelar</button>
-        <button class="btn" style="margin:0" onclick="confirmarMerma()">Guardar</button>
-      </div>
-    </div>`;
-}
-
-function cancelarMerma(){ previaMerma=null; $('merma-previa').innerHTML=''; }
-
-function confirmarMerma(){
-  if(!previaMerma) return;
-  db.ref('cal/merma').set({
-    datos: previaMerma.datos,
-    registros: previaMerma.usadas,
-    ultimoMes: previaMerma.maxMes,
-    cargadoPor: sesion.nomina,
-    cargadoEn: new Date().toISOString()
-  }).then(()=>{
-    toast('Histórico actualizado');
-    cancelarMerma();
-  }).catch(e=>toast('Error: '+e.message));
-}
-
 /* ═══════════════ MATRIZ (SPEC-005) ═══════════════
    Catálogo editable, no código: la junta captura el resultado sin depender
    de una versión nueva, y lo corrige cuando cambie un material. */
@@ -1411,7 +1318,7 @@ const cacheEtiq = {};     // etiquetas ya consultadas en la sesión
 
 /* Un registro de la galería, o null si no está. Si la galería completa ya se
    abrió en la sesión usa esa copia; si no, consulta solo ese registro. Lo usan
-   la inspección (SPEC-016) y Merma 2 (SPEC-017). */
+   la inspección (SPEC-016) y el formulario de rechazo (SPEC-017). */
 async function etiquetaDeGaleria(k){
   if(!claveValida(k)) return null;
   if(GALERIA) return GALERIA[k] || null;
@@ -1479,7 +1386,8 @@ document.addEventListener('input', ev=>{
 const rTimers = {};
 const rPersona = {};                 // id → {nomina, nombre, estado:'ok'|'no'|'baja'|'error'}
 let rEtiqueta = null;                // {clave, encontrada, nombre, cliente}
-let rListaLista = false;
+let rTablaLista = false;
+let resumenAutoHecho = false, resumenRecalculando = false;
 
 /* SPEC-009: el padrón se lee, nunca se escribe. */
 async function personaDeSuite(n){
@@ -1491,7 +1399,9 @@ async function personaDeSuite(n){
   return p;
 }
 
-function prepararMerma2(){
+function prepararMerma(){
+  $('m-carga').classList.toggle('hide', sesion.rol!=='ADMIN');   // SPEC-018
+  pintarFuenteMerma();
   if(!$('r-maquina').options.length){
     $('r-maquina').innerHTML = '<option value="">— Selecciona —</option>' +
       MAQUINAS.map(m=>`<option value="${m.id}">${m.id} · ${m.area}</option>`).join('');
@@ -1502,13 +1412,7 @@ function prepararMerma2(){
       $('r-nom-ins').value = sesion.nomina; rBuscarPersona('ins');
     }
   }
-  if(!rListaLista){
-    rListaLista = true;
-    db.ref('cal/merma2').limitToLast(50).on('value', s=>{
-      const v = s.val() || {};
-      pintarRechazos(Object.keys(v).map(k=>({_id:k, ...v[k]})));
-    }, e=>{ $('r-lista').innerHTML = `<div class="vacio">No se pudo leer: ${esc(e.message)}</div>`; });
-  }
+  if(!rTablaLista){ rTablaLista = true; leerTablaRechazos(); }
 }
 
 function rPersonaEscrita(id){
@@ -1609,18 +1513,19 @@ async function guardarRechazo(){
       metrosTotal:  +defectos.reduce((a,d)=>a+d.metros, 0).toFixed(3),
       bobinasTotal: defectos.reduce((a,d)=>a+d.bobinas, 0),
       fecha: fechaLocal(ahora), turno: turnoDe(ahora), ts: ahora.getTime(),
-      capturoNomina: sesion.nomina, capturoNombre: sesion.nombre
+      capturoNomina: sesion.nomina, capturoNombre: sesion.nombre, origen: 'formulario'
     };
     if(etq.encontrada!==null) rec.etiquetaEnGaleria = etq.encontrada;
     Object.keys(rec).forEach(k=>{ if(rec[k]==='') delete rec[k]; });
     // SPEC-017: el folio no se repite. Se aparta con una transacción, así dos
     // personas que capturan el mismo folio al mismo tiempo no pueden ganar las
     // dos: el servidor solo deja pasar a la primera.
-    const id = db.ref('cal/merma2').push().key;
+    const id = nuevoIdRechazo(rec.fecha);
     const t = await db.ref('cal/merma2Folios/'+folio).transaction(actual => actual ? undefined : id);
     if(!t.committed) return err(`El folio ${folio} ya está registrado.`);
     folioApartado = true;
-    await db.ref('cal/merma2/'+id).set(rec);
+    // SPEC-018: el rechazo y su suma al resumen del foco, en una sola escritura.
+    await db.ref('cal').update({['merma2/'+id]: rec, ...incrementosResumen([rec])});
     toast(`Rechazo ${folio} registrado`);
     limpiarRechazo();
   }catch(e){
@@ -1725,15 +1630,22 @@ const R_COLUMNAS = [
   {t:'Capturó',            v:r=>r.capturoNombre ? `${r.capturoNombre} (${r.capturoNomina})` : '', w:32, folio:true}
 ];
 
-function pintarRechazos(lista){
-  lista.sort((a,b)=>(b.ts||0)-(a.ts||0));
+const ordenRechazos = (a,b) => String(b.fecha||'').localeCompare(String(a.fecha||'')) || (b.ts||0)-(a.ts||0);
+
+function pintarRechazos(lista, mes){
+  lista.sort(ordenRechazos);
+  if(!mes) lista = lista.slice(0, 300);
   if(!lista.length){
     $('r-cuenta').textContent = '';
-    $('r-lista').innerHTML = '<div class="vacio">Todavía no hay rechazos registrados.</div>'; return;
+    $('r-lista').innerHTML = `<div class="vacio">${mes ? 'No hay rechazos registrados en '+nombreMes(mes)+'.'
+                                                     : 'Todavía no hay rechazos registrados.'}</div>`; return;
   }
   const fmt = v => v==null ? '' : (typeof v==='number' ? v.toLocaleString('es-MX') : String(v));
   const nDef = lista.reduce((a,r)=>a+defectosDe(r).length, 0);
-  $('r-cuenta').textContent = `Últimos ${lista.length} folio${lista.length===1?'':'s'} · ${nDef} defecto${nDef===1?'':'s'}.`;
+  const metros = lista.reduce((a,r)=>a+defectosDe(r).reduce((x,d)=>x+(+d.metros||0),0), 0);
+  $('r-cuenta').textContent = (mes ? `${lista.length} folio${lista.length===1?'':'s'} en ${nombreMes(mes)}`
+                                   : `Últimos ${lista.length} folio${lista.length===1?'':'s'}`) +
+    ` · ${nDef} defecto${nDef===1?'':'s'} · ${(+metros.toFixed(1)).toLocaleString('es-MX')} m`;
   let cuerpo = '';
   lista.forEach((r,i)=>{
     const defs = defectosDe(r), alto = Math.max(defs.length,1), alt = i%2 ? ' class="f-alt"' : '';
@@ -1765,6 +1677,31 @@ function pintarMesesExcel(){
   sel.innerHTML = ops.join('') + '<option value="">Todo el histórico</option>';
 }
 
+/* SPEC-018: la tabla muestra el mes elegido. Las claves empiezan con la fecha,
+   así que un mes se lee por rango de clave, sin índices en las reglas. Los
+   rechazos de antes de la v1.8.0 tienen clave sin fecha (empieza con «-») y
+   se leen aparte. */
+let rTablaRefs = [];
+function leerTablaRechazos(){
+  rTablaRefs.forEach(([q,f])=>q.off('value', f)); rTablaRefs = [];
+  const mes = $('r-mes').value, partes = {};
+  $('r-lista').innerHTML = '<div class="vacio">Cargando…</div>';
+  const pintar = () => {
+    let l = [].concat(...Object.values(partes));
+    if(mes) l = l.filter(r => String(r.fecha||'').slice(0,7) === mes);
+    pintarRechazos(l, mes);
+  };
+  const escuchar = (nombre, q) => {
+    const f = s => { const v = s.val()||{}; partes[nombre] = Object.keys(v).map(k=>({_id:k, ...v[k]})); pintar(); };
+    q.on('value', f, e=>{ $('r-lista').innerHTML = `<div class="vacio">No se pudo leer: ${esc(e.message)}</div>`; });
+    rTablaRefs.push([q, f]);
+  };
+  const ref = db.ref('cal/merma2');
+  escuchar('anteriores', ref.orderByKey().startAt('-').endAt('-\uf8ff'));
+  escuchar('fechados', mes ? ref.orderByKey().startAt(mes).endAt(mes+'\uf8ff')
+                           : ref.orderByKey().startAt('0').limitToLast(300));
+}
+
 async function exportarRechazos(){
   const btn = $('r-exportar'), mes = $('r-mes').value;
   btn.disabled = true; btn.textContent = 'Preparando…';
@@ -1772,7 +1709,7 @@ async function exportarRechazos(){
     const v = (await db.ref('cal/merma2').once('value')).val() || {};
     const lista = Object.values(v)
       .filter(r => !mes || String(r.fecha||'').slice(0,7) === mes)
-      .sort((a,b)=>(b.ts||0)-(a.ts||0));
+      .sort(ordenRechazos);
     if(!lista.length){ toast(mes ? `No hay rechazos en ${nombreMes(mes)}` : 'No hay rechazos que exportar'); return; }
 
     const borde = {style:'thin', color:{rgb:'C9D3E3'}};
@@ -1814,6 +1751,340 @@ async function exportarRechazos(){
     toast(`Excel con ${lista.length} folio${lista.length===1?'':'s'}`);
   }catch(e){ toast('No se pudo exportar: '+e.message); }
   finally{ btn.disabled = false; btn.textContent = 'Exportar a Excel'; }
+}
+
+/* ═══════════════ MERMA: UNA SOLA FUENTE (SPEC-018) ═══════════════ */
+
+// La clave empieza con la fecha del rechazo: la tabla lee un mes por rango de
+// clave. El resto es un identificador de Firebase, que no se repite.
+function nuevoIdRechazo(fecha){ return fecha + '_' + db.ref('cal/merma2').push().key; }
+
+// Metros de unos rechazos, sumados por máquina, defecto y mes.
+function sumarPorMes(recs){
+  const acc = {};
+  recs.forEach(r=>{
+    const mes = String(r.fecha||'').slice(0,7);
+    if(!/^\d{4}-\d{2}$/.test(mes) || !r.maquina || !claveValida(r.maquina)) return;
+    defectosDe(r).forEach(d=>{
+      if(!(+d.metros>0) || !d.defecto || !claveValida(d.defecto)) return;
+      const x = ((acc[r.maquina] = acc[r.maquina]||{})[d.defecto] = acc[r.maquina][d.defecto]||{});
+      x[mes] = +((x[mes]||0) + (+d.metros)).toFixed(3);
+    });
+  });
+  return acc;
+}
+
+// Rutas (relativas a cal/) que suman esos metros al resumen del foco. Se
+// mandan en la misma escritura que el rechazo: o entran los dos o ninguno.
+function incrementosResumen(recs){
+  const acc = sumarPorMes(recs), out = {};
+  Object.keys(acc).forEach(maq=>Object.keys(acc[maq]).forEach(def=>Object.keys(acc[maq][def]).forEach(mes=>{
+    out[`mermaResumen/${maq}/${def}/${mes}`] = firebase.database.ServerValue.increment(acc[maq][def][mes]);
+  })));
+  return out;
+}
+
+/* Rehace el resumen con todos los rechazos. Corre sola si el resumen no existe;
+   el administrador la usa después de borrar o corregir un rechazo en la consola. */
+async function recalcularResumen(manual){
+  if(resumenRecalculando) return;
+  resumenRecalculando = true;
+  const btn = $('m-recalcular'); if(manual && btn){ btn.disabled = true; btn.textContent = 'Recalculando…'; }
+  try{
+    const v = (await db.ref('cal/merma2').once('value')).val() || {};
+    const recs = Object.values(v);
+    const acc = sumarPorMes(recs);
+    await db.ref('cal/mermaResumen').set(Object.keys(acc).length ? acc : null);
+    if(manual) toast(`Resumen recalculado con ${recs.length} folio${recs.length===1?'':'s'}`);
+  }catch(e){
+    console.error('Resumen:', e);
+    if(manual) toast('No se pudo recalcular: '+e.message);
+  }finally{
+    resumenRecalculando = false;
+    if(btn){ btn.disabled = false; btn.textContent = 'Recalcular resumen'; }
+  }
+}
+
+// De dónde está saliendo el foco, a la vista del administrador.
+function pintarFuenteMerma(){
+  const e = $('m-fuente'); if(!e) return;
+  semillaVigente();                       // asegura CORTE al día
+  const base = DB.mermaMeta
+    ? `la carga del ${esc(String(DB.mermaMeta.cargadoEn||'').slice(0,10))} (hasta ${nombreMes(DB.mermaMeta.ultimoMes||'0000-01')})`
+    : 'el histórico 2025–2026 incrustado en la app';
+  e.innerHTML = CORTE
+    ? `<b>El foco usa los rechazos registrados desde ${nombreMes(CORTE)}.</b> Para los meses anteriores usa ${base}.`
+    : `Todavía no hay rechazos registrados. El foco usa ${base}.`;
+}
+
+/* ── Plantilla: las columnas del formulario, y los catálogos válidos ── */
+const COLS_EXCEL = () => R_COLUMNAS.filter(c=>c.t!=='Capturó');
+
+function descargarPlantilla(){
+  const borde = {style:'thin', color:{rgb:'C9D3E3'}};
+  const sCab = {font:{bold:true, color:{rgb:'FFFFFF'}}, fill:{patternType:'solid', fgColor:{rgb:'003580'}},
+                alignment:{horizontal:'center', vertical:'center', wrapText:true},
+                border:{top:borde, bottom:borde, left:borde, right:borde}};
+  const cols = COLS_EXCEL();
+  const ws = XLSX.utils.aoa_to_sheet([cols.map(c=>c.t)]);
+  cols.forEach((c,j)=>{ ws[XLSX.utils.encode_cell({r:0,c:j})].s = sCab; });
+  ws['!cols'] = cols.map(c=>({wch:c.w}));
+  ws['!rows'] = [{hpt:30}];
+
+  const n = Math.max(MAQUINAS.length, DEFECTOS.length);
+  const filas = [['Máquina','Área','','Defecto']];
+  for(let i=0;i<n;i++) filas.push([MAQUINAS[i]?MAQUINAS[i].id:'', MAQUINAS[i]?MAQUINAS[i].area:'', '', DEFECTOS[i]||'']);
+  filas.push([], ['Un renglón por defecto. Varios renglones con el mismo folio son un mismo rechazo.'],
+    ['Obligatorios: Folio, Fecha, Máquina, Defecto y Metros lineales.'],
+    ['Turno: Matutino, Vespertino o Nocturno. Bobinas: número entero.'],
+    ['Si la nómina está en el padrón de RRHH, el nombre se toma de ahí.']);
+  const wc = XLSX.utils.aoa_to_sheet(filas);
+  ['A1','B1','D1'].forEach(k=>{ wc[k].s = sCab; });
+  wc['!cols'] = [{wch:12},{wch:16},{wch:3},{wch:22}];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Rechazos');
+  XLSX.utils.book_append_sheet(wb, wc, 'Catálogos');
+  XLSX.writeFile(wb, 'Plantilla_Rechazos_Calidad.xlsx');
+}
+
+/* ── Carga del Excel ── */
+// Encabezado normalizado → campo. Se comparan sin acentos, mayúsculas,
+// espacios ni guiones bajos.
+const R_ENCABEZADOS = {
+  folio:['folio','foliodederechazo','foliorechazo'],
+  fecha:['fecha'],
+  turno:['turno'],
+  etiqueta:['#deetiqueta','#etiqueta','etiqueta','etiq','numerodeetiqueta'],
+  etiquetaNombre:['nombredeetiqueta','nombreetiqueta','nombreetiq'],
+  etiquetaCliente:['cliente'],
+  maquina:['maquina','linea'],
+  defecto:['defecto'],
+  metros:['metroslineales','cantidadrechazada(metroslineales)','mtsrechazados','metrosrechazados','metros'],
+  bobinas:['bobinas','cantidadrechazada(numerodebobinas)','numerodebobinas'],
+  supervisorNomina:['nominasupervisor'], supervisorNombre:['nombresupervisor'],
+  operadorNomina:['nominaoperador'],     operadorNombre:['nombreoperador'],
+  inspectorNomina:['nominainspector'],   inspectorNombre:['nombreinspector']
+};
+let previaRechazos = null;
+
+// Fecha de una celda: número de serie de Excel, fecha, o texto dd/mm/aaaa o aaaa-mm-dd.
+function fechaDeCelda(v){
+  const iso = (a,m,d) => {
+    const f = new Date(Date.UTC(a, m-1, d));
+    if(f.getUTCFullYear()!==a || f.getUTCMonth()!==m-1 || f.getUTCDate()!==d || a<2000 || a>2100) return null;
+    return a+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+  };
+  if(typeof v==='number'){
+    const f = new Date(Date.UTC(1899,11,30) + Math.round(v)*86400000);
+    return iso(f.getUTCFullYear(), f.getUTCMonth()+1, f.getUTCDate());
+  }
+  if(v instanceof Date) return iso(v.getFullYear(), v.getMonth()+1, v.getDate());
+  const t = String(v||'').trim();
+  let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m) return iso(+m[1], +m[2], +m[3]);
+  m = t.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2}|\d{4})$/);
+  if(m) return iso(m[3].length===2 ? 2000 + +m[3] : +m[3], +m[2], +m[1]);
+  return null;
+}
+
+function leerExcelRechazos(ev){
+  const file = ev.target.files[0]; if(!file) return;
+  const lector = new FileReader();
+  lector.onload = async e => {
+    $('m-previa').innerHTML = '<div class="aviso" style="margin-top:12px">Revisando el archivo…</div>';
+    try{
+      const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+      const filas = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:'', raw:true});
+      await procesarExcelRechazos(filas);
+    }catch(err){
+      console.error(err);
+      $('m-previa').innerHTML = `<div class="aviso aviso-amber" style="margin-top:12px">No se pudo leer el archivo: ${esc(err.message)}</div>`;
+    }
+    ev.target.value = '';
+  };
+  lector.onerror = ()=>{ toast('Error al leer el archivo'); ev.target.value=''; };
+  lector.readAsArrayBuffer(file);
+}
+
+async function procesarExcelRechazos(filas){
+  const llave = h => norm(h).replace(/[\s_]/g,'');
+  const enc = (filas[0]||[]).map(llave), col = {};
+  Object.keys(R_ENCABEZADOS).forEach(f=>{
+    const i = enc.findIndex(h => R_ENCABEZADOS[f].includes(h));
+    if(i>=0) col[f] = i;
+  });
+  const faltan = ['folio','fecha','maquina','defecto','metros'].filter(f=>col[f]===undefined);
+  if(faltan.length){
+    const nombres = {folio:'Folio', fecha:'Fecha', maquina:'Máquina', defecto:'Defecto', metros:'Metros lineales'};
+    $('m-previa').innerHTML = `<div class="aviso aviso-amber" style="margin-top:12px">Al archivo le
+      faltan columnas: ${faltan.map(f=>'<b>'+nombres[f]+'</b>').join(', ')}. Descarga la plantilla para
+      ver el formato.</div>`;
+    return;
+  }
+  const celda = (r,f) => col[f]===undefined ? '' : r[col[f]];
+  const txt = v => String(v==null?'':v).trim();
+  const defPorNorm = {}; DEFECTOS.forEach(d=>{ defPorNorm[norm(d)] = d; });
+  const maqs = new Set(MAQUINAS.map(m=>m.id));
+  const TURNO = {mat:'Matutino', ves:'Vespertino', noc:'Nocturno'};
+
+  // 1. Agrupar por folio y validar renglón por renglón.
+  const folios = {}, orden = [];
+  let sinFolio = 0;
+  filas.slice(1).forEach((r,i)=>{
+    if(!r || r.every(v=>txt(v)==='')) return;
+    const folio = txt(celda(r,'folio')).toUpperCase();
+    if(!folio){ sinFolio++; return; }
+    if(!folios[folio]){ folios[folio] = {folio, filas:[], errores:[]}; orden.push(folio); }
+    folios[folio].filas.push({r, n:i+2});
+  });
+
+  const motivos = {}, malos = [];
+  const rechazar = (F, motivo) => { (motivos[motivo] = motivos[motivo]||[]).push(F.folio); malos.push(F.folio); };
+  const candidatos = [];
+  for(const folio of orden){
+    const F = folios[folio];
+    if(!claveValida(folio)){ rechazar(F, 'folio con . # $ / [ ]'); continue; }
+    const p = F.filas[0].r;
+    const fecha = fechaDeCelda(celda(p,'fecha'));
+    const maquina = txt(celda(p,'maquina')).toUpperCase();
+    if(!fecha){ rechazar(F, 'fecha ilegible o vacía'); continue; }
+    if(!maqs.has(maquina)){ rechazar(F, maquina ? 'máquina fuera del catálogo' : 'sin máquina'); continue; }
+    // Los datos del folio deben coincidir en todos sus renglones.
+    if(F.filas.some(x=>fechaDeCelda(celda(x.r,'fecha'))!==fecha)){ rechazar(F, 'fechas distintas en el mismo folio'); continue; }
+    if(F.filas.some(x=>txt(celda(x.r,'maquina')).toUpperCase()!==maquina)){ rechazar(F, 'máquinas distintas en el mismo folio'); continue; }
+
+    let turno = '';
+    const tt = norm(celda(p,'turno'));
+    if(tt){ turno = TURNO[tt.slice(0,3)] || ''; if(!turno){ rechazar(F, 'turno no reconocido'); continue; } }
+
+    const defs = {}; let error = '';
+    for(const x of F.filas){
+      const d = defPorNorm[norm(celda(x.r,'defecto'))];
+      const metros = numDe(celda(x.r,'metros')), bob = numDe(celda(x.r,'bobinas'));
+      if(!d){ error = txt(celda(x.r,'defecto')) ? 'defecto fuera del catálogo' : 'sin defecto'; break; }
+      if(metros===null || Number.isNaN(metros) || metros<=0){ error = 'metros vacíos, en cero o con texto'; break; }
+      if(bob!==null && (Number.isNaN(bob) || bob<0 || !Number.isInteger(bob))){ error = 'bobinas que no son un entero'; break; }
+      const y = defs[d] = defs[d] || {defecto:d, metros:0, bobinas:null};
+      y.metros = +(y.metros + metros).toFixed(3);                // mismo defecto dos veces: se suma
+      if(bob!==null) y.bobinas = (y.bobinas||0) + bob;
+    }
+    if(error){ rechazar(F, error); continue; }
+    const defectos = Object.values(defs).map(d=> d.bobinas===null ? {defecto:d.defecto, metros:d.metros} : d);
+
+    const primero = f => { for(const x of F.filas){ const v = txt(celda(x.r,f)); if(v) return v; } return ''; };
+    candidatos.push({
+      folio, fecha, turno, maquina, defectos,
+      etiqueta: primero('etiqueta') ? claveEtiq(primero('etiqueta')) : '',
+      etiquetaNombre: primero('etiquetaNombre'), etiquetaCliente: primero('etiquetaCliente'),
+      supervisorNomina: primero('supervisorNomina'), supervisorNombre: primero('supervisorNombre'),
+      operadorNomina:   primero('operadorNomina'),   operadorNombre:   primero('operadorNombre'),
+      inspectorNomina:  primero('inspectorNomina'),  inspectorNombre:  primero('inspectorNombre')
+    });
+  }
+
+  // 2. Folios ya registrados: se saltan.
+  const ya = (await db.ref('cal/merma2Folios').once('value')).val() || {};
+  const registrados = candidatos.filter(c=>ya[c.folio]).map(c=>c.folio);
+  const nuevos = candidatos.filter(c=>!ya[c.folio]);
+
+  // 3. Completar como el formulario: galería y padrón.
+  if(nuevos.some(c=>c.etiqueta)) await leerGaleria(false).catch(()=>{});
+  const nominas = [...new Set(nuevos.flatMap(c=>[c.supervisorNomina, c.operadorNomina, c.inspectorNomina]).filter(Boolean))];
+  const padron = {}, noPadron = new Set();
+  await Promise.all(nominas.map(async n=>{
+    try{ padron[n] = /[\/]/.test(n) ? null : await personaDeSuite(n); }catch(e){ padron[n] = undefined; }
+  }));
+  let fueraGaleria = 0;
+  const ahora = new Date().toISOString();
+  const recs = nuevos.map(c=>{
+    const r = {folio:c.folio, fecha:c.fecha, maquina:c.maquina, defectos:c.defectos,
+      metrosTotal: +c.defectos.reduce((a,d)=>a+d.metros,0).toFixed(3),
+      bobinasTotal: c.defectos.reduce((a,d)=>a+(d.bobinas||0),0),
+      ts: new Date(+c.fecha.slice(0,4), +c.fecha.slice(5,7)-1, +c.fecha.slice(8,10), 12).getTime(),
+      origen:'excel', cargadoEn: ahora, capturoNomina: sesion.nomina, capturoNombre: sesion.nombre};
+    if(c.turno) r.turno = c.turno;
+    if(c.etiqueta){
+      r.etiqueta = c.etiqueta;
+      const g = GALERIA ? GALERIA[c.etiqueta] : undefined;
+      if(GALERIA) r.etiquetaEnGaleria = !!g;
+      if(GALERIA && !g) fueraGaleria++;
+      r.etiquetaNombre  = c.etiquetaNombre  || (g && g.Nombre_etiq) || '';
+      r.etiquetaCliente = c.etiquetaCliente || (g && g.Cliente) || '';
+    }
+    ['supervisor','operador','inspector'].forEach(p=>{
+      const n = c[p+'Nomina'], q = n ? padron[n] : undefined;
+      if(n) r[p+'Nomina'] = n;
+      // Si la nómina está en el padrón, el nombre sale de ahí, como en el formulario.
+      r[p+'Nombre'] = (q && q.nombre) || c[p+'Nombre'] || '';
+      if(n && !q) noPadron.add(n);
+    });
+    Object.keys(r).forEach(k=>{ if(r[k]==='' || r[k]===undefined) delete r[k]; });
+    return r;
+  });
+
+  previaRechazos = recs;
+  const meses = recs.map(r=>r.fecha.slice(0,7)).sort();
+  const nDef = recs.reduce((a,r)=>a+r.defectos.length,0);
+  const metros = recs.reduce((a,r)=>a+r.metrosTotal,0);
+  const linea = (t,v) => `<div class="foco-item"><div class="foco-nom">${t}</div>
+    <div class="foco-pct" style="min-width:90px">${v}</div></div>`;
+  const ejemplos = l => l.slice(0,5).map(esc).join(', ') + (l.length>5 ? '…' : '');
+  $('m-previa').innerHTML = `
+    <div class="card" style="margin-top:12px;box-shadow:none">
+      <div class="card-t">Revisa antes de guardar</div>
+      <div class="aviso">Todavía no se ha guardado nada.</div>
+      ${linea('Folios nuevos', recs.length.toLocaleString('es-MX'))}
+      ${linea('Defectos en esos folios', nDef.toLocaleString('es-MX'))}
+      ${linea('Metros lineales', (+metros.toFixed(1)).toLocaleString('es-MX'))}
+      ${recs.length ? linea('Periodo', nombreMes(meses[0]) + (meses[0]!==meses[meses.length-1] ? ' a '+nombreMes(meses[meses.length-1]) : '')) : ''}
+      ${linea('Folios ya registrados (se saltan)', registrados.length.toLocaleString('es-MX'))}
+      ${linea('Folios rechazados', malos.length.toLocaleString('es-MX'))}
+      ${sinFolio ? linea('Renglones sin folio (se ignoran)', sinFolio) : ''}
+      ${malos.length ? `<div style="font-size:11.5px;color:var(--text2);margin-top:9px;line-height:1.6">
+        ${Object.keys(motivos).map(m=>`${motivos[m].length} × ${esc(m)}: ${ejemplos(motivos[m])}`).join('<br>')}</div>` : ''}
+      ${registrados.length ? `<div style="font-size:11.5px;color:var(--text2);margin-top:6px">Ya registrados: ${ejemplos(registrados)}</div>` : ''}
+      ${noPadron.size ? `<div class="aviso aviso-amber" style="margin:10px 0 0">${noPadron.size} nómina${noPadron.size===1?'':'s'}
+        no está${noPadron.size===1?'':'n'} en el padrón de RRHH: ${ejemplos([...noPadron])}. Se guardan con el nombre que trae el archivo.</div>` : ''}
+      ${fueraGaleria ? `<div class="aviso aviso-amber" style="margin:10px 0 0">${fueraGaleria} folio${fueraGaleria===1?'':'s'}
+        con etiqueta fuera de la galería.</div>` : ''}
+      <div id="m-progreso" style="font-size:12px;color:var(--text2);margin-top:10px"></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn btn-2" style="margin:0" onclick="cancelarExcelRechazos()">Cancelar</button>
+        <button class="btn" style="margin:0" id="m-confirmar" onclick="confirmarExcelRechazos()" ${recs.length?'':'disabled'}>
+          ${recs.length ? 'Guardar '+recs.length.toLocaleString('es-MX')+' folios' : 'Nada que guardar'}</button>
+      </div>
+    </div>`;
+}
+
+function cancelarExcelRechazos(){ previaRechazos = null; $('m-previa').innerHTML = ''; }
+
+// De 200 en 200 folios. Cada lote lleva los rechazos, sus folios y su suma al
+// resumen en una sola escritura.
+async function confirmarExcelRechazos(){
+  if(!previaRechazos) return;
+  const btn = $('m-confirmar'); btn.disabled = true;
+  let guardados = 0, saltados = 0;
+  try{
+    // Se vuelve a revisar justo antes de guardar, por si alguien capturó
+    // uno de esos folios mientras se revisaba el resumen.
+    const ya = (await db.ref('cal/merma2Folios').once('value')).val() || {};
+    const pend = previaRechazos.filter(r=>{ if(ya[r.folio]){ saltados++; return false; } return true; });
+    for(let i=0; i<pend.length; i+=200){
+      const lote = pend.slice(i, i+200), upd = {};
+      lote.forEach(r=>{ const id = nuevoIdRechazo(r.fecha); upd['merma2/'+id] = r; upd['merma2Folios/'+r.folio] = id; });
+      Object.assign(upd, incrementosResumen(lote));
+      $('m-progreso').textContent = `Guardando ${Math.min(i+200, pend.length).toLocaleString('es-MX')} de ${pend.length.toLocaleString('es-MX')}…`;
+      await db.ref('cal').update(upd);
+      guardados += lote.length;
+    }
+    cancelarExcelRechazos();
+    toast(`${guardados} folios cargados` + (saltados ? `; ${saltados} ya estaban` : ''));
+  }catch(e){
+    // Lo guardado ya tiene su folio apartado: al intentar otra vez se salta.
+    btn.disabled = false;
+    $('m-progreso').textContent = `Se detuvo tras ${guardados} folios: ${e.message}. Presiona Guardar otra vez para terminar; lo ya guardado se salta.`;
+  }
 }
 
 /* ═══════════════ GALERÍA DE ETIQUETAS (SPEC-015) ═══════════════

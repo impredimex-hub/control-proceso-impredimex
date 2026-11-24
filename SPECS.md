@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.7.0 — estados revisados contra el código el 24 de
+**Versión vigente:** 1.8.0 — estados revisados contra el código el 24 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -42,13 +42,14 @@ se puede ir del documento al código y de regreso.
 | 008 | Catálogo de variables de calidad | Parcial — los 40 defectos están en el código; los 54 criterios no se han cargado |
 | 009 | Identidad y personal desde la suite | Implementado |
 | 010 | Datos propios | Implementado — las reglas de la base aceptan cualquier sesión, incluida la anónima |
-| 011 | Historial de merma como semilla | Parcial — la carga agrega por mes y no distingue semilla de hallazgos en pantalla |
+| 011 | Historial de merma como semilla | Sustituida por la SPEC-018 en la v1.8.0; queda la semilla como base histórica |
 | 012 | Encabezado estándar de la suite | Implementado |
 | 013 | Abrir sin mostrar la contraseña de paso | Implementado |
 | 014 | Historial de inspecciones | Implementado |
 | 015 | Galería de etiquetas | Implementado |
 | 016 | Etiqueta y turno automáticos en la inspección | Implementado |
-| 017 | Merma 2 — registro de rechazos | Implementado |
+| 017 | Registro de rechazos (antes «Merma 2») | Implementado; desde la v1.8.0 vive en la pestaña Merma |
+| 018 | Merma: una sola fuente, formulario más Excel | Implementado |
 
 ---
 
@@ -150,10 +151,10 @@ Las pestañas se muestran según el papel:
 | Historial | ✓ | ✓ | ✓ |
 | Comportamiento | ✓ | ✓ | ✓ |
 | Matriz | | | ✓ |
-| Merma | | | ✓ |
+| Merma: formulario y tabla | ✓ | ✓ | ✓ |
+| Merma: cargar Excel | | | ✓ |
 | Galería (consulta) | ✓ | ✓ | ✓ |
 | Galería (cargar, alta y edición) | | | ✓ |
-| Merma 2 | ✓ | ✓ | ✓ |
 
 El botón «Atender y cerrar» solo aparece a `SUPERVISOR` y `ADMIN`.
 
@@ -490,7 +491,16 @@ Es el único contenido irreemplazable de la versión anterior y se conserva.
 
 # SPEC-011 — Historial de merma como semilla del foco
 
-**Estado:** parcial (v1.0.0)
+**Estado:** sustituida por la SPEC-018 en la v1.8.0
+
+> Desde la v1.8.0 el foco sale de los rechazos registrados (SPEC-018) y el
+> cargador de esta especificación (columnas Fecha, Linea, Defecto, Mts
+> rechazados, agregado por mes) se quitó. La semilla incrustada, y la última
+> carga en `cal/merma` si existe, se quedan como **base histórica** para los
+> meses anteriores al primer rechazo registrado. Lo que sigue se conserva
+> como registro de cómo funcionaba.
+
+**Estado anterior:** parcial (v1.0.0)
 **Origen:** el histórico de merma de la empresa, 1 095 registros de 2025 y 2026
 
 ### Por qué existe
@@ -589,10 +599,11 @@ Proyecto `impredimex-procesos`, Realtime Database, todo bajo el nodo `cal/`:
 | `cal/inspecciones/<id>` | Cada inspección: etapa, turno, máquina, etiqueta con su nombre y cliente, fecha, inspector, resultado y variables revisadas |
 | `cal/hallazgos/<id>` | Cada hallazgo y, al cerrarse, su acción correctiva |
 | `cal/matriz/<defecto>@<máquina>` | La matriz de la SPEC-005 |
-| `cal/merma` | La última carga del histórico de merma (SPEC-011) |
+| `cal/merma` | La última carga del histórico agregado de la SPEC-011. Ya no se escribe; si existe, es la base histórica (SPEC-018) |
 | `cal/etiquetas/<Etiq>` | La galería de etiquetas (SPEC-015) |
 | `cal/merma2/<id>` | Cada rechazo capturado en Merma 2 (SPEC-017) |
 | `cal/merma2Folios/<folio>` | Índice de folios de rechazo, para no repetirlos (SPEC-017) |
+| `cal/mermaResumen/<máquina>/<defecto>/<AAAA-MM>` | Metros de los rechazos sumados por mes, para el foco (SPEC-018) |
 
 La app abre una **sesión anónima** en este proyecto después de validar a la
 persona contra la suite.
@@ -842,7 +853,10 @@ El turno lo calcula la app con la hora del teléfono; el inspector no lo elige.
 
 ---
 
-# SPEC-017 — Merma 2: registro de rechazos
+# SPEC-017 — Registro de rechazos (antes «Merma 2»)
+
+> Desde la v1.8.0 el formulario y la tabla viven en la pestaña **Merma**, junto
+> con la carga de Excel (SPEC-018). La pestaña «Merma 2» ya no existe.
 
 **Estado:** implementado (v1.5.0); varios defectos por folio, tabla y Excel en
 la v1.6.0
@@ -945,6 +959,102 @@ aparta con transacción antes de escribir el rechazo.
 - No se edita ni se borra un rechazo desde la app.
 - La tabla en pantalla no se filtra por mes: siempre son los 50 folios más
   recientes.
+
+---
+
+# SPEC-018 — Merma: una sola fuente, formulario más Excel
+
+**Estado:** implementado (v1.8.0)
+
+### Por qué existe
+La merma vivía en dos lados que no se hablaban: el Excel que se transcribe de
+las papeletas, cargado agregado por mes (SPEC-011), y los rechazos que se
+capturan en el formulario (SPEC-017). Son **los mismos datos**: el formulario
+es la versión digital de la papeleta. Mientras se estandariza el uso del
+formulario, el Excel sigue existiendo, pero tiene que entrar **igual que una
+captura**, para que no parezcan datos de fuentes distintas.
+
+### La pestaña
+Una sola pestaña **Merma**, en este orden:
+1. **Formulario de rechazo** para el día a día (SPEC-017). Los tres papeles.
+2. **Cargar Excel**, mientras se deja de usar. Solo `ADMIN`.
+3. **Rechazos registrados**: la tabla y la exportación, por mes. Los tres
+   papeles.
+
+### El Excel
+- **Mismas columnas que el formulario y que la exportación:** Folio, Fecha,
+  Turno, # de etiqueta, Nombre de etiqueta, Cliente, Máquina, Defecto, Metros
+  lineales, Bobinas, Nómina Supervisor, Nombre Supervisor, Nómina Operador,
+  Nombre operador, Nómina Inspector y Nombre inspector. **Un renglón por
+  defecto**; varios renglones con el mismo folio son un mismo rechazo.
+- El botón **Descargar plantilla** baja un archivo con esos encabezados y una
+  hoja con las máquinas y los defectos válidos.
+- Los encabezados se reconocen sin importar mayúsculas, acentos, espacios o
+  guiones bajos. También se aceptan `Etiqueta` o `Etiq` por # de etiqueta,
+  `Linea` por Máquina y `Mts rechazados` o `Metros` por Metros lineales. La
+  columna `Capturó` de la exportación se ignora.
+
+### Reglas de la carga
+- **Obligatorios:** Folio, Fecha, Máquina, Defecto y Metros lineales (mayor que
+  cero).
+- **Se valida como el formulario:** la máquina debe estar en el catálogo de
+  máquinas, el defecto en el de defectos (sin importar acentos: `IMPRESION
+  FALTANTE` se toma como `IMPRESIÓN FALTANTE`), las bobinas deben ser un entero
+  de cero o más, y el turno, si viene, debe ser Matutino, Vespertino o
+  Nocturno.
+- **Un error en un renglón rechaza todo su folio**, para no guardar rechazos a
+  medias. También se rechaza un folio cuyos renglones traen fechas o máquinas
+  distintas.
+- **Un folio que ya está registrado se salta**, no se sobrescribe. Una carga
+  nunca pisa lo que se capturó en el formulario, y subir dos veces el mismo
+  archivo no duplica nada.
+- Si un mismo defecto viene en dos renglones del mismo folio, se suman.
+- **Se completa como el formulario.** La etiqueta lleva la regla de clave de la
+  galería; si no trae nombre o cliente, se toman de la galería. Si una nómina
+  está en el padrón de RRHH, **el nombre sale del padrón**, aunque el Excel
+  traiga otro escrito, para que la misma persona se vea igual venga de donde
+  venga.
+- **A diferencia del formulario, se acepta una nómina que no está en el
+  padrón** (o un renglón sin nómina): un Excel histórico puede traer a gente
+  que ya no está. Se guarda lo que traiga el archivo y el resumen lo avisa.
+- Fecha: celda de fecha de Excel, o texto `dd/mm/aaaa` o `aaaa-mm-dd`.
+- Cada rechazo cargado queda con `origen: 'excel'` y con quién lo cargó.
+- **Antes de guardar se muestra un resumen:** folios nuevos con sus defectos y
+  metros, periodo, folios ya registrados, folios rechazados por motivo (con
+  ejemplos), nóminas que no están en el padrón y etiquetas fuera de galería.
+- Se guarda de 200 en 200 folios, con avance a la vista.
+
+### De dónde sale el foco
+- El foco, la tendencia y la pestaña Comportamiento leen **una sola fuente de
+  metros por máquina, defecto y mes**:
+  - **Desde el primer mes con rechazos registrados**, los rechazos (formulario
+    y Excel).
+  - **Antes de ese mes**, la base histórica: la última carga de la SPEC-011 en
+    `cal/merma` si existe, y si no, la semilla incrustada.
+  Con ese corte, un mismo mes nunca se cuenta de dos fuentes.
+- Los hallazgos siguen sumando como eventos (SPEC-004).
+- Para no descargar todos los rechazos en cada apertura, se mantiene un
+  **resumen** en `cal/mermaResumen/<máquina>/<defecto>/<AAAA-MM>` con los
+  metros sumados. Cada rechazo, del formulario o del Excel, suma sus metros al
+  resumen **en la misma escritura** en que se guarda.
+- Si el resumen no existe (la primera vez, o si se borró), la app lo arma con
+  todos los rechazos. El administrador tiene **Recalcular resumen** para
+  rehacerlo cuando se borra o corrige un rechazo a mano en la consola.
+
+### La tabla por mes
+- El selector de mes de la exportación (SPEC-017) también filtra la tabla. Por
+  omisión, el mes en curso.
+- Con «Todo el histórico» la tabla muestra los 300 folios más recientes; el
+  Excel los trae todos.
+- Para leer un mes sin índices en las reglas, la clave de cada rechazo empieza
+  con su fecha: `cal/merma2/<AAAA-MM-DD>_<id>`. Los rechazos guardados antes de
+  la v1.8.0 tienen una clave sin fecha; se leen aparte y se acomodan por su
+  campo `fecha`.
+
+### Lo que no hace todavía
+- No se edita ni se borra un rechazo desde la app.
+- La carga no avisa de folios que ya están **dentro de la base histórica**
+  agregada: esa base no guarda folios.
 
 ---
 

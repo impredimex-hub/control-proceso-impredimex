@@ -3,7 +3,7 @@
 Lo que necesita saber quien reciba esta aplicación para operarla, corregirla y
 extenderla sin depender de quien la construyó.
 
-**Versión de la aplicación:** 1.7.0
+**Versión de la aplicación:** 1.8.0
 **Última actualización de este documento:** 24 de noviembre de 2026
 **Desarrollo original:** Victor Moreno
 
@@ -150,9 +150,10 @@ en la SPEC-010.
 | `cal/inspecciones/<id>` | Inspector, Admin | Etapa, turno, máquina, etiqueta, `etiquetaNombre`, `etiquetaCliente`, `etiquetaEnGaleria`, fecha (local, `AAAA-MM-DD`), `ts`, `inspectorNomina`, `inspectorNombre`, `resultado`, `variables`, `variablesDesviadas` y, si no pasó, `hallazgoId` |
 | `cal/hallazgos/<id>` | Inspector, Admin; al cerrar, Supervisor o Admin | Lo de la inspección más `defecto`, `causa`, `causaDeterminada`, `metros`, `paro`, `obs`, `estado`; al cerrar, `correccion`, `cerradoPorNomina`, `cerradoPorNombre`, `fechaCierre`, `tsCierre` |
 | `cal/matriz/<defecto>@<máquina>` | Admin | `defecto`, `maquina` (vacía = todas), `vars: [{nombre, peso}]`, `actualizadoPor`, `actualizadoEn` |
-| `cal/merma` | Admin | `datos[línea][defecto][AAAA-MM] = metros`, `registros`, `ultimoMes`, `cargadoPor`, `cargadoEn` |
-| `cal/merma2/<id>` | Los tres papeles | Cada rechazo de Merma 2: `folio`, `etiqueta`, `etiquetaNombre`, `etiquetaCliente`, `etiquetaEnGaleria`, `maquina`, nómina y nombre de supervisor, operador e inspector, `defectos: [{defecto, metros, bobinas}]`, `metrosTotal`, `bobinasTotal`, `fecha`, `turno`, `ts`, `capturoNomina`, `capturoNombre` (SPEC-017) |
-| `cal/merma2Folios/<folio>` | Los tres papeles | El `<id>` del rechazo con ese folio. Se aparta con una transacción antes de escribir el rechazo; es lo que impide repetir un folio. Si se borra un rechazo a mano en la consola, hay que borrar también su folio aquí |
+| `cal/merma` | Ya nadie (hasta la v1.7.0, Admin) | La última carga del cargador anterior: `datos[línea][defecto][AAAA-MM] = metros`, `registros`, `ultimoMes`, `cargadoPor`, `cargadoEn`. Si existe, es la base histórica del foco (SPEC-018) |
+| `cal/merma2/<AAAA-MM-DD>_<id>` | Los tres papeles (formulario); Admin (Excel) | Cada rechazo. La clave empieza con su fecha para leer un mes sin índices; los de antes de la v1.8.0 tienen clave sin fecha. Campos: `origen` (`formulario` o `excel`), `folio`, `etiqueta`, `etiquetaNombre`, `etiquetaCliente`, `etiquetaEnGaleria`, `maquina`, nómina y nombre de supervisor, operador e inspector, `defectos: [{defecto, metros, bobinas}]`, `metrosTotal`, `bobinasTotal`, `fecha`, `turno`, `ts`, `capturoNomina`, `capturoNombre` (SPEC-017) |
+| `cal/merma2Folios/<folio>` | Los tres papeles | El `<id>` del rechazo con ese folio. Es lo que impide repetir un folio |
+| `cal/mermaResumen/<máquina>/<defecto>/<AAAA-MM>` | Se escribe solo | Metros de los rechazos sumados por mes. Es lo que lee el foco, para no descargar todos los rechazos en cada apertura. Cada rechazo suma aquí en la misma escritura en que se guarda (SPEC-018) |
 | `cal/etiquetas/<Etiq>` | Admin | Los 15 campos de la galería con el nombre de su encabezado (`Etiq`, `Nombre_etiq`, `Tipo`, … `Tipo_tinta`), más `actualizadoPor`, `actualizadoEn` y `origen` (`excel` o `manual`). Los vacíos no se guardan |
 
 La columna «Quién escribe» es lo que permite la pantalla. **Las reglas de la
@@ -170,12 +171,32 @@ Para corregir muchas etiquetas a la vez, lo más simple es subir un Excel solo
 con esas filas: agrega o actualiza, nunca borra. Para borrar una etiqueta hay
 que hacerlo en la consola de Firebase; la app no lo permite a propósito.
 
+### De dónde sale el foco (SPEC-018)
+
+Una sola fuente de metros por máquina, defecto y mes:
+- **Desde el primer mes con rechazos registrados**, los rechazos (formulario y
+  Excel), a través de `cal/mermaResumen`.
+- **Antes de ese mes**, la base histórica: `cal/merma` si existe, y si no, la
+  semilla incrustada.
+
+La pestaña Merma le dice al administrador desde qué mes se usan los rechazos.
+
+### Borrar o corregir un rechazo
+
+La app no borra ni edita rechazos. Para hacerlo en la consola de Firebase
+(`impredimex-procesos` → Realtime Database):
+1. Borrar el rechazo en `cal/merma2/<clave>` (buscar por su campo `folio`).
+2. Borrar su folio en `cal/merma2Folios/<folio>`, o el folio quedará apartado
+   y no se podrá volver a capturar.
+3. En la app, pestaña Merma → **Recalcular resumen**, para que el foco deje de
+   contar esos metros.
+
 ### La semilla incrustada
 
 `index.html` trae en la constante `DATOS` la merma de 2025 y 2026 agregada por
-línea, defecto y mes, los 40 defectos y las 20 máquinas. Mientras nadie cargue
-un archivo en la pestaña Merma, el foco usa esa semilla. Cuando se carga uno,
-la de `cal/merma` la sustituye por completo.
+línea, defecto y mes, los 40 defectos y las 20 máquinas. Es la base histórica
+del foco mientras no exista `cal/merma`, y solo para los meses anteriores al
+primer rechazo registrado.
 
 Detalles conocidos de la semilla, que no afectan el funcionamiento:
 - Trae líneas que no están en el catálogo de máquinas (`LAM`, `PEG`,
@@ -234,8 +255,10 @@ igual a lo publicado.
 | «Todavía no hay variables asociadas» | La matriz está vacía para esos defectos | Capturarla en la pestaña Matriz (solo Admin) |
 | Un cambio publicado no se ve en el teléfono | Copia guardada por el service worker | Confirmar que se subió `CACHE` en `sw.js`; cerrar y abrir la app dos veces |
 | El turno o la fecha salen mal | La hora o la zona horaria del teléfono están mal | Ajustar el teléfono a la hora automática. El turno y la fecha salen de su reloj (SPEC-016) |
-| En Merma 2, «no está en el padrón de RRHH» | La nómina no existe en `colaboradores` o se tecleó mal | Revisar la nómina; si es alguien nuevo, que RRHH lo dé de alta |
-| En Merma 2, «está dado de baja en RRHH» | La ficha tiene `estatus` distinto de `ACTIVO` | Es lo esperado; si la persona sigue trabajando, RRHH corrige su estatus |
+| El foco no cambia después de borrar un rechazo en la consola | El resumen todavía tiene sus metros | Pestaña Merma → Recalcular resumen |
+| Una carga de Excel dice que un folio «ya está registrado» | Ese folio ya se capturó (en el formulario o en otra carga) | Es lo esperado: una carga nunca sobrescribe. Si el registrado está mal, borrarlo en la consola y volver a cargar |
+| En Merma, «no está en el padrón de RRHH» | La nómina no existe en `colaboradores` o se tecleó mal | Revisar la nómina; si es alguien nuevo, que RRHH lo dé de alta |
+| En Merma, «está dado de baja en RRHH» | La ficha tiene `estatus` distinto de `ACTIVO` | Es lo esperado; si la persona sigue trabajando, RRHH corrige su estatus |
 | «La etiqueta … no está en la galería» | No se ha dado de alta | Darla de alta en Galería; la inspección se puede registrar igual |
 | La pantalla de marca IMPREDIMEX dura hasta 8 s | La nota de sesión compartida quedó vieja | Se quita sola; aparece la contraseña (SPEC-013) |
 

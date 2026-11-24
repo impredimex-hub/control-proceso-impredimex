@@ -11,6 +11,40 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.8.0] — 2026-11-24
+
+### Cambiado
+
+- **Merma y Merma 2 son una sola pestaña, «Merma»** (SPEC-018), con el
+  formulario del día a día, la carga de Excel (solo `ADMIN`) y la tabla, en
+  ese orden. La pestaña Merma 2 desaparece, y Merma la ven los tres papeles.
+- **El foco, la tendencia y Comportamiento salen de los rechazos**, del
+  formulario y del Excel. La base histórica (la última carga anterior o la
+  semilla incrustada) solo cuenta para los meses anteriores al primer rechazo
+  registrado, así un mes nunca se cuenta de dos fuentes.
+- **La tabla de rechazos se ve por mes**, con el mismo selector del Excel.
+- Los rechazos nuevos se guardan con clave que empieza con su fecha y con
+  `origen` (`formulario` o `excel`). Los anteriores se siguen leyendo.
+
+### Agregado
+
+- **Carga de Excel con las mismas columnas que el formulario**, un renglón por
+  defecto. Valida como el formulario, completa nombre y cliente desde la
+  galería y nombres desde el padrón, salta los folios ya registrados y rechaza
+  completo un folio con errores. Resumen antes de guardar.
+- **Descargar plantilla**, con los encabezados y una hoja de máquinas y
+  defectos válidos.
+- **Resumen de merma para el foco** (`cal/mermaResumen`), que cada rechazo
+  actualiza al guardarse, y **Recalcular resumen** para el administrador.
+
+### Quitado
+
+- El cargador agregado de la SPEC-011 (Fecha, Linea, Defecto, Mts rechazados).
+  Su última carga, si existe, se conserva como base histórica.
+- Caché del service worker a `calidad-v1.8.0`.
+
+---
+
 ## [1.7.0] — 2026-11-24
 
 ### Agregado

@@ -8,7 +8,14 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
+**Versión vigente:** 1.2.1 — estados revisados contra el código el 24 de
+noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
+
+Cada especificación indica su **estado** (implementado, parcial o pendiente) y,
+cuando no está completa, **qué le falta**. En `index.html` los bloques que
+cumplen una especificación llevan su número en un comentario (`SPEC-004`), así
+se puede ir del documento al código y de regreso.
 
 > **Por qué se reconstruye.** La versión anterior se usó de verdad entre abril y
 > julio de 2026: 1 772 inspecciones en ocho máquinas, en los tres turnos. Se
@@ -18,6 +25,27 @@ implementar el código.
 >
 > El respaldo de esa base está guardado fuera del repositorio. La aplicación
 > nueva **arranca limpia**: no se migran datos.
+
+---
+
+## Estado de las especificaciones
+
+| SPEC | Tema | Estado |
+|---|---|---|
+| 001 | Acceso a la aplicación | Implementado |
+| 002 | Papeles | Parcial — un administrador puede cerrar un hallazgo que él mismo levantó |
+| 003 | Etapas de inspección | Parcial — la etapa se registra, pero no cambia lo que se pregunta |
+| 004 | Los dos enfoques y el foco | Parcial — falta mover la ventana y el foco por etiqueta |
+| 005 | Matriz defecto ↔ variable | Parcial — el editor funciona; el contenido lo define la junta |
+| 006 | Muestreo por AQL | Pendiente |
+| 007 | Hallazgo, paro y acción correctiva | Parcial — falta el aviso al supervisor y la hora del paro |
+| 008 | Catálogo de variables de calidad | Parcial — los 40 defectos están en el código; los 54 criterios no se han cargado |
+| 009 | Identidad y personal desde la suite | Implementado |
+| 010 | Datos propios | Implementado — las reglas de la base aceptan cualquier sesión, incluida la anónima |
+| 011 | Historial de merma como semilla | Parcial — la carga agrega por mes y no distingue semilla de hallazgos en pantalla |
+| 012 | Encabezado estándar de la suite | Implementado |
+| 013 | Abrir sin mostrar la contraseña de paso | Implementado |
+| 014 | Historial de inspecciones | Implementado |
 
 ---
 
@@ -62,7 +90,7 @@ inspección va por máquina.
 
 # SPEC-001 — Acceso a la aplicación
 
-**Estado:** pendiente
+**Estado:** implementado (v1.0.0)
 
 ### Precondiciones
 - La persona existe en `colaboradores` del proyecto **impredimex-suite**, con
@@ -85,13 +113,18 @@ inspección va por máquina.
 - **El inspector es quien inició sesión.** No se elige de una lista ni se
   autoasigna un nombre genérico. Es la corrección más importante respecto de la
   versión anterior.
-- **Ausencia de papel equivale al más bajo.**
+- **Ausencia de papel equivale al más bajo.** En el código, quien no tiene
+  `roles.calidad` entra como `INSPECTOR`, el mismo valor por omisión que
+  muestra Recursos Humanos al asignar accesos.
+- Los papeles se escriben en **mayúsculas** (`ADMIN`, `SUPERVISOR`,
+  `INSPECTOR`). Recursos Humanos los asigna de una lista, así que no se
+  escriben a mano.
 
 ---
 
 # SPEC-002 — Papeles
 
-**Estado:** pendiente
+**Estado:** parcial (v1.0.0)
 
 | Papel | Quién | Qué hace |
 |---|---|---|
@@ -104,11 +137,33 @@ inspección va por máquina.
 - **Quien detecta no cierra.** El inspector levanta el hallazgo; el supervisor lo
   atiende. Que la misma persona haga ambas cosas anula el control.
 
+### Cómo está hoy
+Las pestañas se muestran según el papel:
+
+| Pestaña | INSPECTOR | SUPERVISOR | ADMIN |
+|---|---|---|---|
+| Inspección | ✓ | | ✓ |
+| Acciones | ✓ | ✓ | ✓ |
+| Historial | ✓ | ✓ | ✓ |
+| Comportamiento | ✓ | ✓ | ✓ |
+| Matriz | | | ✓ |
+| Merma | | | ✓ |
+
+El botón «Atender y cerrar» solo aparece a `SUPERVISOR` y `ADMIN`.
+
+### Lo que falta
+- **Un administrador puede cerrar un hallazgo que él mismo levantó**, porque
+  también puede inspeccionar. La regla de quien detecta no cierra se cumple por
+  papel, no por persona. Falta comparar la nómina de quien cierra con
+  `inspectorNomina`.
+- Los permisos se aplican en la pantalla, no en las reglas de la base (ver
+  SPEC-010).
+
 ---
 
 # SPEC-003 — Etapas de inspección
 
-**Estado:** pendiente
+**Estado:** parcial (v1.0.0)
 
 Dos etapas, no una:
 
@@ -124,11 +179,17 @@ producir bien estén dadas.
 - La etapa determina qué se pregunta: el arranque mira condiciones previas; la
   inspección en proceso mira producto y variables.
 
+### Lo que falta
+La etapa se elige (Arranque o En proceso, esta última por omisión) y se graba en
+cada inspección, pero **las dos etapas muestran el mismo formulario**. Que el
+arranque pregunte por condiciones previas depende del catálogo de criterios de
+la SPEC-008, que todavía no se ha cargado.
+
 ---
 
 # SPEC-004 — Los dos enfoques
 
-**Estado:** pendiente
+**Estado:** parcial (v1.0.0)
 
 Esta es la idea central de la reconstrucción y lo que la versión anterior no
 distinguía.
@@ -238,12 +299,42 @@ vigilaría lo que ya se corrigió.
   atiende, frente a un defecto que baja y probablemente ya tiene una acción
   surtiendo efecto.
 
+### Cómo está hoy
+- **Foco por máquina** con los seis defectos de más peso en los tres meses
+  naturales, con barra, porcentaje y la variable a vigilar si la matriz la
+  tiene. Al ser abierta muestra el periodo y advierte que el mes en curso va
+  incompleto.
+- **Ampliación automática.** Si la máquina junta menos de **500** en la ventana
+  (metros de la semilla más hallazgos), se agrega un mes hacia atrás, hasta
+  nueve meses más, y se avisa desde cuándo se calculó. El 500 es un **umbral
+  provisional** mientras Calidad define el suyo.
+- **Tendencia.** Cada defecto del foco se compara con su peso en todo el
+  histórico de esa máquina: «▲ sube» si está más de 2 puntos arriba, «▼ baja» si
+  está más de 2 abajo, «= igual» en otro caso.
+- **Variables de proceso vigiladas.** Las de la matriz para los defectos del
+  foco, cada una con Conforme / Desviada. Se graban con la inspección.
+- **Inspección de producto** con Pasa / No pasa. La etiqueta es obligatoria.
+- **Comportamiento.** Una pestaña con los metros rechazados por mes de una
+  máquina y un defecto, en todo el histórico, marcando los meses del foco.
+
+### Lo que falta
+- **Mover la ventana de foco.** Hoy siempre son el mes en curso y los dos
+  anteriores; el inspector no puede elegir otro trimestre.
+- **Segundo nivel, por etiqueta.** La etiqueta ya se graba en cada inspección,
+  pero el foco todavía no se afina con ella. Depende del umbral de historia que
+  defina Calidad.
+- **Los hallazgos pesan 1, no metros.** Se suman a los metros de la semilla
+  como un evento cada uno, porque muchas veces evitan la merma. Mientras haya
+  semilla, un hallazgo casi no mueve el foco; conviene decidir con Calidad
+  cómo pesarlos.
+- La pestaña Comportamiento solo usa la semilla de merma, no los hallazgos.
+
 ---
 
 # SPEC-005 — Matriz defecto ↔ variable
 
-**Estado:** pendiente — **el contenido lo define una junta de calidad,
-producción e ingeniería de procesos**
+**Estado:** parcial (v1.0.0) — el editor funciona; **el contenido lo define una
+junta de calidad, producción e ingeniería de procesos**
 
 ### Qué es
 Para cada defecto, qué variables de proceso lo provocan y con qué peso relativo.
@@ -270,11 +361,23 @@ peso conviene empezar por: raya 19.3%, lagrimeo 10.9%, manchas 10.3%, registro
 Y conviene revisarlos por línea, porque la causa puede diferir: la raya es el 43%
 de la merma de la RT6 y el 17.6% de la RT7.
 
+### Cómo está hoy
+La pestaña **Matriz** (solo `ADMIN`) captura, por defecto y opcionalmente por
+máquina, una variable por renglón con su peso: `Viscosidad de tinta | 40`. Se
+guarda en `cal/matriz/<defecto>@<máquina>`; con la máquina vacía aplica a todas.
+Si hay una entrada para la máquina, gana sobre la general.
+
+### Lo que falta
+- **El peso se guarda, pero todavía no se usa.** Las variables se muestran en
+  el orden en que se capturaron.
+- **El porcentaje real medido junto al estimado**, a partir de las causas que se
+  registran en los hallazgos.
+
 ---
 
 # SPEC-006 — Muestreo por AQL
 
-**Estado:** pendiente
+**Estado:** pendiente — nada implementado; espera el criterio de Calidad
 
 ### Qué hace
 La aplicación **calcula el plan de muestreo**; el inspector no consulta tablas.
@@ -301,7 +404,7 @@ revisar, cuántos defectos se aceptan y a partir de cuántos se rechaza.
 
 # SPEC-007 — Hallazgo, paro y acción correctiva
 
-**Estado:** pendiente
+**Estado:** parcial (v1.0.0)
 
 ### Flujo principal
 1. El inspector detecta una no conformidad y la registra
@@ -321,11 +424,29 @@ revisar, cuántos defectos se aceptan y a partir de cuántos se rechaza.
 - **El paro de máquina se registra como tal**, con hora de solicitud. Hoy ese
   aviso ocurre de viva voz y no queda rastro.
 
+### Cómo está hoy
+- «No pasa» abre el registro del hallazgo: defecto (de los 40), causa, metros
+  afectados, paro de máquina y observaciones.
+- La causa se elige de las variables que la matriz asocia a ese defecto, o se
+  escribe («Otra»), o se marca **«No determinada»**, que se guarda con
+  `causaDeterminada: false`. Sin causa no se registra.
+- Se graban dos cosas: el hallazgo en `cal/hallazgos` y la inspección en
+  `cal/inspecciones`, ligada por `hallazgoId`.
+- En **Acciones**, el supervisor o el administrador escribe qué se corrigió y
+  puede corregir la causa. Al cerrar se guarda quién, cuándo y la corrección.
+
+### Lo que falta
+- **El aviso al supervisor.** La app no notifica: al marcar paro solo le
+  recuerda al inspector que avise.
+- **La hora del paro.** Se guarda si hubo paro (sí o no) y la hora del
+  hallazgo, no una hora propia de la solicitud de paro.
+- Quien detecta no cierra se cumple por papel, no por persona (SPEC-002).
+
 ---
 
 # SPEC-008 — Catálogo de variables de calidad
 
-**Estado:** pendiente
+**Estado:** parcial (v1.0.0)
 
 ### El catálogo de defectos
 Se adopta la **taxonomía de 40 defectos** del histórico de merma de la empresa,
@@ -348,11 +469,22 @@ Es el único contenido irreemplazable de la versión anterior y se conserva.
   seguridad, materiales y documentación no reprobaron ni una vez en tres meses,
   lo que sugiere que se marcan por trámite.
 
+### Cómo está hoy
+- **Los 40 defectos** ya son la taxonomía de la app, pero están **escritos en
+  el código** (`DATOS.defectos`), no en la base.
+- **Las 20 máquinas** con su área también están en el código
+  (`DATOS.maquinas`).
+
+### Lo que falta
+- Pasar defectos y máquinas a la base para ajustarlos sin tocar el código.
+- **Cargar los 54 criterios** con método, especificación y tolerancia. Hoy
+  ninguna pantalla los usa.
+
 ---
 
 # SPEC-011 — Historial de merma como semilla del foco
 
-**Estado:** pendiente
+**Estado:** parcial (v1.0.0)
 **Origen:** el histórico de merma de la empresa, 1 095 registros de 2025 y 2026
 
 ### Por qué existe
@@ -392,11 +524,38 @@ Que la aplicación llegue a sustituir la papeleta es la evolución natural, pero
 otro alcance: toca a producción, no solo a calidad, y conviene decidirlo cuando
 esta versión ya esté en uso. Anotarlo aquí evita que se cuele sin querer.
 
+### Cómo está hoy
+- **La semilla viene incrustada** en `index.html` (`DATOS.semilla`): metros
+  rechazados por línea, defecto y mes, de 2025 y 2026. Con ella el foco
+  funciona aunque nadie haya cargado archivo.
+- La pestaña **Merma** (solo `ADMIN`) carga un Excel. Lee la primera hoja y las
+  columnas `Fecha`, `Linea`, `Defecto` y `Mts rechazados` (acepta variantes en
+  mayúsculas y con acento). Rechaza filas sin esos datos, con metros inválidos,
+  con fecha ilegible o con un defecto fuera de los 40.
+- Antes de guardar muestra registros a usar, líneas, periodo y filas
+  rechazadas por motivo. Al confirmar **reemplaza** la carga anterior en
+  `cal/merma`; desde ese momento sustituye a la incrustada.
+- El aviso de envejecimiento sale cuando el mes más reciente tiene **3 meses o
+  más**.
+
+### Lo que falta
+- **La carga agrega por línea, defecto y mes.** No guarda pedido, etiqueta ni
+  cliente, y la clave fecha + pedido + defecto no aplica: reemplazar el todo
+  cumple la regla de no duplicar, pero sin este detalle el foco por etiqueta
+  (SPEC-004) no tiene de dónde salir.
+- **El resumen previo no lista las líneas no reconocidas.** Una línea que no
+  está en el catálogo de máquinas se guarda igual y no aparece en ningún
+  selector.
+- **Semilla y hallazgos no se distinguen en pantalla.** Se guardan por
+  separado, pero el foco los suma en una sola barra.
+- **El aviso de envejecimiento solo se ve en la pestaña Merma.** Con la
+  semilla incrustada no sale.
+
 ---
 
 # SPEC-009 — Identidad y personal desde la suite
 
-**Estado:** pendiente
+**Estado:** implementado (v1.0.0)
 
 ### Reglas de negocio
 - La lista de personal es `colaboradores` de la suite. Esta aplicación la lee y
@@ -409,15 +568,39 @@ esta versión ya esté en uso. Anotarlo aquí evita que se cuele sin querer.
 
 # SPEC-010 — Datos propios
 
-**Estado:** pendiente
+**Estado:** implementado (v1.0.0), con las reglas de la base pendientes de
+endurecer
 
 Inspecciones, hallazgos, acciones correctivas, catálogos, matriz de causas y
 criterios de muestreo se quedan en el proyecto propio. Es la regla 4 de la
 suite: la cuota del plan gratuito es por proyecto.
 
+### Cómo está hoy
+Proyecto `impredimex-procesos`, Realtime Database, todo bajo el nodo `cal/`:
+
+| Ruta | Qué guarda |
+|---|---|
+| `cal/inspecciones/<id>` | Cada inspección: etapa, turno, máquina, etiqueta, fecha, inspector, resultado y variables revisadas |
+| `cal/hallazgos/<id>` | Cada hallazgo y, al cerrarse, su acción correctiva |
+| `cal/matriz/<defecto>@<máquina>` | La matriz de la SPEC-005 |
+| `cal/merma` | La última carga del histórico de merma (SPEC-011) |
+
+La app abre una **sesión anónima** en este proyecto después de validar a la
+persona contra la suite.
+
+### Lo que falta
+- **Las reglas (`database.rules.json`) solo piden sesión**, y una sesión
+  anónima basta. Cualquiera que abra la página puede leer y escribir todo
+  `cal/`, sin pasar por la suite. Es el mismo punto que Mantenimiento resolvió
+  con la SPEC-061 de su repositorio (credencial entregada por el servidor tras
+  validar la sesión de la suite), y la solución puede reutilizarse.
+- **App Check no está activo:** la clave `APPCHECK_SITE_KEY` está vacía.
+
 ---
 
 # SPEC-012 — Encabezado estándar de la suite
+
+**Estado:** implementado (v1.1.0)
 
 ### Alcance
 
@@ -466,6 +649,8 @@ cambio visible.
 
 # SPEC-013 — Abrir sin mostrar la contraseña de paso
 
+**Estado:** implementado (v1.2.0)
+
 ### Por qué
 
 Al pasar del portal a una app, o de una app al portal, se veía un instante la
@@ -493,6 +678,38 @@ terminaba de leer la ficha del padrón: entre medio segundo y un segundo y medio
 
 Se subió la caché a `calidad-v1.2.0`, para que ningún teléfono se quede con la
 versión anterior.
+
+---
+
+# SPEC-014 — Historial de inspecciones
+
+**Estado:** implementado (v1.0.0) — se documenta en la v1.2.1; no tenía
+especificación
+
+### Qué hace
+La pestaña **Historial** muestra las **60 inspecciones más recientes**, de la
+más nueva a la más vieja: máquina, etiqueta, resultado (pasa / no pasa),
+fecha, turno, etapa e inspector con su nómina.
+
+### Reglas de negocio
+- La ven los tres papeles.
+- Es de consulta: no se edita ni se borra nada desde aquí.
+- El límite de 60 es para que la lista abra rápido en el teléfono. No hay
+  todavía filtros ni forma de ver inspecciones más antiguas desde la app.
+
+---
+
+# Convenciones del código
+
+- **Un solo archivo**, `index.html`, sin compilación. GitHub Pages lo sirve
+  tal cual.
+- **Marcas de especificación.** Cada bloque que cumple una SPEC lleva su
+  número en un comentario. Al agregar o cambiar comportamiento: primero se
+  actualiza este documento, luego el código con su marca, y al final
+  `CHANGELOG.md` con la versión nueva.
+- **Versión.** Se sube en `CHANGELOG.md`, `README.md`, `HANDOVER.md` y en la
+  constante `CACHE` de `sw.js` (`calidad-vX.Y.Z`). La caché se sube en cada
+  cambio para que ningún teléfono se quede con la versión anterior.
 
 ---
 

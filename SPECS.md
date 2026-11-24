@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.4.0 — estados revisados contra el código el 24 de
+**Versión vigente:** 1.5.0 — estados revisados contra el código el 24 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -48,6 +48,7 @@ se puede ir del documento al código y de regreso.
 | 014 | Historial de inspecciones | Implementado |
 | 015 | Galería de etiquetas | Implementado |
 | 016 | Etiqueta y turno automáticos en la inspección | Implementado |
+| 017 | Merma 2 — registro de rechazos | Implementado |
 
 ---
 
@@ -152,6 +153,7 @@ Las pestañas se muestran según el papel:
 | Merma | | | ✓ |
 | Galería (consulta) | ✓ | ✓ | ✓ |
 | Galería (cargar, alta y edición) | | | ✓ |
+| Merma 2 | ✓ | ✓ | ✓ |
 
 El botón «Atender y cerrar» solo aparece a `SUPERVISOR` y `ADMIN`.
 
@@ -589,6 +591,8 @@ Proyecto `impredimex-procesos`, Realtime Database, todo bajo el nodo `cal/`:
 | `cal/matriz/<defecto>@<máquina>` | La matriz de la SPEC-005 |
 | `cal/merma` | La última carga del histórico de merma (SPEC-011) |
 | `cal/etiquetas/<Etiq>` | La galería de etiquetas (SPEC-015) |
+| `cal/merma2/<id>` | Cada rechazo capturado en Merma 2 (SPEC-017) |
+| `cal/merma2Folios/<folio>` | Índice de folios de rechazo, para no repetirlos (SPEC-017) |
 
 La app abre una **sesión anónima** en este proyecto después de validar a la
 persona contra la suite.
@@ -835,6 +839,77 @@ El turno lo calcula la app con la hora del teléfono; el inspector no lo elige.
   después de las 18:00 quedaba con la fecha del día siguiente.
 - En el turno nocturno la fecha es la del calendario: una inspección a la 01:00
   lleva la fecha del día que empieza, no la del día en que arrancó el turno.
+
+---
+
+# SPEC-017 — Merma 2: registro de rechazos
+
+**Estado:** implementado (v1.5.0)
+
+### Por qué existe
+La merma hoy se anota a mano en papeletas y alguien la transcribe a Excel para
+cargarla en la pestaña Merma (SPEC-011). Merma 2 es el primer paso para
+capturarla directamente en la app, rechazo por rechazo. **Convive con la
+pestaña Merma**, que no cambia, mientras se decide si la sustituye.
+
+### Campos
+| Campo | Cómo se llena |
+|---|---|
+| Folio de rechazo | Se escribe. Obligatorio y **único** |
+| # de etiqueta | Se escribe. Obligatorio |
+| Nombre de etiqueta | **Se deriva** del # de etiqueta, desde la galería (SPEC-015) |
+| Cliente | **Se deriva** del # de etiqueta, desde la galería |
+| Máquina | Se elige de la lista de máquinas. Obligatorio |
+| Nómina Supervisor | Se escribe. Obligatorio |
+| Nombre Supervisor | **Se deriva** de la nómina, desde el padrón de RRHH |
+| Nómina Operador | Se escribe. Obligatorio |
+| Nombre operador | **Se deriva** de la nómina, desde el padrón de RRHH |
+| Nómina Inspector | Se escribe; si quien captura es `INSPECTOR`, ya viene con su nómina. Obligatorio |
+| Nombre inspector | **Se deriva** de la nómina, desde el padrón de RRHH |
+| Defecto | Se elige de los 40 defectos (SPEC-008). Obligatorio |
+| Cantidad rechazada (metros lineales) | Número mayor que cero. Obligatorio |
+| Cantidad rechazada (número de bobinas) | Número entero, cero o más. Obligatorio |
+
+Los campos derivados no se escriben: se llenan solos y se ven en gris.
+
+### Reglas de negocio
+- **Las nóminas salen del padrón de RRHH**: `colaboradores` de
+  `impredimex-suite`, el mismo de toda la suite (SPEC-009). La app lo lee y no
+  lo escribe. La consulta se hace al dejar de escribir la nómina.
+- **No se registra un rechazo con una nómina que no está en el padrón o que
+  está dada de baja.** El nombre se deriva de la nómina: si no hay de dónde
+  sacarlo, o es de alguien que ya no está, lo más probable es un error de dedo.
+- **La etiqueta usa la misma regla de clave** que la inspección (SPEC-016):
+  mayúsculas y ceros a la izquierda si es corta. **Si no está en la galería se
+  avisa y se deja registrar**; en ese caso nombre y cliente se pueden escribir a
+  mano, y el registro queda marcado como etiqueta fuera de galería.
+- **El folio no se repite.** Se guarda en mayúsculas y sin espacios en los
+  extremos, y no puede llevar `.`, `#`, `$`, `/`, `[` ni `]`. Un folio ya
+  registrado se rechaza.
+- Se agregan solos la **fecha local**, el **turno** según la hora (SPEC-016) y
+  **quién capturó** (nómina y nombre de la sesión).
+- **Los registros guardan copia de los nombres** tal como estaban al capturar
+  (SPEC-009).
+- La pestaña la usan los tres papeles. Debajo del formulario se listan los
+  **50 rechazos más recientes**.
+
+### Datos
+`cal/merma2/<id>` con un identificador que crece con el tiempo, así la lista de
+los más recientes no necesita índice en las reglas. Campos: `folio`,
+`etiqueta`, `etiquetaNombre`, `etiquetaCliente`, `etiquetaEnGaleria`, `maquina`,
+`supervisorNomina`, `supervisorNombre`, `operadorNomina`, `operadorNombre`,
+`inspectorNomina`, `inspectorNombre`, `defecto`, `metros`, `bobinas`, `fecha`,
+`turno`, `ts`, `capturoNomina` y `capturoNombre`.
+
+`cal/merma2Folios/<folio>` guarda el `<id>` del rechazo con ese folio. El
+rechazo y su folio se escriben en una sola operación.
+
+### Lo que no hace todavía
+- **No alimenta el foco.** El foco de la SPEC-004 sigue saliendo de la merma
+  cargada por Excel. Conectar Merma 2 es la decisión pendiente de si sustituye
+  a la pestaña Merma.
+- No se edita ni se borra un rechazo desde la app.
+- No se exporta a Excel.
 
 ---
 

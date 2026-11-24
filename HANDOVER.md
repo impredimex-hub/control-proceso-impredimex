@@ -3,7 +3,7 @@
 Lo que necesita saber quien reciba esta aplicación para operarla, corregirla y
 extenderla sin depender de quien la construyó.
 
-**Versión de la aplicación:** 1.4.0
+**Versión de la aplicación:** 1.5.0
 **Última actualización de este documento:** 24 de noviembre de 2026
 **Desarrollo original:** Victor Moreno
 
@@ -151,6 +151,8 @@ en la SPEC-010.
 | `cal/hallazgos/<id>` | Inspector, Admin; al cerrar, Supervisor o Admin | Lo de la inspección más `defecto`, `causa`, `causaDeterminada`, `metros`, `paro`, `obs`, `estado`; al cerrar, `correccion`, `cerradoPorNomina`, `cerradoPorNombre`, `fechaCierre`, `tsCierre` |
 | `cal/matriz/<defecto>@<máquina>` | Admin | `defecto`, `maquina` (vacía = todas), `vars: [{nombre, peso}]`, `actualizadoPor`, `actualizadoEn` |
 | `cal/merma` | Admin | `datos[línea][defecto][AAAA-MM] = metros`, `registros`, `ultimoMes`, `cargadoPor`, `cargadoEn` |
+| `cal/merma2/<id>` | Los tres papeles | Cada rechazo de Merma 2: `folio`, `etiqueta`, `etiquetaNombre`, `etiquetaCliente`, `etiquetaEnGaleria`, `maquina`, nómina y nombre de supervisor, operador e inspector, `defecto`, `metros`, `bobinas`, `fecha`, `turno`, `ts`, `capturoNomina`, `capturoNombre` (SPEC-017) |
+| `cal/merma2Folios/<folio>` | Los tres papeles | El `<id>` del rechazo con ese folio. Se escribe junto con el rechazo; es lo que impide repetir un folio. Si se borra un rechazo a mano en la consola, hay que borrar también su folio aquí |
 | `cal/etiquetas/<Etiq>` | Admin | Los 15 campos de la galería con el nombre de su encabezado (`Etiq`, `Nombre_etiq`, `Tipo`, … `Tipo_tinta`), más `actualizadoPor`, `actualizadoEn` y `origen` (`excel` o `manual`). Los vacíos no se guardan |
 
 La columna «Quién escribe» es lo que permite la pantalla. **Las reglas de la
@@ -232,6 +234,8 @@ igual a lo publicado.
 | «Todavía no hay variables asociadas» | La matriz está vacía para esos defectos | Capturarla en la pestaña Matriz (solo Admin) |
 | Un cambio publicado no se ve en el teléfono | Copia guardada por el service worker | Confirmar que se subió `CACHE` en `sw.js`; cerrar y abrir la app dos veces |
 | El turno o la fecha salen mal | La hora o la zona horaria del teléfono están mal | Ajustar el teléfono a la hora automática. El turno y la fecha salen de su reloj (SPEC-016) |
+| En Merma 2, «no está en el padrón de RRHH» | La nómina no existe en `colaboradores` o se tecleó mal | Revisar la nómina; si es alguien nuevo, que RRHH lo dé de alta |
+| En Merma 2, «está dado de baja en RRHH» | La ficha tiene `estatus` distinto de `ACTIVO` | Es lo esperado; si la persona sigue trabajando, RRHH corrige su estatus |
 | «La etiqueta … no está en la galería» | No se ha dado de alta | Darla de alta en Galería; la inspección se puede registrar igual |
 | La pantalla de marca IMPREDIMEX dura hasta 8 s | La nota de sesión compartida quedó vieja | Se quita sola; aparece la contraseña (SPEC-013) |
 

@@ -245,6 +245,17 @@ input:focus,select:focus,textarea:focus{border-color:var(--navy-mid)}
 .etq-info b{display:block;color:var(--navy-dark);font-size:13px}
 .etq-no{background:var(--amber-bg);color:var(--amber)}
 
+/* ── Merma 2 (SPEC-017): los campos que se derivan se ven en gris ── */
+/* Textarea de un renglón que crece con el texto: un nombre del padrón llega a
+   pasar de 70 caracteres y en el teléfono no cabe en una casilla. */
+textarea.derivado{resize:none;overflow:hidden;line-height:1.35;min-height:44px;display:block}
+textarea.derivado[readonly]{background:var(--bg);color:var(--navy-dark);font-weight:600}
+.r-persona > div:first-child{flex:0 0 34%}
+#r-folio,#r-etiqueta{text-transform:uppercase}
+.r-aviso{margin-top:6px;font-size:11.5px;line-height:1.4}
+.r-mal{color:var(--red)}
+.r-amb{color:var(--amber);background:var(--amber-bg);border-radius:8px;padding:7px 10px}
+
 /* ── Galería de etiquetas (SPEC-015) ──
    La tabla se desplaza a lo ancho dentro de su caja, con el encabezado y la
    columna Etiq fijos: con 15 columnas, en el teléfono es la única forma de no
@@ -502,6 +513,53 @@ main.ancha{max-width:1400px}
     </div>
   </section>
 
+  <!-- Merma 2: registro de rechazos (SPEC-017) -->
+  <section id="pg-merma2" class="hide">
+    <div class="card">
+      <div class="card-t">Registro de rechazo</div>
+      <div class="row">
+        <div><label>Folio de rechazo</label><input id="r-folio" autocomplete="off" autocapitalize="characters"></div>
+        <div><label># de etiqueta</label><input id="r-etiqueta" autocomplete="off" autocapitalize="characters"
+          oninput="rEtiquetaEscrita()" onchange="rBuscarEtiqueta(true)"></div>
+      </div>
+      <div class="row">
+        <div><label>Nombre de etiqueta</label><textarea id="r-etq-nombre" class="derivado" rows="1" readonly></textarea></div>
+        <div><label>Cliente</label><textarea id="r-etq-cliente" class="derivado" rows="1" readonly></textarea></div>
+      </div>
+      <div id="r-etq-aviso"></div>
+      <label>Máquina</label><select id="r-maquina"></select>
+      <div class="row r-persona">
+        <div><label>Nómina Supervisor</label><input id="r-nom-sup" inputmode="numeric" autocomplete="off"
+          oninput="rPersonaEscrita('sup')" onchange="rBuscarPersona('sup')"></div>
+        <div><label>Nombre Supervisor</label><textarea id="r-nombre-sup" class="derivado" rows="1" readonly tabindex="-1"></textarea></div>
+      </div>
+      <div id="r-aviso-sup"></div>
+      <div class="row r-persona">
+        <div><label>Nómina Operador</label><input id="r-nom-ope" inputmode="numeric" autocomplete="off"
+          oninput="rPersonaEscrita('ope')" onchange="rBuscarPersona('ope')"></div>
+        <div><label>Nombre operador</label><textarea id="r-nombre-ope" class="derivado" rows="1" readonly tabindex="-1"></textarea></div>
+      </div>
+      <div id="r-aviso-ope"></div>
+      <div class="row r-persona">
+        <div><label>Nómina Inspector</label><input id="r-nom-ins" inputmode="numeric" autocomplete="off"
+          oninput="rPersonaEscrita('ins')" onchange="rBuscarPersona('ins')"></div>
+        <div><label>Nombre inspector</label><textarea id="r-nombre-ins" class="derivado" rows="1" readonly tabindex="-1"></textarea></div>
+      </div>
+      <div id="r-aviso-ins"></div>
+      <label>Defecto</label><select id="r-defecto"></select>
+      <div class="row">
+        <div><label>Cantidad rechazada (metros lineales)</label><input id="r-metros" inputmode="decimal" autocomplete="off"></div>
+        <div><label>Cantidad rechazada (número de bobinas)</label><input id="r-bobinas" inputmode="numeric" autocomplete="off"></div>
+      </div>
+      <div id="r-err" style="color:var(--red);font-size:12.5px;margin-top:10px"></div>
+      <button class="btn" id="r-guardar" onclick="guardarRechazo()">Registrar rechazo</button>
+    </div>
+    <div class="card">
+      <div class="card-t">Rechazos registrados</div>
+      <div id="r-lista"><div class="vacio">Cargando…</div></div>
+    </div>
+  </section>
+
   <!-- Matriz, solo ADMIN (SPEC-005) -->
   <section id="pg-matriz" class="hide">
     <div class="card">
@@ -681,7 +739,8 @@ const PAGINAS = [
   {id:'tendencia',  nom:'Comportamiento',roles:['INSPECTOR','SUPERVISOR','ADMIN']},
   {id:'galeria',    nom:'Galería',       roles:['INSPECTOR','SUPERVISOR','ADMIN']},   // SPEC-015
   {id:'matriz',     nom:'Matriz',        roles:['ADMIN']},
-  {id:'merma',      nom:'Merma',         roles:['ADMIN']}
+  {id:'merma',      nom:'Merma',         roles:['ADMIN']},
+  {id:'merma2',     nom:'Merma 2',       roles:['INSPECTOR','SUPERVISOR','ADMIN']}   // SPEC-017
 ];
 function armarNav(){
   const vis = PAGINAS.filter(p=>p.roles.includes(sesion.rol));
@@ -699,6 +758,7 @@ function verPagina(id, btn){
   if(id==='matriz')    cargarMatriz();
   if(id==='merma')     pintarEstadoMerma();
   if(id==='galeria')   leerGaleria(false);
+  if(id==='merma2')    prepararMerma2();
   // SPEC-015: la tabla de la galería aprovecha la pantalla ancha.
   document.querySelector('main').classList.toggle('ancha', id==='galeria');
 }
@@ -1308,7 +1368,8 @@ function fechaLocal(d){
 
 // Línea con nombre y cliente para Historial y Acciones.
 function datosEtiqueta(r){
-  if(r.etiquetaNombre) return `<div class="meta">${esc(r.etiquetaNombre)}${r.etiquetaCliente?' · '+esc(r.etiquetaCliente):''}</div>`;
+  const fuera = r.etiquetaEnGaleria===false ? ' <span class="pill p-amber">fuera de galería</span>' : '';
+  if(r.etiquetaNombre) return `<div class="meta">${esc(r.etiquetaNombre)}${r.etiquetaCliente?' · '+esc(r.etiquetaCliente):''}${fuera}</div>`;
   if(r.etiquetaEnGaleria===false) return `<div class="meta"><span class="pill p-amber">etiqueta fuera de galería</span></div>`;
   return '';
 }
@@ -1316,6 +1377,18 @@ function datosEtiqueta(r){
 let etiqInfo = null;      // resultado de la última búsqueda: {clave, encontrada, nombre, cliente}
 let etiqTimer = null;
 const cacheEtiq = {};     // etiquetas ya consultadas en la sesión
+
+/* Un registro de la galería, o null si no está. Si la galería completa ya se
+   abrió en la sesión usa esa copia; si no, consulta solo ese registro. Lo usan
+   la inspección (SPEC-016) y Merma 2 (SPEC-017). */
+async function etiquetaDeGaleria(k){
+  if(!claveValida(k)) return null;
+  if(GALERIA) return GALERIA[k] || null;
+  if(k in cacheEtiq) return cacheEtiq[k];
+  const e = (await db.ref('cal/etiquetas/'+k).once('value')).val();
+  cacheEtiq[k] = e;
+  return e;
+}
 
 function etiquetaEscrita(){
   etiqInfo = null; $('f-etiqueta-info').innerHTML = '';
@@ -1336,14 +1409,10 @@ async function buscarEtiqueta(fijar){
   if(etiqInfo && etiqInfo.clave === k) return etiqInfo;
 
   let e, fallo = false;
-  if(!claveValida(k)) e = null;
-  else if(GALERIA) e = GALERIA[k] || null;
-  else if(k in cacheEtiq) e = cacheEtiq[k];
-  else {
+  if(claveValida(k) && !GALERIA && !(k in cacheEtiq))
     caja.innerHTML = '<div class="etq-info">Buscando en la galería…</div>';
-    try{ e = (await db.ref('cal/etiquetas/'+k).once('value')).val(); cacheEtiq[k] = e; }
-    catch(err){ console.error('Galería:', err); fallo = true; }
-  }
+  try{ e = await etiquetaDeGaleria(k); }
+  catch(err){ console.error('Galería:', err); fallo = true; }
   const info = fallo ? {clave:k, encontrada:null}
              : {clave:k, encontrada:!!e, nombre:(e&&e.Nombre_etiq)||'', cliente:(e&&e.Cliente)||''};
   // Si el inspector siguió escribiendo mientras se consultaba, esta respuesta
@@ -1357,6 +1426,196 @@ async function buscarEtiqueta(fijar){
       : `<div class="etq-info etq-no">La etiqueta ${esc(k)} no está en la galería. Puedes registrar la
           inspección; avisa a un administrador para darla de alta.</div>`;
   return info;
+}
+
+/* ═══════════════ MERMA 2: REGISTRO DE RECHAZOS (SPEC-017) ═══════════════ */
+// Las tres personas del rechazo: nómina que se escribe y nombre que se deriva
+// del padrón de RRHH.
+const R_PERSONAS = [
+  {id:'sup', etiqueta:'Supervisor', campo:'supervisor'},
+  {id:'ope', etiqueta:'Operador',   campo:'operador'},
+  {id:'ins', etiqueta:'Inspector',  campo:'inspector'}
+];
+const cachePersona = {};             // nómina → {nombre, estatus} | null
+// Pone el texto en un campo derivado y lo deja del alto de su contenido.
+function fijarDerivado(id, v){
+  const el = $(id); el.value = v; el.style.height = 'auto';
+  el.style.height = (el.scrollHeight + 2) + 'px';
+}
+document.addEventListener('input', ev=>{
+  if(ev.target.classList && ev.target.classList.contains('derivado')) fijarDerivado(ev.target.id, ev.target.value);
+});
+const rTimers = {};
+const rPersona = {};                 // id → {nomina, nombre, estado:'ok'|'no'|'baja'|'error'}
+let rEtiqueta = null;                // {clave, encontrada, nombre, cliente}
+let rListaLista = false;
+
+/* SPEC-009: el padrón se lee, nunca se escribe. */
+async function personaDeSuite(n){
+  if(n in cachePersona) return cachePersona[n];
+  const d = await suiteDb.collection('colaboradores').doc(n).get();
+  const c = d.exists ? (d.data()||{}) : null;
+  const p = c ? {nombre: c.nombreCompleto || '', estatus: c.estatus || ''} : null;
+  cachePersona[n] = p;
+  return p;
+}
+
+function prepararMerma2(){
+  if(!$('r-maquina').options.length){
+    $('r-maquina').innerHTML = '<option value="">— Selecciona —</option>' +
+      MAQUINAS.map(m=>`<option value="${m.id}">${m.id} · ${m.area}</option>`).join('');
+    $('r-defecto').innerHTML = '<option value="">— Selecciona —</option>' +
+      DEFECTOS.map(d=>`<option>${d}</option>`).join('');
+    // El inspector que captura no tiene que escribir su propia nómina.
+    if(sesion.rol==='INSPECTOR' && !$('r-nom-ins').value){
+      $('r-nom-ins').value = sesion.nomina; rBuscarPersona('ins');
+    }
+  }
+  if(!rListaLista){
+    rListaLista = true;
+    db.ref('cal/merma2').limitToLast(50).on('value', s=>{
+      const v = s.val() || {};
+      pintarRechazos(Object.keys(v).map(k=>({_id:k, ...v[k]})));
+    }, e=>{ $('r-lista').innerHTML = `<div class="vacio">No se pudo leer: ${esc(e.message)}</div>`; });
+  }
+}
+
+function rPersonaEscrita(id){
+  rPersona[id] = null; fijarDerivado('r-nombre-'+id, ''); $('r-aviso-'+id).innerHTML = '';
+  clearTimeout(rTimers[id]);
+  if($('r-nom-'+id).value.trim()) rTimers[id] = setTimeout(()=>rBuscarPersona(id), 450);
+}
+
+async function rBuscarPersona(id){
+  clearTimeout(rTimers[id]);
+  const n = $('r-nom-'+id).value.trim();
+  if(!n){ rPersona[id] = null; return null; }
+  if(rPersona[id] && rPersona[id].nomina===n) return rPersona[id];
+  let p, estado;
+  if(/[\/]/.test(n)){ p = null; estado = 'no'; }        // una / rompería la ruta del padrón
+  else {
+    try{ p = await personaDeSuite(n); estado = !p ? 'no' : (p.estatus==='ACTIVO' ? 'ok' : 'baja'); }
+    catch(e){ console.error('Padrón:', e); estado = 'error'; }
+  }
+  if($('r-nom-'+id).value.trim() !== n) return null;      // siguió escribiendo
+  const r = {nomina:n, nombre: p ? p.nombre : '', estado};
+  rPersona[id] = r;
+  fijarDerivado('r-nombre-'+id, r.nombre);
+  $('r-aviso-'+id).innerHTML =
+      estado==='no'    ? `<div class="r-aviso r-mal">La nómina ${esc(n)} no está en el padrón de RRHH.</div>`
+    : estado==='baja'  ? `<div class="r-aviso r-mal">Está dada de baja en RRHH.</div>`
+    : estado==='error' ? `<div class="r-aviso r-mal">No se pudo consultar el padrón. Revisa la conexión.</div>`
+    : '';
+  return r;
+}
+
+function rEtiquetaEscrita(){
+  rEtiqueta = null; $('r-etq-aviso').innerHTML = '';
+  ['r-etq-nombre','r-etq-cliente'].forEach(i=>{ fijarDerivado(i, ''); $(i).readOnly = true; });
+  clearTimeout(rTimers.etq);
+  if($('r-etiqueta').value.trim().length >= 5) rTimers.etq = setTimeout(()=>rBuscarEtiqueta(false), 250);
+}
+
+async function rBuscarEtiqueta(fijar){
+  clearTimeout(rTimers.etq);
+  const campo = $('r-etiqueta');
+  const k = claveEtiq(campo.value);
+  if(!k){ rEtiqueta = null; return null; }
+  if(fijar && campo.value !== k) campo.value = k;
+  if(rEtiqueta && rEtiqueta.clave === k) return rEtiqueta;
+  let e, fallo = false;
+  try{ e = await etiquetaDeGaleria(k); }catch(err){ console.error('Galería:', err); fallo = true; }
+  if(claveEtiq(campo.value) !== k) return null;
+  rEtiqueta = fallo ? {clave:k, encontrada:null}
+            : {clave:k, encontrada:!!e, nombre:(e&&e.Nombre_etiq)||'', cliente:(e&&e.Cliente)||''};
+  const nom = $('r-etq-nombre'), cli = $('r-etq-cliente');
+  if(rEtiqueta.encontrada){
+    fijarDerivado('r-etq-nombre', rEtiqueta.nombre); fijarDerivado('r-etq-cliente', rEtiqueta.cliente);
+    nom.readOnly = cli.readOnly = true;
+    $('r-etq-aviso').innerHTML = '';
+  } else {
+    // Fuera de galería: se avisa, y nombre y cliente se pueden escribir a mano.
+    nom.readOnly = cli.readOnly = false;
+    $('r-etq-aviso').innerHTML = `<div class="r-aviso r-amb">${fallo
+      ? 'No se pudo consultar la galería.' : 'La etiqueta '+esc(k)+' no está en la galería.'}
+      Puedes escribir nombre y cliente y registrar el rechazo.</div>`;
+  }
+  return rEtiqueta;
+}
+
+async function guardarRechazo(){
+  const err = m => { $('r-err').textContent = m; if(m) $('r-err').scrollIntoView({block:'center'}); };
+  err('');
+  const folio = $('r-folio').value.trim().toUpperCase();
+  if(!folio) return err('Escribe el folio de rechazo.');
+  if(!claveValida(folio)) return err('El folio no puede llevar . # $ / [ ]');
+  if(!$('r-etiqueta').value.trim()) return err('Escribe el # de etiqueta.');
+  const maquina = $('r-maquina').value, defecto = $('r-defecto').value;
+  if(!maquina) return err('Elige la máquina.');
+
+  const per = {};
+  for(const p of R_PERSONAS){
+    if(!$('r-nom-'+p.id).value.trim()) return err(`Escribe la nómina del ${p.etiqueta.toLowerCase()}.`);
+    const r = await rBuscarPersona(p.id);
+    if(!r || r.estado==='error') return err(`No se pudo consultar la nómina del ${p.etiqueta.toLowerCase()}.`);
+    if(r.estado==='no')   return err(`La nómina del ${p.etiqueta.toLowerCase()} no está en el padrón de RRHH.`);
+    if(r.estado==='baja') return err(`El ${p.etiqueta.toLowerCase()} está dado de baja en RRHH.`);
+    per[p.campo+'Nomina'] = r.nomina; per[p.campo+'Nombre'] = r.nombre;
+  }
+  if(!defecto) return err('Elige el defecto.');
+  const metros = numDe($('r-metros').value), bobinas = numDe($('r-bobinas').value);
+  if(metros===null || Number.isNaN(metros) || metros<=0) return err('Los metros lineales deben ser un número mayor que cero.');
+  if(bobinas===null || Number.isNaN(bobinas) || bobinas<0 || !Number.isInteger(bobinas))
+    return err('El número de bobinas debe ser un entero, cero o más.');
+
+  const etq = await rBuscarEtiqueta(true) || {clave: claveEtiq($('r-etiqueta').value), encontrada:null};
+  $('r-guardar').disabled = true;
+  try{
+    // SPEC-017: el folio no se repite.
+    const ya = (await db.ref('cal/merma2Folios/'+folio).once('value')).val();
+    if(ya){ $('r-guardar').disabled = false; return err(`El folio ${folio} ya está registrado.`); }
+    const ahora = new Date();
+    const rec = {
+      folio, etiqueta: etq.clave,
+      etiquetaNombre: $('r-etq-nombre').value.trim(), etiquetaCliente: $('r-etq-cliente').value.trim(),
+      maquina, ...per, defecto, metros, bobinas,
+      fecha: fechaLocal(ahora), turno: turnoDe(ahora), ts: ahora.getTime(),
+      capturoNomina: sesion.nomina, capturoNombre: sesion.nombre
+    };
+    if(etq.encontrada!==null) rec.etiquetaEnGaleria = etq.encontrada;
+    Object.keys(rec).forEach(k=>{ if(rec[k]==='') delete rec[k]; });
+    // El rechazo y su folio en una sola escritura: o entran los dos o ninguno.
+    const id = db.ref('cal/merma2').push().key;
+    await db.ref('cal').update({['merma2/'+id]: rec, ['merma2Folios/'+folio]: id});
+    toast(`Rechazo ${folio} registrado`);
+    limpiarRechazo();
+  }catch(e){ err('No se pudo guardar: '+e.message); }
+  finally{ $('r-guardar').disabled = false; }
+}
+
+function limpiarRechazo(){
+  ['r-folio','r-etiqueta','r-metros','r-bobinas','r-nom-sup','r-nom-ope'].forEach(i=>$(i).value='');
+  $('r-maquina').value = ''; $('r-defecto').value = '';
+  rEtiquetaEscrita(); rPersonaEscrita('sup'); rPersonaEscrita('ope');
+  // La nómina del inspector se queda: suele capturar varios rechazos seguidos.
+}
+
+function pintarRechazos(lista){
+  lista.sort((a,b)=>(b.ts||0)-(a.ts||0));
+  if(!lista.length){ $('r-lista').innerHTML = '<div class="vacio">Todavía no hay rechazos registrados.</div>'; return; }
+  const n = v => Number(v||0).toLocaleString('es-MX');
+  $('r-lista').innerHTML = lista.map(r=>`<div class="item">
+    <div style="display:flex;justify-content:space-between;gap:8px">
+      <h4>Folio ${esc(r.folio)}</h4>
+      <span class="pill p-red">${esc(r.defecto)}</span>
+    </div>
+    <div class="meta">${esc(r.maquina)} · etiqueta ${esc(r.etiqueta)} · ${esc(r.fecha)} · ${esc(r.turno)}</div>
+    ${datosEtiqueta(r)}
+    <div class="meta"><b>${n(r.metros)} m</b> · <b>${n(r.bobinas)} bobina${r.bobinas===1?'':'s'}</b></div>
+    <div class="meta">Supervisor: ${esc(r.supervisorNombre)} (${esc(r.supervisorNomina)})</div>
+    <div class="meta">Operador: ${esc(r.operadorNombre)} (${esc(r.operadorNomina)})</div>
+    <div class="meta">Inspector: ${esc(r.inspectorNombre)} (${esc(r.inspectorNomina)})</div>
+  </div>`).join('');
 }
 
 /* ═══════════════ GALERÍA DE ETIQUETAS (SPEC-015) ═══════════════

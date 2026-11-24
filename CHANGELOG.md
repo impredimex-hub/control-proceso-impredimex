@@ -11,6 +11,30 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.5.0] — 2026-11-24
+
+### Agregado
+
+- **Pestaña Merma 2** (SPEC-017): formulario de registro de rechazo con Folio
+  de rechazo, # de etiqueta, Nombre de etiqueta, Cliente, Máquina, nómina y
+  nombre de Supervisor, Operador e Inspector, Defecto, y cantidad rechazada en
+  metros lineales y en número de bobinas.
+  - Nombre de etiqueta y Cliente se derivan del # de etiqueta, desde la
+    galería. Si no está, se avisa y se pueden escribir a mano.
+  - Los nombres se derivan de las nóminas, desde el padrón de RRHH. No se
+    registra con una nómina inexistente o dada de baja.
+  - El folio no se repite. Se agregan solos fecha, turno y quién capturó.
+  - Debajo, los 50 rechazos más recientes.
+  - La usan los tres papeles. La pestaña Merma no cambia.
+
+### Cambiado
+
+- Historial y Acciones marcan «fuera de galería» también cuando la etiqueta
+  trae nombre escrito a mano.
+- Caché del service worker a `calidad-v1.5.0`.
+
+---
+
 ## [1.4.0] — 2026-11-24
 
 ### Agregado

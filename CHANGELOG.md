@@ -13,6 +13,13 @@ historial del repositorio y de `SPECS.md`.
 
 ## [1.8.1] — 2026-11-24
 
+### Seguridad
+
+- **Reglas de la base publicadas.** Estaban abiertas a cualquiera
+  (`.read: true`, `.write: true`). Ahora `cal/` pide sesión y los nodos de la
+  versión anterior quedan cerrados. `database.rules.json` coincide con lo
+  publicado, y se habilitó el acceso anónimo en Authentication.
+
 ### Corregido
 
 - **Con reglas que exigen sesión, la app no podía leer la base.** Abría sus

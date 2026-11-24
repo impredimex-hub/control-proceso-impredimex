@@ -611,10 +611,22 @@ lectura que llega sin sesión la rechazan las reglas y Firebase no la
 reintenta. Si la sesión anónima falla, la app lo dice con el motivo (por
 ejemplo, que el acceso anónimo está deshabilitado en Firebase).
 
+### Reglas publicadas
+El 24 de noviembre de 2026 se encontró que las reglas publicadas eran
+`.read: true` y `.write: true`: la base entera, incluidos los nodos de la
+versión anterior de la app, se podía leer y escribir sin sesión. Ese día se
+publicaron las de `database.rules.json`:
+- `cal/` pide sesión.
+- Todo lo demás (los nodos de la versión anterior: `usuarios`,
+  `imd_auditoria_claves`, `inspecciones`, `acciones`, etc.) queda cerrado para
+  todos; solo se ve desde la consola.
+- Se agregó el proveedor **Anónimo** en Authentication, que la app necesita
+  para abrir su sesión.
+
 ### Lo que falta
-- **Las reglas (`database.rules.json`) solo piden sesión**, y una sesión
-  anónima basta. Cualquiera que abra la página puede leer y escribir todo
-  `cal/`, sin pasar por la suite. Es el mismo punto que Mantenimiento resolvió
+- **Una sesión anónima basta para `cal/`.** Cualquiera que abra la página
+  puede abrir una con la configuración pública y leer y escribir todo `cal/`,
+  sin pasar por la suite. Es el mismo punto que Mantenimiento resolvió
   con la SPEC-061 de su repositorio (credencial entregada por el servidor tras
   validar la sesión de la suite), y la solución puede reutilizarse.
 - **App Check no está activo:** la clave `APPCHECK_SITE_KEY` está vacía.

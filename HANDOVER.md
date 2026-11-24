@@ -209,15 +209,20 @@ Detalles conocidos de la semilla, que no afectan el funcionamiento:
 
 ## Seguridad
 
-**Estado actual.** `database.rules.json` dice:
+**Estado actual** (publicado el 24 de noviembre de 2026; antes eran
+`true`/`true`, abiertas a cualquiera):
 
 ```json
-{ "rules": { ".read": "auth != null", ".write": "auth != null" } }
+{ "rules": { ".read": false, ".write": false,
+             "cal": { ".read": "auth != null", ".write": "auth != null" } } }
 ```
 
+Los nodos de la versión anterior, fuera de `cal/`, quedan cerrados para todos.
+Respaldarlos (Datos → ⋮ → Exportar JSON) antes de decidir borrarlos.
+
 Una sesión anónima cumple `auth != null`, y cualquiera puede abrir una con la
-configuración pública de `index.html`. En la práctica, **cualquier persona con
-la dirección puede leer y escribir todo `cal/` sin pasar por la suite.** Los
+configuración pública de `index.html`. En la práctica, **quien tenga la
+dirección todavía puede leer y escribir `cal/` sin pasar por la suite.** Los
 papeles (quién inspecciona, quién cierra, quién edita la matriz) solo se
 aplican en la pantalla.
 

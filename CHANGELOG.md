@@ -11,6 +11,24 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.7.0] — 2026-11-24
+
+### Agregado
+
+- **Excel de rechazos por mes** (SPEC-017): se elige el mes en curso, uno de
+  los once anteriores o todo el histórico.
+
+### Corregido
+
+- **En la tabla de rechazos, el segundo defecto de un folio se quedaba pegado
+  a la orilla izquierda**, encima de la columna Folio, al desplazarse a lo
+  ancho. La regla de la galería fijaba la primera celda de cada renglón, y en
+  esos renglones la primera celda es el defecto. Ahora se fija solo el Folio.
+- Los folios con varios defectos no tomaban completo su color alternado.
+- Caché del service worker a `calidad-v1.7.0`.
+
+---
+
 ## [1.6.0] — 2026-11-24
 
 ### Agregado

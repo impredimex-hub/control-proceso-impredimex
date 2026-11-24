@@ -262,13 +262,24 @@ textarea.derivado[readonly]{background:var(--bg);color:var(--navy-dark);font-wei
 .r-total{margin-top:10px;font-size:12.5px;color:var(--navy-dark);background:var(--navy-light);
   border-radius:9px;padding:8px 12px}
 .r-cuenta{flex:1 1 180px;font-size:12px;color:var(--text2)}
+.r-mes{width:auto;padding:7px 10px;font-size:12.5px}
 /* Tabla de rechazos: los datos del folio ocupan una celda alta por todos sus
-   defectos, y los folios alternan color para distinguir dónde empieza cada uno. */
-.r-tabla tbody tr{cursor:default}
-.r-tabla tbody tr:nth-child(even) td{background:#fff}
-.r-tabla tbody tr:hover td{background:inherit}
-.r-tabla tbody tr.f-alt td{background:#F1F5FB}
-.r-tabla td{vertical-align:top}
+   defectos, y los folios alternan color para distinguir dónde empieza cada uno.
+   Todas las reglas llevan doble clase para ganarle a las de la galería, que
+   van más abajo en este archivo. */
+.gal-tabla.r-tabla tbody tr{cursor:default}
+.gal-tabla.r-tabla tbody tr td,
+.gal-tabla.r-tabla tbody tr:hover td{background:#fff}
+.gal-tabla.r-tabla tbody tr.f-alt td,
+.gal-tabla.r-tabla tbody tr.f-alt:hover td{background:#F1F5FB}
+.gal-tabla.r-tabla td{vertical-align:top}
+/* En los renglones del segundo defecto en adelante, la primera celda es el
+   Defecto (el Folio viene de la celda alta de arriba). Por eso aquí la columna
+   fija se marca con la clase .fija y no con :first-child, que dejaba pegado el
+   defecto encima del folio. */
+.gal-tabla.r-tabla td:first-child{position:static;font-weight:400;color:inherit;box-shadow:none}
+.gal-tabla.r-tabla td.fija{position:sticky;left:0;z-index:1;font-weight:700;color:var(--navy-dark);
+  box-shadow:1px 0 0 var(--line)}
 
 /* ── Galería de etiquetas (SPEC-015) ──
    La tabla se desplaza a lo ancho dentro de su caja, con el encabezado y la
@@ -571,6 +582,7 @@ main.ancha{max-width:1400px}
       <div class="card-t">Rechazos registrados</div>
       <div class="gal-acciones" style="margin-top:0">
         <span id="r-cuenta" class="r-cuenta">—</span>
+        <select id="r-mes" class="r-mes" aria-label="Periodo del Excel"></select>
         <button class="btn btn-sm" id="r-exportar" onclick="exportarRechazos()">Exportar a Excel</button>
       </div>
       <div id="r-lista"><div class="vacio">Cargando…</div></div>
@@ -1484,6 +1496,7 @@ function prepararMerma2(){
     $('r-maquina').innerHTML = '<option value="">— Selecciona —</option>' +
       MAQUINAS.map(m=>`<option value="${m.id}">${m.id} · ${m.area}</option>`).join('');
     agregarDefectoRechazo();
+    pintarMesesExcel();
     // El inspector que captura no tiene que escribir su propia nómina.
     if(sesion.rol==='INSPECTOR' && !$('r-nom-ins').value){
       $('r-nom-ins').value = sesion.nomina; rBuscarPersona('ins');
@@ -1720,7 +1733,7 @@ function pintarRechazos(lista){
   }
   const fmt = v => v==null ? '' : (typeof v==='number' ? v.toLocaleString('es-MX') : String(v));
   const nDef = lista.reduce((a,r)=>a+defectosDe(r).length, 0);
-  $('r-cuenta').textContent = `Últimos ${lista.length} folio${lista.length===1?'':'s'} · ${nDef} defecto${nDef===1?'':'s'}. El Excel trae todos.`;
+  $('r-cuenta').textContent = `Últimos ${lista.length} folio${lista.length===1?'':'s'} · ${nDef} defecto${nDef===1?'':'s'}.`;
   let cuerpo = '';
   lista.forEach((r,i)=>{
     const defs = defectosDe(r), alto = Math.max(defs.length,1), alt = i%2 ? ' class="f-alt"' : '';
@@ -1728,7 +1741,8 @@ function pintarRechazos(lista){
       cuerpo += `<tr${alt}>` + R_COLUMNAS.map(c=>{
         if(c.folio && j>0) return '';                     // ya va en la celda alta del primer renglón
         const rs = c.folio && alto>1 ? ` rowspan="${alto}"` : '';
-        return `<td${rs} class="${c.num?'num':''}">${esc(fmt(c.v(r,d)))}</td>`;
+        const cls = [c.num?'num':'', c.t==='Folio'?'fija':''].join(' ').trim();
+        return `<td${rs} class="${cls}">${esc(fmt(c.v(r,d)))}</td>`;
       }).join('') + '</tr>';
     });
   });
@@ -1737,13 +1751,29 @@ function pintarRechazos(lista){
     <tbody>${cuerpo}</tbody></table></div>`;
 }
 
-/* ── Exportar a Excel: todos los rechazos, no solo los de la tabla ── */
+/* ── Exportar a Excel por mes, o todo el histórico ──
+   Se ofrecen el mes en curso (por omisión) y los once anteriores. El mes se
+   toma de la fecha del rechazo, no de cuándo se exporta. */
+function pintarMesesExcel(){
+  const sel = $('r-mes'); if(sel.options.length) return;
+  const hoy = new Date(), ops = [];
+  for(let i=0; i<12; i++){
+    const d = new Date(hoy.getFullYear(), hoy.getMonth()-i, 1);
+    const m = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    ops.push(`<option value="${m}">${nombreMes(m).replace(/^./, c=>c.toUpperCase())}</option>`);
+  }
+  sel.innerHTML = ops.join('') + '<option value="">Todo el histórico</option>';
+}
+
 async function exportarRechazos(){
-  const btn = $('r-exportar'); btn.disabled = true; btn.textContent = 'Preparando…';
+  const btn = $('r-exportar'), mes = $('r-mes').value;
+  btn.disabled = true; btn.textContent = 'Preparando…';
   try{
     const v = (await db.ref('cal/merma2').once('value')).val() || {};
-    const lista = Object.values(v).sort((a,b)=>(b.ts||0)-(a.ts||0));
-    if(!lista.length){ toast('No hay rechazos que exportar'); return; }
+    const lista = Object.values(v)
+      .filter(r => !mes || String(r.fecha||'').slice(0,7) === mes)
+      .sort((a,b)=>(b.ts||0)-(a.ts||0));
+    if(!lista.length){ toast(mes ? `No hay rechazos en ${nombreMes(mes)}` : 'No hay rechazos que exportar'); return; }
 
     const borde = {style:'thin', color:{rgb:'C9D3E3'}};
     const bordes = {top:borde, bottom:borde, left:borde, right:borde};
@@ -1780,7 +1810,7 @@ async function exportarRechazos(){
     ws['!rows'] = [{hpt:30}];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Rechazos');
-    XLSX.writeFile(wb, `Rechazos_Calidad_${fechaLocal()}.xlsx`);
+    XLSX.writeFile(wb, mes ? `Rechazos_Calidad_${mes}.xlsx` : `Rechazos_Calidad_historico_${fechaLocal()}.xlsx`);
     toast(`Excel con ${lista.length} folio${lista.length===1?'':'s'}`);
   }catch(e){ toast('No se pudo exportar: '+e.message); }
   finally{ btn.disabled = false; btn.textContent = 'Exportar a Excel'; }

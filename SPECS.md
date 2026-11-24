@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.6.0 — estados revisados contra el código el 24 de
+**Versión vigente:** 1.7.0 — estados revisados contra el código el 24 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -911,11 +911,17 @@ cantidades en una sola línea.
   Máquina, Defecto, Metros lineales, Bobinas, Nómina Supervisor, Nombre
   Supervisor, Nómina Operador, Nombre operador, Nómina Inspector, Nombre
   inspector y Capturó.
-- **Exportar a Excel** descarga **todos** los rechazos, no solo los 50 de la
-  tabla, con las mismas columnas y un renglón por defecto: los datos del folio
+- **Exportar a Excel por mes** (v1.7.0). Junto al botón se elige el periodo:
+  el mes en curso (por omisión), cualquiera de los once anteriores o **Todo el
+  histórico**. El mes se toma de la fecha del rechazo. Si el mes no tiene
+  rechazos, se avisa y no se descarga nada. Archivo
+  `Rechazos_Calidad_AAAA-MM.xlsx`, o `Rechazos_Calidad_historico_<fecha>.xlsx`
+  para todo.
+- El Excel trae todos los rechazos del periodo, no solo los de la tabla, con
+  las mismas columnas y un renglón por defecto: los datos del folio
   se repiten en cada renglón para poder filtrar y hacer tablas dinámicas. La
   fecha va como fecha de Excel, el encabezado en azul y con filtro, y los
-  folios alternan color. Archivo `Rechazos_Calidad_<fecha>.xlsx`.
+  folios alternan color.
 
 ### Datos
 `cal/merma2/<id>` con un identificador que crece con el tiempo, así la lista de
@@ -937,7 +943,8 @@ aparta con transacción antes de escribir el rechazo.
   cargada por Excel. Conectar Merma 2 es la decisión pendiente de si sustituye
   a la pestaña Merma.
 - No se edita ni se borra un rechazo desde la app.
-- La tabla no se filtra por fecha; el Excel trae todo el histórico.
+- La tabla en pantalla no se filtra por mes: siempre son los 50 folios más
+  recientes.
 
 ---
 

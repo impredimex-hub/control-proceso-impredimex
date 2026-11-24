@@ -4,7 +4,7 @@ Inspección de calidad en línea: foco por máquina, hallazgos con causa y
 acciones correctivas que se cierran.
 
 **Dirección:** https://impredimex-hub.github.io/control-proceso-impredimex/
-**Versión vigente:** 1.6.0 (ver [`CHANGELOG.md`](./CHANGELOG.md))
+**Versión vigente:** 1.7.0 (ver [`CHANGELOG.md`](./CHANGELOG.md))
 **Estado:** reconstruida y publicada; varias especificaciones están parciales
 (ver la tabla de estado en [`SPECS.md`](./SPECS.md))
 
@@ -40,7 +40,7 @@ y se entra desde el portal https://impredimex-hub.github.io/.
 - **Merma 2**: registro de rechazos con folio único, etiqueta, máquina y uno o
   varios defectos con sus metros y bobinas; los nombres de supervisor, operador
   e inspector salen del padrón de RRHH. Tabla de los más recientes y
-  exportación a Excel
+  exportación a Excel por mes
 - **Editor de la matriz** defecto ↔ variable para la junta de calidad
 - **Galería de etiquetas**: tabla con los datos técnicos de cada etiqueta
   (tintas, engrane, medidas, sustratos), con búsqueda, carga desde Excel y

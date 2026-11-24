@@ -3,7 +3,7 @@
 Lo que necesita saber quien reciba esta aplicación para operarla, corregirla y
 extenderla sin depender de quien la construyó.
 
-**Versión de la aplicación:** 1.5.0
+**Versión de la aplicación:** 1.6.0
 **Última actualización de este documento:** 24 de noviembre de 2026
 **Desarrollo original:** Victor Moreno
 
@@ -151,8 +151,8 @@ en la SPEC-010.
 | `cal/hallazgos/<id>` | Inspector, Admin; al cerrar, Supervisor o Admin | Lo de la inspección más `defecto`, `causa`, `causaDeterminada`, `metros`, `paro`, `obs`, `estado`; al cerrar, `correccion`, `cerradoPorNomina`, `cerradoPorNombre`, `fechaCierre`, `tsCierre` |
 | `cal/matriz/<defecto>@<máquina>` | Admin | `defecto`, `maquina` (vacía = todas), `vars: [{nombre, peso}]`, `actualizadoPor`, `actualizadoEn` |
 | `cal/merma` | Admin | `datos[línea][defecto][AAAA-MM] = metros`, `registros`, `ultimoMes`, `cargadoPor`, `cargadoEn` |
-| `cal/merma2/<id>` | Los tres papeles | Cada rechazo de Merma 2: `folio`, `etiqueta`, `etiquetaNombre`, `etiquetaCliente`, `etiquetaEnGaleria`, `maquina`, nómina y nombre de supervisor, operador e inspector, `defecto`, `metros`, `bobinas`, `fecha`, `turno`, `ts`, `capturoNomina`, `capturoNombre` (SPEC-017) |
-| `cal/merma2Folios/<folio>` | Los tres papeles | El `<id>` del rechazo con ese folio. Se escribe junto con el rechazo; es lo que impide repetir un folio. Si se borra un rechazo a mano en la consola, hay que borrar también su folio aquí |
+| `cal/merma2/<id>` | Los tres papeles | Cada rechazo de Merma 2: `folio`, `etiqueta`, `etiquetaNombre`, `etiquetaCliente`, `etiquetaEnGaleria`, `maquina`, nómina y nombre de supervisor, operador e inspector, `defectos: [{defecto, metros, bobinas}]`, `metrosTotal`, `bobinasTotal`, `fecha`, `turno`, `ts`, `capturoNomina`, `capturoNombre` (SPEC-017) |
+| `cal/merma2Folios/<folio>` | Los tres papeles | El `<id>` del rechazo con ese folio. Se aparta con una transacción antes de escribir el rechazo; es lo que impide repetir un folio. Si se borra un rechazo a mano en la consola, hay que borrar también su folio aquí |
 | `cal/etiquetas/<Etiq>` | Admin | Los 15 campos de la galería con el nombre de su encabezado (`Etiq`, `Nombre_etiq`, `Tipo`, … `Tipo_tinta`), más `actualizadoPor`, `actualizadoEn` y `origen` (`excel` o `manual`). Los vacíos no se guardan |
 
 La columna «Quién escribe» es lo que permite la pantalla. **Las reglas de la

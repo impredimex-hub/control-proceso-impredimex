@@ -11,6 +11,30 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.6.0] — 2026-11-24
+
+### Agregado
+
+- **Varios defectos por folio** en Merma 2 (SPEC-017). Cada defecto con sus
+  metros lineales y bobinas; «+ Agregar otro defecto» y «Quitar», y el total
+  del folio a la vista. Un defecto no se repite dentro del mismo folio.
+- **Rechazos registrados en tabla**, un renglón por defecto, con los datos del
+  folio agrupados.
+- **Exportar a Excel** todos los rechazos, con encabezado en color, filtro,
+  fechas de Excel y folios en colores alternados.
+
+### Cambiado
+
+- **El folio se aparta con una transacción.** Antes se revisaba si existía y
+  luego se escribía: dos capturas del mismo folio al mismo tiempo podían
+  entrar las dos. Ahora solo entra la primera.
+- La librería de Excel pasa a `xlsx-js-style` 1.2.0, la misma de
+  Mantenimiento, para poder escribir colores. La lectura de merma y galería no
+  cambia.
+- Caché del service worker a `calidad-v1.6.0`.
+
+---
+
 ## [1.5.0] — 2026-11-24
 
 ### Agregado

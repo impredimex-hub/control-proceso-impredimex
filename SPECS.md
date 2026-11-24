@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.5.0 — estados revisados contra el código el 24 de
+**Versión vigente:** 1.6.0 — estados revisados contra el código el 24 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -844,7 +844,8 @@ El turno lo calcula la app con la hora del teléfono; el inspector no lo elige.
 
 # SPEC-017 — Merma 2: registro de rechazos
 
-**Estado:** implementado (v1.5.0)
+**Estado:** implementado (v1.5.0); varios defectos por folio, tabla y Excel en
+la v1.6.0
 
 ### Por qué existe
 La merma hoy se anota a mano en papeletas y alguien la transcribe a Excel para
@@ -872,6 +873,12 @@ pestaña Merma**, que no cambia, mientras se decide si la sustituye.
 
 Los campos derivados no se escriben: se llenan solos y se ven en gris.
 
+**Un folio puede tener varios defectos.** Defecto, metros y bobinas forman una
+línea; «+ Agregar otro defecto» suma otra, y «Quitar» la elimina (siempre queda
+al menos una). Con dos o más líneas se muestra el total de metros y bobinas del
+folio. Un mismo defecto no puede ir dos veces en un folio: se suman sus
+cantidades en una sola línea.
+
 ### Reglas de negocio
 - **Las nóminas salen del padrón de RRHH**: `colaboradores` de
   `impredimex-suite`, el mismo de toda la suite (SPEC-009). La app lo lee y no
@@ -884,32 +891,53 @@ Los campos derivados no se escriben: se llenan solos y se ven en gris.
   avisa y se deja registrar**; en ese caso nombre y cliente se pueden escribir a
   mano, y el registro queda marcado como etiqueta fuera de galería.
 - **El folio no se repite.** Se guarda en mayúsculas y sin espacios en los
-  extremos, y no puede llevar `.`, `#`, `$`, `/`, `[` ni `]`. Un folio ya
-  registrado se rechaza.
+  extremos (`r-101` y `R-101` son el mismo), y no puede llevar `.`, `#`, `$`,
+  `/`, `[` ni `]`. Se aparta con una **transacción** en la base: si dos personas
+  capturan el mismo folio al mismo tiempo, solo entra la primera y la otra ve
+  «ya está registrado». Si el folio se apartó pero el rechazo no alcanzó a
+  guardarse, se libera.
 - Se agregan solos la **fecha local**, el **turno** según la hora (SPEC-016) y
   **quién capturó** (nómina y nombre de la sesión).
 - **Los registros guardan copia de los nombres** tal como estaban al capturar
   (SPEC-009).
-- La pestaña la usan los tres papeles. Debajo del formulario se listan los
-  **50 rechazos más recientes**.
+- La pestaña la usan los tres papeles.
+
+### Rechazos registrados
+- Debajo del formulario, una **tabla** con los **50 folios más recientes**, un
+  renglón por defecto. Los datos del folio ocupan una sola celda alta por todos
+  sus defectos, y los folios alternan color. Encabezado y columna Folio fijos
+  al desplazarse.
+- Columnas: Folio, Fecha, Turno, # de etiqueta, Nombre de etiqueta, Cliente,
+  Máquina, Defecto, Metros lineales, Bobinas, Nómina Supervisor, Nombre
+  Supervisor, Nómina Operador, Nombre operador, Nómina Inspector, Nombre
+  inspector y Capturó.
+- **Exportar a Excel** descarga **todos** los rechazos, no solo los 50 de la
+  tabla, con las mismas columnas y un renglón por defecto: los datos del folio
+  se repiten en cada renglón para poder filtrar y hacer tablas dinámicas. La
+  fecha va como fecha de Excel, el encabezado en azul y con filtro, y los
+  folios alternan color. Archivo `Rechazos_Calidad_<fecha>.xlsx`.
 
 ### Datos
 `cal/merma2/<id>` con un identificador que crece con el tiempo, así la lista de
 los más recientes no necesita índice en las reglas. Campos: `folio`,
 `etiqueta`, `etiquetaNombre`, `etiquetaCliente`, `etiquetaEnGaleria`, `maquina`,
 `supervisorNomina`, `supervisorNombre`, `operadorNomina`, `operadorNombre`,
-`inspectorNomina`, `inspectorNombre`, `defecto`, `metros`, `bobinas`, `fecha`,
-`turno`, `ts`, `capturoNomina` y `capturoNombre`.
+`inspectorNomina`, `inspectorNombre`, `defectos` (lista de
+`{defecto, metros, bobinas}`), `metrosTotal`, `bobinasTotal`, `fecha`, `turno`,
+`ts`, `capturoNomina` y `capturoNombre`.
 
-`cal/merma2Folios/<folio>` guarda el `<id>` del rechazo con ese folio. El
-rechazo y su folio se escriben en una sola operación.
+Los rechazos capturados con la v1.5.0 tienen un solo defecto en `defecto`,
+`metros` y `bobinas`, sin lista. La tabla y el Excel los leen igual.
+
+`cal/merma2Folios/<folio>` guarda el `<id>` del rechazo con ese folio y se
+aparta con transacción antes de escribir el rechazo.
 
 ### Lo que no hace todavía
 - **No alimenta el foco.** El foco de la SPEC-004 sigue saliendo de la merma
   cargada por Excel. Conectar Merma 2 es la decisión pendiente de si sustituye
   a la pestaña Merma.
 - No se edita ni se borra un rechazo desde la app.
-- No se exporta a Excel.
+- La tabla no se filtra por fecha; el Excel trae todo el histórico.
 
 ---
 

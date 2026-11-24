@@ -255,6 +255,20 @@ textarea.derivado[readonly]{background:var(--bg);color:var(--navy-dark);font-wei
 .r-aviso{margin-top:6px;font-size:11.5px;line-height:1.4}
 .r-mal{color:var(--red)}
 .r-amb{color:var(--amber);background:var(--amber-bg);border-radius:8px;padding:7px 10px}
+.r-def{border:1px solid var(--line);border-radius:10px;padding:4px 12px 12px;margin-top:12px;background:#FBFCFE}
+.r-def-cab{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
+.r-def-num{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--navy)}
+.r-quitar{background:none;border:none;color:var(--red);font-size:12px;font-weight:600;cursor:pointer;padding:6px 0}
+.r-total{margin-top:10px;font-size:12.5px;color:var(--navy-dark);background:var(--navy-light);
+  border-radius:9px;padding:8px 12px}
+.r-cuenta{flex:1 1 180px;font-size:12px;color:var(--text2)}
+/* Tabla de rechazos: los datos del folio ocupan una celda alta por todos sus
+   defectos, y los folios alternan color para distinguir dónde empieza cada uno. */
+.r-tabla tbody tr{cursor:default}
+.r-tabla tbody tr:nth-child(even) td{background:#fff}
+.r-tabla tbody tr:hover td{background:inherit}
+.r-tabla tbody tr.f-alt td{background:#F1F5FB}
+.r-tabla td{vertical-align:top}
 
 /* ── Galería de etiquetas (SPEC-015) ──
    La tabla se desplaza a lo ancho dentro de su caja, con el encabezado y la
@@ -546,16 +560,19 @@ main.ancha{max-width:1400px}
         <div><label>Nombre inspector</label><textarea id="r-nombre-ins" class="derivado" rows="1" readonly tabindex="-1"></textarea></div>
       </div>
       <div id="r-aviso-ins"></div>
-      <label>Defecto</label><select id="r-defecto"></select>
-      <div class="row">
-        <div><label>Cantidad rechazada (metros lineales)</label><input id="r-metros" inputmode="decimal" autocomplete="off"></div>
-        <div><label>Cantidad rechazada (número de bobinas)</label><input id="r-bobinas" inputmode="numeric" autocomplete="off"></div>
-      </div>
+      <!-- SPEC-017: un folio puede tener varios defectos, cada uno con sus metros y bobinas -->
+      <div id="r-defectos"></div>
+      <button type="button" class="btn btn-2 btn-sm" style="margin-top:10px" onclick="agregarDefectoRechazo()">+ Agregar otro defecto</button>
+      <div id="r-total" class="r-total hide"></div>
       <div id="r-err" style="color:var(--red);font-size:12.5px;margin-top:10px"></div>
       <button class="btn" id="r-guardar" onclick="guardarRechazo()">Registrar rechazo</button>
     </div>
     <div class="card">
       <div class="card-t">Rechazos registrados</div>
+      <div class="gal-acciones" style="margin-top:0">
+        <span id="r-cuenta" class="r-cuenta">—</span>
+        <button class="btn btn-sm" id="r-exportar" onclick="exportarRechazos()">Exportar a Excel</button>
+      </div>
       <div id="r-lista"><div class="vacio">Cargando…</div></div>
     </div>
   </section>
@@ -586,7 +603,9 @@ main.ancha{max-width:1400px}
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check-compat.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- SPEC-017: xlsx-js-style es SheetJS 0.18.5 que además escribe colores y bordes.
+     Lee igual que la anterior, así que la merma y la galería no cambian. -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 
 <script>
 /* ═══════════════════════════════════════════════════════════════════════
@@ -1464,8 +1483,7 @@ function prepararMerma2(){
   if(!$('r-maquina').options.length){
     $('r-maquina').innerHTML = '<option value="">— Selecciona —</option>' +
       MAQUINAS.map(m=>`<option value="${m.id}">${m.id} · ${m.area}</option>`).join('');
-    $('r-defecto').innerHTML = '<option value="">— Selecciona —</option>' +
-      DEFECTOS.map(d=>`<option>${d}</option>`).join('');
+    agregarDefectoRechazo();
     // El inspector que captura no tiene que escribir su propia nómina.
     if(sesion.rol==='INSPECTOR' && !$('r-nom-ins').value){
       $('r-nom-ins').value = sesion.nomina; rBuscarPersona('ins');
@@ -1550,7 +1568,7 @@ async function guardarRechazo(){
   if(!folio) return err('Escribe el folio de rechazo.');
   if(!claveValida(folio)) return err('El folio no puede llevar . # $ / [ ]');
   if(!$('r-etiqueta').value.trim()) return err('Escribe el # de etiqueta.');
-  const maquina = $('r-maquina').value, defecto = $('r-defecto').value;
+  const maquina = $('r-maquina').value;
   if(!maquina) return err('Elige la máquina.');
 
   const per = {};
@@ -1562,60 +1580,210 @@ async function guardarRechazo(){
     if(r.estado==='baja') return err(`El ${p.etiqueta.toLowerCase()} está dado de baja en RRHH.`);
     per[p.campo+'Nomina'] = r.nomina; per[p.campo+'Nombre'] = r.nombre;
   }
-  if(!defecto) return err('Elige el defecto.');
-  const metros = numDe($('r-metros').value), bobinas = numDe($('r-bobinas').value);
-  if(metros===null || Number.isNaN(metros) || metros<=0) return err('Los metros lineales deben ser un número mayor que cero.');
-  if(bobinas===null || Number.isNaN(bobinas) || bobinas<0 || !Number.isInteger(bobinas))
-    return err('El número de bobinas debe ser un entero, cero o más.');
+  const lin = leerDefectosRechazo();
+  if(lin.error) return err(lin.error);
+  const defectos = lin.defectos;
 
   const etq = await rBuscarEtiqueta(true) || {clave: claveEtiq($('r-etiqueta').value), encontrada:null};
   $('r-guardar').disabled = true;
+  let folioApartado = false;
   try{
-    // SPEC-017: el folio no se repite.
-    const ya = (await db.ref('cal/merma2Folios/'+folio).once('value')).val();
-    if(ya){ $('r-guardar').disabled = false; return err(`El folio ${folio} ya está registrado.`); }
     const ahora = new Date();
     const rec = {
       folio, etiqueta: etq.clave,
       etiquetaNombre: $('r-etq-nombre').value.trim(), etiquetaCliente: $('r-etq-cliente').value.trim(),
-      maquina, ...per, defecto, metros, bobinas,
+      maquina, ...per, defectos,
+      metrosTotal:  +defectos.reduce((a,d)=>a+d.metros, 0).toFixed(3),
+      bobinasTotal: defectos.reduce((a,d)=>a+d.bobinas, 0),
       fecha: fechaLocal(ahora), turno: turnoDe(ahora), ts: ahora.getTime(),
       capturoNomina: sesion.nomina, capturoNombre: sesion.nombre
     };
     if(etq.encontrada!==null) rec.etiquetaEnGaleria = etq.encontrada;
     Object.keys(rec).forEach(k=>{ if(rec[k]==='') delete rec[k]; });
-    // El rechazo y su folio en una sola escritura: o entran los dos o ninguno.
+    // SPEC-017: el folio no se repite. Se aparta con una transacción, así dos
+    // personas que capturan el mismo folio al mismo tiempo no pueden ganar las
+    // dos: el servidor solo deja pasar a la primera.
     const id = db.ref('cal/merma2').push().key;
-    await db.ref('cal').update({['merma2/'+id]: rec, ['merma2Folios/'+folio]: id});
+    const t = await db.ref('cal/merma2Folios/'+folio).transaction(actual => actual ? undefined : id);
+    if(!t.committed) return err(`El folio ${folio} ya está registrado.`);
+    folioApartado = true;
+    await db.ref('cal/merma2/'+id).set(rec);
     toast(`Rechazo ${folio} registrado`);
     limpiarRechazo();
-  }catch(e){ err('No se pudo guardar: '+e.message); }
+  }catch(e){
+    // Si el folio se apartó pero el rechazo no entró, se libera el folio para
+    // poder intentar otra vez.
+    if(folioApartado) db.ref('cal/merma2Folios/'+folio).remove().catch(()=>{});
+    err('No se pudo guardar: '+e.message);
+  }
   finally{ $('r-guardar').disabled = false; }
 }
 
 function limpiarRechazo(){
-  ['r-folio','r-etiqueta','r-metros','r-bobinas','r-nom-sup','r-nom-ope'].forEach(i=>$(i).value='');
-  $('r-maquina').value = ''; $('r-defecto').value = '';
+  ['r-folio','r-etiqueta','r-nom-sup','r-nom-ope'].forEach(i=>$(i).value='');
+  $('r-maquina').value = '';
+  $('r-defectos').innerHTML = ''; agregarDefectoRechazo(); totalRechazo();
   rEtiquetaEscrita(); rPersonaEscrita('sup'); rPersonaEscrita('ope');
   // La nómina del inspector se queda: suele capturar varios rechazos seguidos.
 }
 
+/* ── Defectos del folio: una línea por defecto, con sus metros y bobinas ── */
+function agregarDefectoRechazo(){
+  const div = document.createElement('div'); div.className = 'r-def';
+  div.innerHTML = `<div class="r-def-cab"><span class="r-def-num"></span>
+      <button type="button" class="r-quitar" onclick="quitarDefectoRechazo(this)">Quitar</button></div>
+    <label>Defecto</label>
+    <select class="r-def-sel"><option value="">— Selecciona —</option>${DEFECTOS.map(d=>`<option>${d}</option>`).join('')}</select>
+    <div class="row">
+      <div><label>Cantidad rechazada (metros lineales)</label>
+        <input class="r-def-m" inputmode="decimal" autocomplete="off" oninput="totalRechazo()"></div>
+      <div><label>Cantidad rechazada (número de bobinas)</label>
+        <input class="r-def-b" inputmode="numeric" autocomplete="off" oninput="totalRechazo()"></div>
+    </div>`;
+  $('r-defectos').appendChild(div);
+  numerarDefectos(); totalRechazo();
+}
+function quitarDefectoRechazo(btn){
+  btn.closest('.r-def').remove(); numerarDefectos(); totalRechazo();
+}
+// Siempre queda al menos una línea: con una sola, no se ofrece quitarla.
+function numerarDefectos(){
+  const ls = [...document.querySelectorAll('#r-defectos .r-def')];
+  ls.forEach((d,i)=>{
+    d.querySelector('.r-def-num').textContent = 'Defecto ' + (i+1);
+    d.querySelector('.r-quitar').classList.toggle('hide', ls.length===1);
+  });
+}
+// Con dos o más defectos, el total del folio a la vista.
+function totalRechazo(){
+  const ls = [...document.querySelectorAll('#r-defectos .r-def')], caja = $('r-total');
+  if(ls.length < 2){ caja.classList.add('hide'); return; }
+  let m = 0, b = 0;
+  ls.forEach(d=>{ const x = numDe(d.querySelector('.r-def-m').value), y = numDe(d.querySelector('.r-def-b').value);
+    if(x>0) m += x; if(y>0) b += y; });
+  caja.classList.remove('hide');
+  caja.innerHTML = `Total del folio: <b>${(+m.toFixed(3)).toLocaleString('es-MX')} m</b> · <b>${b.toLocaleString('es-MX')} bobina${b===1?'':'s'}</b> en ${ls.length} defectos`;
+}
+function leerDefectosRechazo(){
+  const ls = [...document.querySelectorAll('#r-defectos .r-def')];
+  const defectos = [], vistos = new Set();
+  for(let i=0; i<ls.length; i++){
+    const n = ls.length>1 ? `Defecto ${i+1}: ` : '';
+    const d = ls[i].querySelector('.r-def-sel').value;
+    const metros = numDe(ls[i].querySelector('.r-def-m').value), bobinas = numDe(ls[i].querySelector('.r-def-b').value);
+    if(!d) return {error: n + 'elige el defecto.'};
+    // SPEC-017: un defecto una sola vez por folio.
+    if(vistos.has(d)) return {error: `${d} está dos veces. Suma sus metros y bobinas en una sola línea.`};
+    vistos.add(d);
+    if(metros===null || Number.isNaN(metros) || metros<=0) return {error: n + 'los metros lineales deben ser un número mayor que cero.'};
+    if(bobinas===null || Number.isNaN(bobinas) || bobinas<0 || !Number.isInteger(bobinas))
+      return {error: n + 'el número de bobinas debe ser un entero, cero o más.'};
+    defectos.push({defecto:d, metros, bobinas});
+  }
+  return {defectos};
+}
+
+// Los rechazos de la v1.5.0 guardaban un solo defecto suelto; se leen igual.
+function defectosDe(r){
+  if(Array.isArray(r.defectos) && r.defectos.length) return r.defectos;
+  if(r.defectos && typeof r.defectos==='object') return Object.values(r.defectos);
+  return r.defecto ? [{defecto:r.defecto, metros:r.metros, bobinas:r.bobinas}] : [];
+}
+
+/* ── Tabla y Excel: las mismas columnas, un renglón por defecto ──
+   `folio: true` marca los datos del folio, que se repiten en cada defecto. */
+const R_COLUMNAS = [
+  {t:'Folio',              v:r=>r.folio,            w:11, folio:true},
+  {t:'Fecha',              v:r=>r.fecha,            w:11, folio:true, fecha:true},
+  {t:'Turno',              v:r=>r.turno,            w:11, folio:true},
+  {t:'# de etiqueta',      v:r=>r.etiqueta,         w:11, folio:true},
+  {t:'Nombre de etiqueta', v:r=>r.etiquetaNombre,   w:40, folio:true},
+  {t:'Cliente',            v:r=>r.etiquetaCliente,  w:36, folio:true},
+  {t:'Máquina',            v:r=>r.maquina,          w:10, folio:true},
+  {t:'Defecto',            v:(r,d)=>d.defecto,      w:20},
+  {t:'Metros lineales',    v:(r,d)=>d.metros,       w:13, num:true},
+  {t:'Bobinas',            v:(r,d)=>d.bobinas,      w:9,  num:true},
+  {t:'Nómina Supervisor',  v:r=>r.supervisorNomina, w:11, folio:true},
+  {t:'Nombre Supervisor',  v:r=>r.supervisorNombre, w:32, folio:true},
+  {t:'Nómina Operador',    v:r=>r.operadorNomina,   w:11, folio:true},
+  {t:'Nombre operador',    v:r=>r.operadorNombre,   w:32, folio:true},
+  {t:'Nómina Inspector',   v:r=>r.inspectorNomina,  w:11, folio:true},
+  {t:'Nombre inspector',   v:r=>r.inspectorNombre,  w:32, folio:true},
+  {t:'Capturó',            v:r=>r.capturoNombre ? `${r.capturoNombre} (${r.capturoNomina})` : '', w:32, folio:true}
+];
+
 function pintarRechazos(lista){
   lista.sort((a,b)=>(b.ts||0)-(a.ts||0));
-  if(!lista.length){ $('r-lista').innerHTML = '<div class="vacio">Todavía no hay rechazos registrados.</div>'; return; }
-  const n = v => Number(v||0).toLocaleString('es-MX');
-  $('r-lista').innerHTML = lista.map(r=>`<div class="item">
-    <div style="display:flex;justify-content:space-between;gap:8px">
-      <h4>Folio ${esc(r.folio)}</h4>
-      <span class="pill p-red">${esc(r.defecto)}</span>
-    </div>
-    <div class="meta">${esc(r.maquina)} · etiqueta ${esc(r.etiqueta)} · ${esc(r.fecha)} · ${esc(r.turno)}</div>
-    ${datosEtiqueta(r)}
-    <div class="meta"><b>${n(r.metros)} m</b> · <b>${n(r.bobinas)} bobina${r.bobinas===1?'':'s'}</b></div>
-    <div class="meta">Supervisor: ${esc(r.supervisorNombre)} (${esc(r.supervisorNomina)})</div>
-    <div class="meta">Operador: ${esc(r.operadorNombre)} (${esc(r.operadorNomina)})</div>
-    <div class="meta">Inspector: ${esc(r.inspectorNombre)} (${esc(r.inspectorNomina)})</div>
-  </div>`).join('');
+  if(!lista.length){
+    $('r-cuenta').textContent = '';
+    $('r-lista').innerHTML = '<div class="vacio">Todavía no hay rechazos registrados.</div>'; return;
+  }
+  const fmt = v => v==null ? '' : (typeof v==='number' ? v.toLocaleString('es-MX') : String(v));
+  const nDef = lista.reduce((a,r)=>a+defectosDe(r).length, 0);
+  $('r-cuenta').textContent = `Últimos ${lista.length} folio${lista.length===1?'':'s'} · ${nDef} defecto${nDef===1?'':'s'}. El Excel trae todos.`;
+  let cuerpo = '';
+  lista.forEach((r,i)=>{
+    const defs = defectosDe(r), alto = Math.max(defs.length,1), alt = i%2 ? ' class="f-alt"' : '';
+    (defs.length ? defs : [{}]).forEach((d,j)=>{
+      cuerpo += `<tr${alt}>` + R_COLUMNAS.map(c=>{
+        if(c.folio && j>0) return '';                     // ya va en la celda alta del primer renglón
+        const rs = c.folio && alto>1 ? ` rowspan="${alto}"` : '';
+        return `<td${rs} class="${c.num?'num':''}">${esc(fmt(c.v(r,d)))}</td>`;
+      }).join('') + '</tr>';
+    });
+  });
+  $('r-lista').innerHTML = `<div class="gal-tabla-wrap"><table class="gal-tabla r-tabla">
+    <thead><tr>${R_COLUMNAS.map(c=>`<th class="${c.num?'num':''}">${c.t}</th>`).join('')}</tr></thead>
+    <tbody>${cuerpo}</tbody></table></div>`;
+}
+
+/* ── Exportar a Excel: todos los rechazos, no solo los de la tabla ── */
+async function exportarRechazos(){
+  const btn = $('r-exportar'); btn.disabled = true; btn.textContent = 'Preparando…';
+  try{
+    const v = (await db.ref('cal/merma2').once('value')).val() || {};
+    const lista = Object.values(v).sort((a,b)=>(b.ts||0)-(a.ts||0));
+    if(!lista.length){ toast('No hay rechazos que exportar'); return; }
+
+    const borde = {style:'thin', color:{rgb:'C9D3E3'}};
+    const bordes = {top:borde, bottom:borde, left:borde, right:borde};
+    const sCab = {font:{bold:true, color:{rgb:'FFFFFF'}}, fill:{patternType:'solid', fgColor:{rgb:'003580'}},
+                  alignment:{horizontal:'center', vertical:'center', wrapText:true}, border:bordes};
+    // Fecha como fecha de Excel (número de serie), no como texto: así se puede
+    // filtrar y ordenar. Se calcula en UTC para que la zona horaria no la mueva.
+    const serie = f => { const [a,m,d] = String(f||'').split('-').map(Number);
+      return a ? (Date.UTC(a,m-1,d) - Date.UTC(1899,11,30)) / 86400000 : null; };
+
+    const ws = {}; let fila = 0;
+    R_COLUMNAS.forEach((c,j)=>{ ws[XLSX.utils.encode_cell({r:0,c:j})] = {v:c.t, t:'s', s:sCab}; });
+    lista.forEach((r,i)=>{
+      const relleno = i%2 ? {fill:{patternType:'solid', fgColor:{rgb:'EEF3FA'}}} : {};
+      const defs = defectosDe(r);
+      (defs.length ? defs : [{}]).forEach(d=>{
+        fila++;
+        R_COLUMNAS.forEach((c,j)=>{
+          let val = c.v(r,d), celda;
+          const s = {border:bordes, alignment:{vertical:'top'}, ...relleno};
+          if(c.fecha && serie(val)!==null) celda = {v:serie(val), t:'n', z:'dd/mm/yyyy', s};
+          // Entero sin decimales; con decimales, sin el punto suelto que deja «#,##0.##» en un entero.
+          else if(c.num && typeof val==='number') celda = {v:val, t:'n', z: Number.isInteger(val) ? '#,##0' : '#,##0.0##',
+                                                            s:{...s, alignment:{horizontal:'right', vertical:'top'}}};
+          else celda = {v: val==null ? '' : String(val), t:'s', s};
+          ws[XLSX.utils.encode_cell({r:fila, c:j})] = celda;
+        });
+      });
+    });
+    const rango = XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:fila, c:R_COLUMNAS.length-1}});
+    ws['!ref'] = rango;
+    ws['!autofilter'] = {ref: rango};
+    ws['!cols'] = R_COLUMNAS.map(c=>({wch:c.w}));
+    ws['!rows'] = [{hpt:30}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Rechazos');
+    XLSX.writeFile(wb, `Rechazos_Calidad_${fechaLocal()}.xlsx`);
+    toast(`Excel con ${lista.length} folio${lista.length===1?'':'s'}`);
+  }catch(e){ toast('No se pudo exportar: '+e.message); }
+  finally{ btn.disabled = false; btn.textContent = 'Exportar a Excel'; }
 }
 
 /* ═══════════════ GALERÍA DE ETIQUETAS (SPEC-015) ═══════════════

@@ -11,6 +11,23 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.9.0] — 2026-11-24
+
+### Agregado
+
+- **Borrar un rechazo** (SPEC-019), solo `ADMIN`: botón en la celda del
+  folio, con confirmación y motivo obligatorio. En una sola escritura quita el
+  rechazo, libera su folio, resta sus metros del foco y guarda una copia en
+  `cal/merma2Borrados` con quién, cuándo y por qué.
+
+### Cambiado
+
+- Para el foco, un mes con menos de 0.001 m en el resumen no cuenta (queda en
+  0 después de borrar).
+- Caché del service worker a `calidad-v1.9.0`.
+
+---
+
 ## [1.8.1] — 2026-11-24
 
 ### Seguridad

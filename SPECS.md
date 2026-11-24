@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.8.1 — estados revisados contra el código el 24 de
+**Versión vigente:** 1.9.0 — estados revisados contra el código el 24 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -50,6 +50,7 @@ se puede ir del documento al código y de regreso.
 | 016 | Etiqueta y turno automáticos en la inspección | Implementado |
 | 017 | Registro de rechazos (antes «Merma 2») | Implementado; desde la v1.8.0 vive en la pestaña Merma |
 | 018 | Merma: una sola fuente, formulario más Excel | Implementado |
+| 019 | Borrar un rechazo | Implementado |
 
 ---
 
@@ -153,6 +154,7 @@ Las pestañas se muestran según el papel:
 | Matriz | | | ✓ |
 | Merma: formulario y tabla | ✓ | ✓ | ✓ |
 | Merma: cargar Excel | | | ✓ |
+| Merma: borrar un rechazo | | | ✓ |
 | Galería (consulta) | ✓ | ✓ | ✓ |
 | Galería (cargar, alta y edición) | | | ✓ |
 
@@ -604,6 +606,7 @@ Proyecto `impredimex-procesos`, Realtime Database, todo bajo el nodo `cal/`:
 | `cal/merma2/<id>` | Cada rechazo capturado en Merma 2 (SPEC-017) |
 | `cal/merma2Folios/<folio>` | Índice de folios de rechazo, para no repetirlos (SPEC-017) |
 | `cal/mermaResumen/<máquina>/<defecto>/<AAAA-MM>` | Metros de los rechazos sumados por mes, para el foco (SPEC-018) |
+| `cal/merma2Borrados/<id>` | Copia de cada rechazo borrado, con quién, cuándo y por qué (SPEC-019) |
 
 La app abre una **sesión anónima** en este proyecto después de validar a la
 persona contra la suite, y **solo después** abre sus lecturas (v1.8.1). Una
@@ -971,9 +974,9 @@ aparta con transacción antes de escribir el rechazo.
 - **No alimenta el foco.** El foco de la SPEC-004 sigue saliendo de la merma
   cargada por Excel. Conectar Merma 2 es la decisión pendiente de si sustituye
   a la pestaña Merma.
-- No se edita ni se borra un rechazo desde la app.
-- La tabla en pantalla no se filtra por mes: siempre son los 50 folios más
-  recientes.
+- No se edita un rechazo desde la app. Se borra desde la v1.9.0 (SPEC-019).
+- Hasta la v1.7.0 la tabla no se filtraba por mes; desde la v1.8.0 sí
+  (SPEC-018).
 
 ---
 
@@ -1067,9 +1070,44 @@ Una sola pestaña **Merma**, en este orden:
   campo `fecha`.
 
 ### Lo que no hace todavía
-- No se edita ni se borra un rechazo desde la app.
+- No se edita un rechazo desde la app; se borra (SPEC-019) y se vuelve a
+  capturar.
 - La carga no avisa de folios que ya están **dentro de la base histórica**
   agregada: esa base no guarda folios.
+
+---
+
+# SPEC-019 — Borrar un rechazo
+
+**Estado:** implementado (v1.9.0)
+
+### Por qué existe
+Un rechazo capturado por error (de prueba, con el folio equivocado, duplicado
+con otra captura) cuenta en el foco. Borrarlo desde la consola de Firebase
+pedía tres pasos a mano y sin rastro.
+
+### Qué hace
+- En la tabla de rechazos, el **administrador** ve un botón **Borrar** en la
+  celda del folio.
+- Antes de borrar se muestra el folio con fecha, máquina, etiqueta y sus
+  defectos con metros y bobinas, y se pide un **motivo** (obligatorio).
+- En **una sola escritura**:
+  - se quita el rechazo de `cal/merma2`;
+  - se libera su folio en `cal/merma2Folios`, solo si apunta a ese rechazo,
+    para que se pueda capturar otra vez;
+  - se **restan sus metros** del resumen del foco (SPEC-018);
+  - se guarda una **copia** en `cal/merma2Borrados/<id>` con
+    `borradoPorNomina`, `borradoPorNombre`, `borradoEn` y `motivo`.
+
+### Reglas de negocio
+- Solo `ADMIN`. Los demás papeles no ven el botón.
+- **Corregir es borrar y volver a capturar.** No hay edición.
+- La copia es el rastro de quién borró y por qué, y permite recuperar un
+  rechazo borrado por error (a mano, en la consola).
+- Al restar, el resumen puede quedar en 0 en ese mes. Para el foco, menos de
+  0.001 m no cuenta; «Recalcular resumen» deja el resumen sin esos ceros.
+- Como el resto de los permisos, se aplica en la pantalla; las reglas de la
+  base no lo exigen todavía (SPEC-010).
 
 ---
 

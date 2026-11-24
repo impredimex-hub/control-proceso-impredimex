@@ -3,7 +3,7 @@
 Lo que necesita saber quien reciba esta aplicación para operarla, corregirla y
 extenderla sin depender de quien la construyó.
 
-**Versión de la aplicación:** 1.8.1
+**Versión de la aplicación:** 1.9.0
 **Última actualización de este documento:** 24 de noviembre de 2026
 **Desarrollo original:** Victor Moreno
 
@@ -153,6 +153,7 @@ en la SPEC-010.
 | `cal/merma` | Ya nadie (hasta la v1.7.0, Admin) | La última carga del cargador anterior: `datos[línea][defecto][AAAA-MM] = metros`, `registros`, `ultimoMes`, `cargadoPor`, `cargadoEn`. Si existe, es la base histórica del foco (SPEC-018) |
 | `cal/merma2/<AAAA-MM-DD>_<id>` | Los tres papeles (formulario); Admin (Excel) | Cada rechazo. La clave empieza con su fecha para leer un mes sin índices; los de antes de la v1.8.0 tienen clave sin fecha. Campos: `origen` (`formulario` o `excel`), `folio`, `etiqueta`, `etiquetaNombre`, `etiquetaCliente`, `etiquetaEnGaleria`, `maquina`, nómina y nombre de supervisor, operador e inspector, `defectos: [{defecto, metros, bobinas}]`, `metrosTotal`, `bobinasTotal`, `fecha`, `turno`, `ts`, `capturoNomina`, `capturoNombre` (SPEC-017) |
 | `cal/merma2Folios/<folio>` | Los tres papeles | El `<id>` del rechazo con ese folio. Es lo que impide repetir un folio |
+| `cal/merma2Borrados/<clave>` | Admin, al borrar | Copia de cada rechazo borrado con `borradoPorNomina`, `borradoPorNombre`, `borradoEn` y `motivo` (SPEC-019) |
 | `cal/mermaResumen/<máquina>/<defecto>/<AAAA-MM>` | Se escribe solo | Metros de los rechazos sumados por mes. Es lo que lee el foco, para no descargar todos los rechazos en cada apertura. Cada rechazo suma aquí en la misma escritura en que se guarda (SPEC-018) |
 | `cal/etiquetas/<Etiq>` | Admin | Los 15 campos de la galería con el nombre de su encabezado (`Etiq`, `Nombre_etiq`, `Tipo`, … `Tipo_tinta`), más `actualizadoPor`, `actualizadoEn` y `origen` (`excel` o `manual`). Los vacíos no se guardan |
 
@@ -183,13 +184,20 @@ La pestaña Merma le dice al administrador desde qué mes se usan los rechazos.
 
 ### Borrar o corregir un rechazo
 
-La app no borra ni edita rechazos. Para hacerlo en la consola de Firebase
-(`impredimex-procesos` → Realtime Database):
-1. Borrar el rechazo en `cal/merma2/<clave>` (buscar por su campo `folio`).
-2. Borrar su folio en `cal/merma2Folios/<folio>`, o el folio quedará apartado
-   y no se podrá volver a capturar.
-3. En la app, pestaña Merma → **Recalcular resumen**, para que el foco deje de
-   contar esos metros.
+Desde la app (v1.9.0, SPEC-019): pestaña Merma → tabla → **Borrar** en la
+celda del folio, con motivo. Quita el rechazo, libera el folio, resta sus
+metros del foco y guarda una copia en `cal/merma2Borrados`. Para corregir, se
+borra y se vuelve a capturar.
+
+**Recuperar uno borrado por error**, en la consola de Firebase:
+1. Copiar el registro de `cal/merma2Borrados/<clave>` a `cal/merma2/<clave>`
+   (la misma clave), quitando `borradoPorNomina`, `borradoPorNombre`,
+   `borradoEn` y `motivo`.
+2. Crear `cal/merma2Folios/<folio>` con el valor `<clave>`.
+3. En la app, **Recalcular resumen**.
+
+Si alguien borra un rechazo directo en la consola, hay que borrar también su
+folio en `cal/merma2Folios` y luego **Recalcular resumen**.
 
 ### La semilla incrustada
 

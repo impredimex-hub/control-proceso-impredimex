@@ -262,6 +262,8 @@ textarea.derivado[readonly]{background:var(--bg);color:var(--navy-dark);font-wei
 .r-total{margin-top:10px;font-size:12.5px;color:var(--navy-dark);background:var(--navy-light);
   border-radius:9px;padding:8px 12px}
 .r-cuenta{flex:1 1 180px;font-size:12px;color:var(--text2)}
+.r-borrar{display:block;margin-top:4px;background:none;border:none;padding:0;color:var(--red);
+  font-size:11px;font-weight:600;cursor:pointer}
 .r-mes{width:auto;padding:7px 10px;font-size:12.5px}
 /* Tabla de rechazos: los datos del folio ocupan una celda alta por todos sus
    defectos, y los folios alternan color para distinguir dónde empieza cada uno.
@@ -872,11 +874,11 @@ function combinarMerma(){
   const base = SEMILLA_CARGADA || SEMILLA, res = RESUMEN || {};
   let corte = null;
   Object.values(res).forEach(dd=>Object.values(dd||{}).forEach(mm=>Object.keys(mm||{}).forEach(m=>{
-    if(mm[m]>0 && (!corte || m<corte)) corte = m;
+    if(mm[m]>=0.001 && (!corte || m<corte)) corte = m;
   })));
   const out = {};
   const sumar = (maq,def,mes,v)=>{
-    if(!(v>0)) return;
+    if(!(v>=0.001)) return;            // tras restar un rechazo borrado puede quedar 0 o un residuo
     const d = ((out[maq] = out[maq]||{})[def] = out[maq][def]||{});
     d[mes] = +((d[mes]||0) + v).toFixed(3);
   };
@@ -1645,6 +1647,7 @@ const R_COLUMNAS = [
 const ordenRechazos = (a,b) => String(b.fecha||'').localeCompare(String(a.fecha||'')) || (b.ts||0)-(a.ts||0);
 
 function pintarRechazos(lista, mes){
+  rTablaPorId = {}; lista.forEach(r=>{ if(r._id) rTablaPorId[r._id] = r; });
   lista.sort(ordenRechazos);
   if(!mes) lista = lista.slice(0, 300);
   if(!lista.length){
@@ -1666,7 +1669,10 @@ function pintarRechazos(lista, mes){
         if(c.folio && j>0) return '';                     // ya va en la celda alta del primer renglón
         const rs = c.folio && alto>1 ? ` rowspan="${alto}"` : '';
         const cls = [c.num?'num':'', c.t==='Folio'?'fija':''].join(' ').trim();
-        return `<td${rs} class="${cls}">${esc(fmt(c.v(r,d)))}</td>`;
+        // SPEC-019: el administrador borra desde la celda del folio.
+        const borrar = c.t==='Folio' && sesion.rol==='ADMIN' && r._id
+          ? `<button class="r-borrar" onclick="pedirBorrarRechazo('${esc(r._id)}')">Borrar</button>` : '';
+        return `<td${rs} class="${cls}">${esc(fmt(c.v(r,d)))}${borrar}</td>`;
       }).join('') + '</tr>';
     });
   });
@@ -1789,10 +1795,11 @@ function sumarPorMes(recs){
 
 // Rutas (relativas a cal/) que suman esos metros al resumen del foco. Se
 // mandan en la misma escritura que el rechazo: o entran los dos o ninguno.
-function incrementosResumen(recs){
-  const acc = sumarPorMes(recs), out = {};
+// signo -1: resta, al borrar un rechazo (SPEC-019).
+function incrementosResumen(recs, signo){
+  const acc = sumarPorMes(recs), out = {}, k = signo===-1 ? -1 : 1;
   Object.keys(acc).forEach(maq=>Object.keys(acc[maq]).forEach(def=>Object.keys(acc[maq][def]).forEach(mes=>{
-    out[`mermaResumen/${maq}/${def}/${mes}`] = firebase.database.ServerValue.increment(acc[maq][def][mes]);
+    out[`mermaResumen/${maq}/${def}/${mes}`] = firebase.database.ServerValue.increment(k * acc[maq][def][mes]);
   })));
   return out;
 }
@@ -2098,6 +2105,64 @@ async function confirmarExcelRechazos(){
     // Lo guardado ya tiene su folio apartado: al intentar otra vez se salta.
     btn.disabled = false;
     $('m-progreso').textContent = `Se detuvo tras ${guardados} folios: ${e.message}. Presiona Guardar otra vez para terminar; lo ya guardado se salta.`;
+  }
+}
+
+/* ═══════════════ BORRAR UN RECHAZO, SOLO ADMIN (SPEC-019) ═══════════════
+   En una sola escritura: se quita el rechazo, se libera su folio, se restan
+   sus metros del resumen del foco y se guarda una copia en merma2Borrados con
+   quién, cuándo y por qué. La copia es el rastro, y sirve para recuperarlo. */
+let rTablaPorId = {};
+
+function pedirBorrarRechazo(id){
+  if(sesion.rol!=='ADMIN') return;
+  const r = rTablaPorId[id]; if(!r) return;
+  cerrarModal('modal-borrar');
+  const n = v => Number(v||0).toLocaleString('es-MX');
+  const c = document.createElement('div'); c.className='modal'; c.id='modal-borrar';
+  c.innerHTML = `<div class="modal-box">
+    <div class="modal-t">Borrar el folio ${esc(r.folio)}</div>
+    <div style="font-size:12.5px;color:var(--text2);line-height:1.5;margin-bottom:10px">
+      ${esc(r.fecha)} · ${esc(r.maquina)}${r.etiqueta ? ' · etiqueta '+esc(r.etiqueta) : ''}</div>
+    ${defectosDe(r).map(d=>`<div class="ficha-fila"><span>${esc(d.defecto)}</span>
+      <span>${n(d.metros)} m${d.bobinas!=null ? ' · '+n(d.bobinas)+' bob.' : ''}</span></div>`).join('')}
+    <div class="aviso aviso-amber" style="margin:12px 0 0">Sus metros dejan de contar en el foco y el
+      folio queda libre para capturarse otra vez. Se guarda una copia con tu nombre y el motivo.</div>
+    <label>Motivo</label>
+    <input id="b-motivo" maxlength="200" placeholder="Ej. captura de prueba, folio equivocado" autocomplete="off">
+    <div id="b-err" style="color:var(--red);font-size:12.5px;margin-top:8px"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn btn-2" style="margin:0" onclick="cerrarModal('modal-borrar')">Cancelar</button>
+      <button class="btn" style="margin:0;background:var(--red)" id="b-ok" onclick="borrarRechazo('${esc(id)}')">Borrar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(c);
+  $('b-motivo').focus();
+}
+
+async function borrarRechazo(id){
+  const r = rTablaPorId[id]; if(!r || sesion.rol!=='ADMIN') return;
+  const motivo = $('b-motivo').value.trim();
+  if(motivo.length < 3) return void($('b-err').textContent = 'Escribe el motivo.');
+  $('b-ok').disabled = true;
+  try{
+    const {_id, ...rec} = r;
+    const upd = {
+      ['merma2/'+id]: null,
+      ['merma2Borrados/'+id]: {...rec, borradoPorNomina: sesion.nomina, borradoPorNombre: sesion.nombre,
+                               borradoEn: new Date().toISOString(), motivo},
+      ...incrementosResumen([rec], -1)
+    };
+    // El folio se libera solo si apunta a este rechazo.
+    if(r.folio && claveValida(r.folio) &&
+       (await db.ref('cal/merma2Folios/'+r.folio).once('value')).val() === id)
+      upd['merma2Folios/'+r.folio] = null;
+    await db.ref('cal').update(upd);
+    cerrarModal('modal-borrar');
+    toast(`Folio ${r.folio} borrado`);
+  }catch(e){
+    $('b-ok').disabled = false;
+    $('b-err').textContent = 'No se pudo borrar: ' + e.message;
   }
 }
 

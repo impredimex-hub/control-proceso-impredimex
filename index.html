@@ -578,7 +578,8 @@ main.ancha .angosta{max-width:868px;margin-left:auto;margin-right:auto}
       <div class="card-t">Registro de rechazo</div>
       <div id="r-editando" class="aviso aviso-amber hide"></div>
       <div class="row r-tres">
-        <div><label>Folio de rechazo</label><input id="r-folio" autocomplete="off" autocapitalize="characters"></div>
+        <!-- SPEC-026: automático, año-consecutivo; se asigna al guardar -->
+        <div><label>Folio de rechazo · automático</label><input id="r-folio" class="derivado" readonly tabindex="-1"></div>
         <!-- SPEC-024 -->
         <div><label>Orden de producción</label><input id="r-op" autocomplete="off" autocapitalize="characters"></div>
         <div><label># de etiqueta</label><input id="r-etiqueta" autocomplete="off" autocapitalize="characters"
@@ -635,7 +636,10 @@ main.ancha .angosta{max-width:868px;margin-left:auto;margin-right:auto}
       <input type="file" id="m-excel" accept=".xlsx,.xls" style="display:none" onchange="leerExcelRechazos(event)">
       <div id="m-previa"></div>
       <div class="aviso" id="m-fuente" style="margin:14px 0 0">—</div>
-      <button class="btn btn-2 btn-sm" style="margin-top:10px" id="m-recalcular" onclick="recalcularResumen(true)">Recalcular resumen</button>
+      <div class="row" style="margin-top:10px;justify-content:flex-start">
+        <button class="btn btn-2 btn-sm" style="margin:0;flex:0 0 auto" id="m-recalcular" onclick="recalcularResumen(true)">Recalcular resumen</button>
+        <button class="btn btn-2 btn-sm" style="margin:0;flex:0 0 auto" id="m-renumerar" onclick="pedirRenumerar()">Renumerar folios por fecha</button>
+      </div>
     </div>
 
     <div class="card">
@@ -1547,6 +1551,7 @@ async function personaDeSuite(n){
 }
 
 function prepararMerma(){
+  escucharFolios();                                              // SPEC-026
   $('m-carga').classList.toggle('hide', sesion.rol!=='ADMIN');   // SPEC-018
   pintarFuenteMerma();
   if(!$('r-maquina').options.length){
@@ -1633,11 +1638,9 @@ async function rBuscarEtiqueta(fijar){
 async function guardarRechazo(){
   const err = m => { $('r-err').textContent = m; if(m) $('r-err').scrollIntoView({block:'center'}); };
   err('');
-  const folio = $('r-folio').value.trim().toUpperCase();
-  if(!folio) return err('Escribe el folio de rechazo.');
-  if(!claveValida(folio)) return err('El folio no puede llevar . # $ / [ ]');
   // En edición, lo que el original no traía (por ejemplo, de un Excel) puede seguir sin venir.
   const ed = rEditando;
+  const folio = ed ? ed.folio : '';                 // SPEC-026: al editar no cambia; al capturar se asigna al guardar
   // SPEC-024: orden de producción, en mayúsculas.
   const ordenProduccion = $('r-op').value.trim().replace(/\s+/g,' ').toUpperCase();
   if(!ordenProduccion && !(ed && !ed.ordenProduccion)) return err('Escribe la orden de producción.');
@@ -1675,7 +1678,7 @@ async function guardarRechazo(){
   try{
     const ahora = new Date();
     const rec = {
-      folio, ordenProduccion, etiqueta: etq.clave,
+      ordenProduccion, etiqueta: etq.clave,
       etiquetaNombre: $('r-etq-nombre').value.trim(), etiquetaCliente: $('r-etq-cliente').value.trim(),
       maquina, maquinaGenera, ...per, defectos,
       metrosTotal:  +defectos.reduce((a,d)=>a+d.metros, 0).toFixed(3),
@@ -1689,21 +1692,18 @@ async function guardarRechazo(){
     const med = medidasEtiqueta();
     if(med && defectos.some(x=>x.etiquetas)){ rec.medDes = med.medDes; rec.repeticiones = med.rep; }
     Object.keys(rec).forEach(k=>{ if(rec[k]==='') delete rec[k]; });
-    // SPEC-017: el folio no se repite. Se aparta con una transacción, así dos
-    // personas que capturan el mismo folio al mismo tiempo no pueden ganar las
-    // dos: el servidor solo deja pasar a la primera.
+    // SPEC-026: folio automático del año, apartado con transacción.
     const id = nuevoIdRechazo(rec.fecha);
-    const t = await db.ref('cal/merma2Folios/'+folio).transaction(actual => actual ? undefined : id);
-    if(!t.committed) return err(`El folio ${folio} ya está registrado.`);
-    folioApartado = true;
+    rec.folio = await apartarFolioRechazo(rec.fecha.slice(0,4), id);
+    folioApartado = rec.folio;
     // SPEC-018: el rechazo y su suma al resumen del foco, en una sola escritura.
     await db.ref('cal').update({['merma2/'+id]: rec, ...incrementosResumen([rec])});
-    toast(`Rechazo ${folio} registrado`);
+    toast(`Rechazo ${rec.folio} registrado`);
     limpiarRechazo();
   }catch(e){
     // Si el folio se apartó pero el rechazo no entró, se libera el folio para
     // poder intentar otra vez.
-    if(folioApartado) db.ref('cal/merma2Folios/'+folio).remove().catch(()=>{});
+    if(folioApartado) db.ref('cal/merma2Folios/'+folioApartado).remove().catch(()=>{});
     err('No se pudo guardar: '+e.message);
   }
   finally{ $('r-guardar').disabled = false; }
@@ -1713,6 +1713,7 @@ function limpiarRechazo(){
   ['r-folio','r-op','r-etiqueta','r-nom-sup','r-nom-ope'].forEach(i=>$(i).value='');
   $('r-maquina').value = ''; $('r-maq-genera').value = '';
   $('r-defectos').innerHTML = ''; agregarDefectoRechazo(); totalRechazo();
+  pintarFolioSiguiente();
   rEtiquetaEscrita(); rPersonaEscrita('sup'); rPersonaEscrita('ope');
   // La nómina del inspector se queda: suele capturar varios rechazos seguidos.
 }
@@ -1874,7 +1875,8 @@ const R_COLUMNAS = [
   {t:'Nombre operador',    v:r=>r.operadorNombre,   w:32, folio:true},
   {t:'Nómina Inspector',   v:r=>r.inspectorNomina,  w:11, folio:true},
   {t:'Nombre inspector',   v:r=>r.inspectorNombre,  w:32, folio:true},
-  {t:'Capturó',            v:r=>r.capturoNombre ? `${r.capturoNombre} (${r.capturoNomina})` : '', w:32, folio:true}
+  {t:'Capturó',            v:r=>r.capturoNombre ? `${r.capturoNombre} (${r.capturoNomina})` : '', w:32, folio:true},
+  {t:'Folio anterior',     v:r=>r.folioAnterior,    w:12, folio:true, soloExcel:true}     // SPEC-026
 ];
 
 const ordenRechazos = (a,b) => String(b.fecha||'').localeCompare(String(a.fecha||'')) || (b.ts||0)-(a.ts||0);
@@ -1920,7 +1922,7 @@ function pintarRechazos(lista, mes, vista){
   filas.forEach(({r, defs: defsF},i)=>{
     const alto = Math.max(defsF.length,1), alt = i%2 ? ' class="f-alt"' : '';
     (defsF.length ? defsF : [{d:{}, idx:-1}]).forEach(({d, idx},j)=>{
-      cuerpo += `<tr${alt}>` + R_COLUMNAS.map(c=>{
+      cuerpo += `<tr${alt}>` + R_COLUMNAS.filter(c=>!c.soloExcel).map(c=>{
         if(c.folio && j>0 && c.t!=='Folio') return '';   // ya va en la celda alta del primer renglón
         const rs = c.folio && alto>1 ? ` rowspan="${alto}"` : '';
         const cls = [c.num?'num':'', c.t==='Folio'?'fija':''].join(' ').trim();
@@ -1945,7 +1947,7 @@ function pintarRechazos(lista, mes, vista){
     });
   });
   $(V.lista).innerHTML = `<div class="gal-tabla-wrap"><table class="gal-tabla r-tabla">
-    <thead><tr>${R_COLUMNAS.map(c=>`<th class="${c.num?'num':''}">${c.t}</th>` +
+    <thead><tr>${R_COLUMNAS.filter(c=>!c.soloExcel).map(c=>`<th class="${c.num?'num':''}">${c.t}</th>` +
       (c.t==='Folio' && esAdmin ? '<th>Editar</th><th>Borrar</th>' : '') +
       (c.t==='Folio' && enAcciones ? '<th>Recuperado</th><th>Acción</th>' : '')).join('')}</tr></thead>
     <tbody>${cuerpo}</tbody></table></div>`;
@@ -2115,7 +2117,7 @@ function pintarFuenteMerma(){
 }
 
 /* ── Plantilla: las columnas del formulario, y los catálogos válidos ── */
-const COLS_EXCEL = () => R_COLUMNAS.filter(c=>c.t!=='Capturó');
+const COLS_EXCEL = () => R_COLUMNAS.filter(c=>c.t!=='Capturó' && !c.soloExcel);
 
 function descargarPlantilla(){
   const borde = {style:'thin', color:{rgb:'C9D3E3'}};
@@ -2220,7 +2222,7 @@ async function procesarExcelRechazos(filas){
     if(i>=0) col[f] = i;
   });
   // SPEC-020: la cantidad puede venir en etiquetas rechazadas, en metros o en ambas.
-  const faltan = ['folio','fecha'].filter(f=>col[f]===undefined);
+  const faltan = ['fecha'].filter(f=>col[f]===undefined);   // SPEC-026: el folio ya no es obligatorio
   if(col.maquina===undefined && col.maquinaGenera===undefined) faltan.push('maquina');
   if(col.defecto===undefined && col.numDefecto===undefined) faltan.push('defecto');
   if(col.metros===undefined && col.etiquetasRech===undefined) faltan.push('cantidad');
@@ -2245,11 +2247,10 @@ async function procesarExcelRechazos(filas){
 
   // 1. Agrupar por folio y validar renglón por renglón.
   const folios = {}, orden = [];
-  let sinFolio = 0;
   filas.slice(1).forEach((r,i)=>{
     if(!r || r.every(v=>txt(v)==='')) return;
-    const folio = txt(celda(r,'folio')).toUpperCase();
-    if(!folio){ sinFolio++; return; }
+    // SPEC-026: el folio del archivo solo agrupa renglones; sin folio, cada renglón es un rechazo.
+    const folio = txt(celda(r,'folio')).toUpperCase() || `fila ${i+2}`;
     if(!folios[folio]){ folios[folio] = {folio, filas:[], errores:[]}; orden.push(folio); }
     folios[folio].filas.push({r, n:i+2});
   });
@@ -2259,7 +2260,6 @@ async function procesarExcelRechazos(filas){
   const candidatos = [];
   for(const folio of orden){
     const F = folios[folio];
-    if(!claveValida(folio)){ rechazar(F, 'folio con . # $ / [ ]'); continue; }
     const p = F.filas[0].r;
     const fecha = fechaDeCelda(celda(p,'fecha'));
     const maquina = maqDeCelda(celda(p,'maquina'));
@@ -2334,10 +2334,14 @@ async function procesarExcelRechazos(filas){
     });
   }
 
-  // 2. Folios ya registrados: se saltan.
-  const ya = (await db.ref('cal/merma2Folios').once('value')).val() || {};
-  const registrados = candidatos.filter(c=>ya[c.folio]).map(c=>c.folio);
-  const nuevos = candidatos.filter(c=>!ya[c.folio]);
+  // 2. Ya registrados (SPEC-026): mismos datos, no mismo folio. Se saltan.
+  const existentes = Object.values((await db.ref('cal/merma2').once('value')).val() || {});
+  const huellas = new Set(existentes.map(huellaRechazo));
+  const registrados = candidatos.filter(c=>huellas.has(huellaRechazo(c))).map(c=>c.folio);
+  const nuevos = candidatos.filter(c=>!huellas.has(huellaRechazo(c)));
+  // ¿Hay fechas anteriores a rechazos ya registrados del mismo año? Sus folios quedarán al final.
+  const ultimaPorAnio = {}; existentes.forEach(r=>{ const a = String(r.fecha||'').slice(0,4); if(!ultimaPorAnio[a] || r.fecha>ultimaPorAnio[a]) ultimaPorAnio[a] = r.fecha; });
+  const fueraDeOrden = nuevos.filter(c=>ultimaPorAnio[c.fecha.slice(0,4)] && c.fecha < ultimaPorAnio[c.fecha.slice(0,4)]).length;
 
   // 3. Completar como el formulario: galería y padrón.
   if(nuevos.some(c=>c.etiqueta)) await leerGaleria(false).catch(()=>{});
@@ -2349,7 +2353,7 @@ async function procesarExcelRechazos(filas){
   let fueraGaleria = 0;
   const ahora = new Date().toISOString();
   const recs = nuevos.map(c=>{
-    const r = {folio:c.folio, ordenProduccion:c.ordenProduccion, fecha:c.fecha, maquina:c.maquina, defectos:c.defectos,
+    const r = {folioArchivo: /^fila \d+$/.test(c.folio) ? '' : c.folio, ordenProduccion:c.ordenProduccion, fecha:c.fecha, maquina:c.maquina, defectos:c.defectos,
       metrosTotal: +c.defectos.reduce((a,d)=>a+d.metros,0).toFixed(3),
       bobinasTotal: c.defectos.reduce((a,d)=>a+(d.bobinas||0),0),
       etiquetasTotal: c.defectos.reduce((a,d)=>a+(d.etiquetas||0),0),
@@ -2392,12 +2396,14 @@ async function procesarExcelRechazos(filas){
       ${linea('Defectos en esos folios', nDef.toLocaleString('es-MX'))}
       ${linea('Metros lineales', (+metros.toFixed(1)).toLocaleString('es-MX'))}
       ${recs.length ? linea('Periodo', nombreMes(meses[0]) + (meses[0]!==meses[meses.length-1] ? ' a '+nombreMes(meses[meses.length-1]) : '')) : ''}
-      ${linea('Folios ya registrados (se saltan)', registrados.length.toLocaleString('es-MX'))}
+      ${linea('Ya registrados, mismos datos (se saltan)', registrados.length.toLocaleString('es-MX'))}
       ${linea('Folios rechazados', malos.length.toLocaleString('es-MX'))}
-      ${sinFolio ? linea('Renglones sin folio (se ignoran)', sinFolio) : ''}
       ${malos.length ? `<div style="font-size:11.5px;color:var(--text2);margin-top:9px;line-height:1.6">
         ${Object.keys(motivos).map(m=>`${motivos[m].length} × ${esc(m)}: ${ejemplos(motivos[m])}`).join('<br>')}</div>` : ''}
       ${registrados.length ? `<div style="font-size:11.5px;color:var(--text2);margin-top:6px">Ya registrados: ${ejemplos(registrados)}</div>` : ''}
+      ${recs.length ? `<div class="aviso" style="margin:10px 0 0">Los folios se asignan solos, en orden de fecha, a partir del
+        ${esc(meses[0].slice(0,4))}-${siguienteFolio(meses[0].slice(0,4))}.${fueraDeOrden ? ` ${fueraDeOrden} son de fechas anteriores a
+        rechazos ya registrados: sus folios quedarán al final. Después usa «Renumerar folios por fecha» para ordenarlos.` : ''}</div>` : ''}
       ${noPadron.size ? `<div class="aviso aviso-amber" style="margin:10px 0 0">${noPadron.size} nómina${noPadron.size===1?'':'s'}
         no está${noPadron.size===1?'':'n'} en el padrón de RRHH: ${ejemplos([...noPadron])}. Se guardan con el nombre que trae el archivo.</div>` : ''}
       ${fueraGaleria ? `<div class="aviso aviso-amber" style="margin:10px 0 0">${fueraGaleria} folio${fueraGaleria===1?'':'s'}
@@ -2421,24 +2427,153 @@ async function confirmarExcelRechazos(){
   let guardados = 0, saltados = 0;
   try{
     // Se vuelve a revisar justo antes de guardar, por si alguien capturó
-    // uno de esos folios mientras se revisaba el resumen.
-    const ya = (await db.ref('cal/merma2Folios').once('value')).val() || {};
-    const pend = previaRechazos.filter(r=>{ if(ya[r.folio]){ saltados++; return false; } return true; });
+    // uno de esos rechazos mientras se revisaba el resumen.
+    const huellas = new Set(Object.values((await db.ref('cal/merma2').once('value')).val() || {}).map(huellaRechazo));
+    const numArch = f => { const x = String(f||'').match(/(\d+)\s*$/); return x ? +x[1] : Infinity; };
+    const pend = previaRechazos.filter(r=>{ if(huellas.has(huellaRechazo(r))){ saltados++; return false; } return true; })
+      .sort((a,b)=> a.fecha.localeCompare(b.fecha) || numArch(a.folioArchivo)-numArch(b.folioArchivo));
+    // SPEC-026: folios automáticos, en orden de fecha, después del último de cada año.
+    const idx = (await db.ref('cal/merma2Folios').once('value')).val() || {};
+    const cont = (await db.ref('cal/merma2Contador').once('value')).val() || {};
+    const sig = {};
     for(let i=0; i<pend.length; i+=200){
       const lote = pend.slice(i, i+200), upd = {};
-      lote.forEach(r=>{ const id = nuevoIdRechazo(r.fecha); upd['merma2/'+id] = r; upd['merma2Folios/'+r.folio] = id; });
+      lote.forEach(r=>{
+        const anio = r.fecha.slice(0,4);
+        if(!sig[anio]) sig[anio] = Math.max(+cont[anio]||0, maxFolioConocido(idx, anio)) + 1;
+        r.folio = `${anio}-${sig[anio]++}`;
+        const id = nuevoIdRechazo(r.fecha); upd['merma2/'+id] = r; upd['merma2Folios/'+r.folio] = id;
+      });
+      Object.keys(sig).forEach(a=>{ upd['merma2Contador/'+a] = sig[a]-1; });
       Object.assign(upd, incrementosResumen(lote));
       $('m-progreso').textContent = `Guardando ${Math.min(i+200, pend.length).toLocaleString('es-MX')} de ${pend.length.toLocaleString('es-MX')}…`;
       await db.ref('cal').update(upd);
       guardados += lote.length;
     }
     cancelarExcelRechazos();
-    toast(`${guardados} folios cargados` + (saltados ? `; ${saltados} ya estaban` : ''));
+    toast(`${guardados} rechazos cargados` + (saltados ? `; ${saltados} ya estaban` : ''));
   }catch(e){
     // Lo guardado ya tiene su folio apartado: al intentar otra vez se salta.
     btn.disabled = false;
-    $('m-progreso').textContent = `Se detuvo tras ${guardados} folios: ${e.message}. Presiona Guardar otra vez para terminar; lo ya guardado se salta.`;
+    $('m-progreso').textContent = `Se detuvo tras ${guardados} rechazos: ${e.message}. Presiona Guardar otra vez para terminar; lo ya guardado se reconoce por sus datos y se salta.`;
   }
+}
+
+/* ═══════════════ FOLIO AUTOMÁTICO (SPEC-026) ═══════════════
+   año-consecutivo, en orden de fecha. El contador por año vive en
+   cal/merma2Contador/<año>; el índice de folios, en cal/merma2Folios. */
+let FOLIOS_IDX = {}, CONTADOR = {}, folioEscuchando = false;
+const RE_FOLIO = /^(\d{4})-(\d+)$/;
+
+function maxFolioConocido(idx, anio){
+  let m = 0;
+  Object.keys(idx||{}).forEach(f=>{ const x = f.match(RE_FOLIO); if(x && x[1]===anio) m = Math.max(m, +x[2]); });
+  return m;
+}
+function siguienteFolio(anio){ return Math.max(CONTADOR[anio]||0, maxFolioConocido(FOLIOS_IDX, anio)) + 1; }
+
+function escucharFolios(){
+  if(folioEscuchando) return; folioEscuchando = true;
+  db.ref('cal/merma2Folios').on('value', s=>{ FOLIOS_IDX = s.val()||{}; pintarFolioSiguiente(); });
+  db.ref('cal/merma2Contador').on('value', s=>{ CONTADOR = s.val()||{}; pintarFolioSiguiente(); });
+}
+// Vista previa del folio que se asignará; al guardar se confirma el siguiente libre.
+function pintarFolioSiguiente(){
+  if(rEditando) return;
+  const anio = fechaLocal().slice(0,4);
+  $('r-folio').value = `${anio}-${siguienteFolio(anio)}`;
+}
+
+/* Aparta el siguiente folio del año para el rechazo `id`. Primero sube el
+   contador con una transacción (nadie más recibe ese número) y luego aparta el
+   folio en el índice; si ya estaba ocupado (contador atrasado), intenta el
+   siguiente. */
+async function apartarFolioRechazo(anio, id){
+  const idx = (await db.ref('cal/merma2Folios').once('value')).val() || {};
+  const base = maxFolioConocido(idx, anio);
+  for(let intento=0; intento<20; intento++){
+    const t = await db.ref('cal/merma2Contador/'+anio).transaction(cur => Math.max(+cur||0, base) + 1);
+    const folio = `${anio}-${t.snapshot.val()}`;
+    const c = await db.ref('cal/merma2Folios/'+folio).transaction(a => a ? undefined : id);
+    if(c.committed) return folio;
+  }
+  throw new Error('No se pudo apartar un folio. Intenta otra vez.');
+}
+
+/* ── Renumerar por fecha, solo ADMIN ── */
+async function planRenumeracion(){
+  const v = (await db.ref('cal/merma2').once('value')).val() || {};
+  const porAnio = {};
+  Object.keys(v).forEach(id=>{
+    const r = v[id], anio = String(r.fecha||'').slice(0,4);
+    if(!/^\d{4}$/.test(anio)) return;
+    (porAnio[anio] = porAnio[anio]||[]).push({id, r});
+  });
+  const numDe = f => { const x = String(f||'').match(RE_FOLIO); return x ? +x[2] : Infinity; };
+  const cambios = [], indice = {}, contador = {};
+  Object.keys(porAnio).forEach(anio=>{
+    porAnio[anio].sort((a,b)=> String(a.r.fecha).localeCompare(String(b.r.fecha))
+      || numDe(a.r.folio)-numDe(b.r.folio) || (a.r.ts||0)-(b.r.ts||0) || a.id.localeCompare(b.id));
+    porAnio[anio].forEach((x,i)=>{
+      const nuevo = `${anio}-${i+1}`;
+      indice[nuevo] = x.id;
+      if(x.r.folio!==nuevo) cambios.push({id:x.id, antes:x.r.folio, nuevo, fecha:x.r.fecha, yaTenia: !!x.r.folioAnterior});
+    });
+    contador[anio] = porAnio[anio].length;
+  });
+  return {total:Object.keys(v).length, cambios, indice, contador};
+}
+
+async function pedirRenumerar(){
+  if(sesion.rol!=='ADMIN') return;
+  const btn = $('m-renumerar'); btn.disabled = true; btn.textContent = 'Revisando…';
+  try{
+    const plan = await planRenumeracion();
+    cerrarModal('modal-renumerar');
+    const c = document.createElement('div'); c.className='modal'; c.id='modal-renumerar';
+    const ej = plan.cambios.slice(0,6).map(x=>`<div class="ficha-fila"><span>${esc(x.antes||'—')} · ${esc(x.fecha)}</span><span>→ ${esc(x.nuevo)}</span></div>`).join('');
+    c.innerHTML = `<div class="modal-box">
+      <div class="modal-t">Renumerar folios por fecha</div>
+      ${plan.cambios.length ? `
+        <div style="font-size:12.5px;color:var(--text2);line-height:1.5;margin-bottom:10px">
+          Cambian <b>${plan.cambios.length.toLocaleString('es-MX')}</b> de ${plan.total.toLocaleString('es-MX')} folios.
+          Quedan ordenados de la fecha más antigua a la más reciente, año-consecutivo.</div>
+        ${ej}${plan.cambios.length>6 ? '<div style="font-size:11px;color:var(--text3);margin-top:6px">…</div>' : ''}
+        <div class="aviso aviso-amber" style="margin:12px 0 0">Cada rechazo guarda su folio anterior, que sale en el Excel
+          como «Folio anterior». Si alguien ya anotó un folio en papel, cambiará.</div>
+        <div class="row" style="margin-top:14px">
+          <button class="btn btn-2" style="margin:0" onclick="cerrarModal('modal-renumerar')">Cancelar</button>
+          <button class="btn" style="margin:0" id="rn-ok" onclick="aplicarRenumeracion()">Renumerar</button>
+        </div>`
+      : `<div class="aviso" style="margin:0">Los ${plan.total.toLocaleString('es-MX')} folios ya están en orden de fecha.</div>
+         <div class="row" style="margin-top:14px"><button class="btn btn-2" style="margin:0" onclick="cerrarModal('modal-renumerar')">Cerrar</button></div>`}
+    </div>`;
+    document.body.appendChild(c);
+  }catch(e){ toast('No se pudo revisar: '+e.message); }
+  finally{ btn.disabled = false; btn.textContent = 'Renumerar folios por fecha'; }
+}
+
+async function aplicarRenumeracion(){
+  $('rn-ok').disabled = true; $('rn-ok').textContent = 'Renumerando…';
+  try{
+    // Se vuelve a armar el plan al aplicar, con los datos de este momento.
+    const plan = await planRenumeracion();
+    const upd = {'merma2Folios': plan.indice};
+    plan.cambios.forEach(x=>{
+      upd['merma2/'+x.id+'/folio'] = x.nuevo;
+      if(!x.yaTenia && x.antes) upd['merma2/'+x.id+'/folioAnterior'] = x.antes;   // solo la primera vez
+    });
+    Object.keys(plan.contador).forEach(a=>{ upd['merma2Contador/'+a] = plan.contador[a]; });
+    await db.ref('cal').update(upd);
+    cerrarModal('modal-renumerar');
+    toast(`${plan.cambios.length.toLocaleString('es-MX')} folios renumerados`);
+  }catch(e){ $('rn-ok').disabled = false; $('rn-ok').textContent = 'Renumerar'; toast('No se pudo renumerar: '+e.message); }
+}
+
+// SPEC-026: un rechazo ya registrado se reconoce por sus datos, no por el folio.
+function huellaRechazo(r){
+  const defs = defectosDe(r).map(d=>`${d.defecto}:${d.etiquetas==null?'':d.etiquetas}:${(+d.metros||0).toFixed(2)}`).sort().join(',');
+  return [r.fecha, String(r.ordenProduccion||'').toUpperCase(), r.etiqueta||'', r.maquinaGenera||r.maquina||'', defs].join('|');
 }
 
 /* ═══════════════ BORRAR UN RECHAZO, SOLO ADMIN (SPEC-019) ═══════════════

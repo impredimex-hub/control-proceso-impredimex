@@ -11,6 +11,28 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.18.0] — 2026-11-25
+
+### Cambiado
+
+- **Folio de rechazo automático**, año-consecutivo (`2026-1093`) (SPEC-026).
+  El formulario muestra el siguiente y lo asigna al guardar, con transacción;
+  el consecutivo empieza en 1 cada año. Al editar, el folio no cambia.
+- **Carga de Excel**: el folio del archivo solo agrupa renglones (se guarda
+  como `folioArchivo`); a cada rechazo se le asigna folio automático en orden
+  de fecha. Un rechazo ya registrado se reconoce por sus datos (fecha, OP,
+  etiqueta, máquina y defectos), no por el folio.
+
+### Agregado
+
+- **Renumerar folios por fecha** (solo `ADMIN`): ordena todos los rechazos de
+  cada año de la fecha más antigua a la más reciente y les asigna `año-1`,
+  `año-2`, …; muestra antes cuántos cambian. Cada rechazo guarda su
+  **Folio anterior**, que sale en el Excel.
+- Caché del service worker a `calidad-v1.18.0`.
+
+---
+
 ## [1.17.0] — 2026-11-25
 
 ### Agregado

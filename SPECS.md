@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.17.0 — estados revisados contra el código el 24 de
+**Versión vigente:** 1.18.0 — estados revisados contra el código el 24 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -57,6 +57,7 @@ se puede ir del documento al código y de regreso.
 | 023 | Acciones de merma: recuperado y acción | Implementado |
 | 024 | Orden de producción en el rechazo | Implementado |
 | 025 | Carga del histórico «Rechazo interno» | Implementado |
+| 026 | Folio de rechazo automático | Implementado |
 
 ---
 
@@ -627,6 +628,7 @@ Proyecto `impredimex-procesos`, Realtime Database, todo bajo el nodo `cal/`:
 | `cal/defectosRenombrados/<anterior>` | Nombre nuevo de un defecto renombrado, para la base histórica (SPEC-022) |
 | `cal/merma2/<id>` | Cada rechazo capturado en Merma 2 (SPEC-017) |
 | `cal/merma2Folios/<folio>` | Índice de folios de rechazo, para no repetirlos (SPEC-017) |
+| `cal/merma2Contador/<año>` | Último consecutivo de folio asignado en ese año (SPEC-026) |
 | `cal/mermaResumen/<máquina>/<defecto>/<AAAA-MM>` | Metros de los rechazos sumados por mes, para el foco (SPEC-018) |
 | `cal/merma2Borrados/<id>` | Copia de cada rechazo borrado, con quién, cuándo y por qué (SPEC-019) |
 | `cal/merma2Ediciones/<id>/<n>` | Cada versión anterior de un rechazo editado, con quién y cuándo (SPEC-019) |
@@ -1422,6 +1424,52 @@ Con los defectos dados de alta y la galería actual, la vista previa da 1,020
 folios nuevos y 72 rechazados: 71 por etiquetas fuera de la galería y 1 por
 fecha futura (2026-88). Al cargarlos, el foco usa los rechazos desde enero de
 2026 y la semilla incrustada solo para 2025.
+
+---
+
+# SPEC-026 — Folio de rechazo automático
+
+**Estado:** implementado (v1.18.0)
+
+### Por qué existe
+Los folios se escribían a mano y el histórico cargado (SPEC-025) quedó con
+números que no siguen el orden de las fechas. Calidad definió que el folio sea
+**automático**, con la estructura **año-consecutivo** (`2026-1093`), y que el
+consecutivo siga el orden de las fechas, de la más antigua a la actual.
+
+### En el formulario
+- **Folio de rechazo · automático** ya no se escribe: muestra el siguiente
+  folio del año y **se asigna al guardar**. El que se ve es una vista previa;
+  si alguien guarda antes, al confirmar se toma el siguiente libre.
+- El año es el de la fecha del rechazo; el consecutivo empieza en 1 cada año.
+- Se asigna con una **transacción** sobre `cal/merma2Contador/<año>` y luego se
+  aparta en `cal/merma2Folios`, así dos capturas al mismo tiempo no reciben el
+  mismo folio. Si el contador no existe o va atrás, se parte del mayor folio
+  `año-N` ya registrado.
+- Al editar (SPEC-019) el folio no cambia.
+
+### Renumerar por fecha (una vez, o cuando haga falta)
+- En la tarjeta de carga, `ADMIN` tiene **Renumerar folios por fecha**: ordena
+  todos los rechazos de cada año por fecha y, dentro de la misma fecha, por el
+  número que ya tenían; les asigna `año-1`, `año-2`, … y deja el contador en el
+  último.
+- Antes de aplicar muestra cuántos folios cambian y ejemplos. Cada rechazo que
+  cambia guarda su folio anterior en `folioAnterior` (solo la primera vez), que
+  sale en el Excel como **Folio anterior**.
+- Los rastros (`merma2Ediciones`, `merma2Borrados`) conservan el folio que
+  tenían en su momento.
+
+### Carga de Excel
+- **El folio del archivo ya no es la identidad del rechazo**: solo agrupa los
+  renglones de un mismo rechazo (y se guarda como `folioArchivo`). Sin columna
+  Folio, cada renglón es un rechazo. A cada rechazo nuevo se le asigna folio
+  automático, en orden de fecha, a continuación del último del año.
+- **Para no duplicar** al subir dos veces el mismo archivo, un rechazo se
+  considera ya registrado si coinciden fecha, orden de producción, etiqueta,
+  máquina (la que genera, o la de inspección) y sus defectos con etiquetas y
+  metros. Esos se saltan.
+- Si el archivo trae fechas anteriores a rechazos ya registrados del mismo año,
+  sus folios quedan al final; el resumen lo avisa y sugiere renumerar.
 
 ---
 

@@ -11,6 +11,17 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.15.1] — 2026-11-25
+
+### Cambiado
+
+- **Acciones y Merma aprovechan la pantalla de la computadora**, como ya lo
+  hacía Galería: hasta 1,600 px de ancho, con los formularios angostos y
+  centrados. En el teléfono no cambia nada.
+- Caché del service worker a `calidad-v1.15.1`.
+
+---
+
 ## [1.15.0] — 2026-11-25
 
 ### Cambiado

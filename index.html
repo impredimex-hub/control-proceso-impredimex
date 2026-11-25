@@ -300,7 +300,11 @@ textarea.derivado[readonly]{background:var(--bg);color:var(--navy-dark);font-wei
    La tabla se desplaza a lo ancho dentro de su caja, con el encabezado y la
    columna Etiq fijos: con 15 columnas, en el teléfono es la única forma de no
    perder de vista de qué etiqueta es cada renglón. */
-main.ancha{max-width:1400px}
+/* Las pestañas con tablas usan el ancho de la computadora; los formularios se
+   quedan angostos y centrados, porque una casilla estirada se lee peor. En el
+   teléfono nada cambia: la pantalla es más angosta que cualquiera de los dos. */
+main.ancha{max-width:1600px}
+main.ancha .angosta{max-width:868px;margin-left:auto;margin-right:auto}
 .gal-barra{display:flex;gap:8px;flex-wrap:wrap}
 .gal-barra input{flex:2 1 220px;width:auto}
 .gal-barra select{flex:1 1 160px;width:auto}
@@ -567,7 +571,7 @@ main.ancha{max-width:1400px}
   <!-- Merma (SPEC-018): formulario del día a día, carga de Excel mientras se
        estandariza el formulario, y la tabla. Una sola fuente de datos. -->
   <section id="pg-merma" class="hide">
-    <div class="card">
+    <div class="card angosta">
       <div class="card-t">Registro de rechazo</div>
       <div id="r-editando" class="aviso aviso-amber hide"></div>
       <div class="row">
@@ -611,7 +615,7 @@ main.ancha{max-width:1400px}
       <button class="btn" id="r-guardar" onclick="guardarRechazo()">Registrar rechazo</button>
     </div>
     <!-- SPEC-018: solo ADMIN -->
-    <div class="card hide" id="m-carga">
+    <div class="card angosta hide" id="m-carga">
       <div class="card-t">Cargar Excel</div>
       <div style="font-size:12.5px;color:var(--text2);line-height:1.55;margin-bottom:10px">
         Mientras se estandariza el formulario. El Excel lleva <b>las mismas columnas que el
@@ -848,8 +852,8 @@ function verPagina(id, btn){
   if(id==='galeria'){  leerGaleria(false); pintarDefectos(); }
   if(id==='merma')     prepararMerma();
   if(id==='acciones')  prepararAcciones();            // SPEC-023
-  // SPEC-015: la tabla de la galería aprovecha la pantalla ancha.
-  document.querySelector('main').classList.toggle('ancha', id==='galeria');
+  // Las pestañas con tablas aprovechan la pantalla ancha (SPEC-015, v1.15.1).
+  document.querySelector('main').classList.toggle('ancha', ['galeria','acciones','merma'].includes(id));
 }
 
 function poblarSelects(){

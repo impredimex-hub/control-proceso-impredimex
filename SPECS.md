@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.15.1 — estados revisados contra el código el 24 de
+**Versión vigente:** 1.16.0 — estados revisados contra el código el 24 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -55,6 +55,7 @@ se puede ir del documento al código y de regreso.
 | 021 | Máquina de inspección y máquina que genera; defecto con autocompletado | Implementado |
 | 022 | Catálogo de defectos editable y numerado; editar y borrar etiquetas | Implementado |
 | 023 | Acciones de merma: recuperado y acción | Implementado |
+| 024 | Orden de producción en el rechazo | Implementado |
 
 ---
 
@@ -1364,6 +1365,21 @@ La exportación de Acciones de merma trae las columnas de la de Merma más
 **Etiquetas recuperadas**, **Metros recuperados**, **Merma neta (m)**
 (rechazado menos recuperado), **Acción**, **Registró** y **Fecha de registro** (de lo recuperado o la
 acción, lo último que se haya guardado).
+
+---
+
+# SPEC-024 — Orden de producción en el rechazo
+
+**Estado:** implementado (v1.16.0)
+
+- En el formulario de rechazo, **Orden de producción** va entre Folio de
+  rechazo y # de etiqueta. Texto libre, en mayúsculas.
+- **Obligatoria al capturar.** Al editar un rechazo anterior que no la tenga
+  (SPEC-019), puede seguir vacía.
+- Se guarda en el rechazo como `ordenProduccion`.
+- Columna **Orden de producción** después de Folio en la tabla, la exportación
+  y la plantilla. Al cargar un Excel es opcional; se reconoce también como
+  `OP` u `Orden`.
 
 ---
 

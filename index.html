@@ -262,6 +262,9 @@ textarea.derivado[readonly]{background:var(--bg);color:var(--navy-dark);font-wei
 .r-def-sel.invalido,.r-def-num-in.invalido{border-color:var(--red)}
 .r-def-fila > div:last-child{flex:0 0 28%}
 .d-tabla td{font-weight:600}
+/* En el teléfono «Orden de producción» ocupa dos renglones: las casillas se
+   alinean por abajo para quedar parejas. */
+.row.r-tres{align-items:flex-end}
 .r-def-nota{font-size:11px;color:var(--text3);margin-top:5px;line-height:1.4}
 .r-quitar{background:none;border:none;color:var(--red);font-size:12px;font-weight:600;cursor:pointer;padding:6px 0}
 .r-total{margin-top:10px;font-size:12.5px;color:var(--navy-dark);background:var(--navy-light);
@@ -574,8 +577,10 @@ main.ancha .angosta{max-width:868px;margin-left:auto;margin-right:auto}
     <div class="card angosta">
       <div class="card-t">Registro de rechazo</div>
       <div id="r-editando" class="aviso aviso-amber hide"></div>
-      <div class="row">
+      <div class="row r-tres">
         <div><label>Folio de rechazo</label><input id="r-folio" autocomplete="off" autocapitalize="characters"></div>
+        <!-- SPEC-024 -->
+        <div><label>Orden de producción</label><input id="r-op" autocomplete="off" autocapitalize="characters"></div>
         <div><label># de etiqueta</label><input id="r-etiqueta" autocomplete="off" autocapitalize="characters"
           oninput="rEtiquetaEscrita()" onchange="rBuscarEtiqueta(true)"></div>
       </div>
@@ -1633,6 +1638,9 @@ async function guardarRechazo(){
   if(!claveValida(folio)) return err('El folio no puede llevar . # $ / [ ]');
   // En edición, lo que el original no traía (por ejemplo, de un Excel) puede seguir sin venir.
   const ed = rEditando;
+  // SPEC-024: orden de producción, en mayúsculas.
+  const ordenProduccion = $('r-op').value.trim().replace(/\s+/g,' ').toUpperCase();
+  if(!ordenProduccion && !(ed && !ed.ordenProduccion)) return err('Escribe la orden de producción.');
   if(!$('r-etiqueta').value.trim() && !(ed && !ed.etiqueta)) return err('Escribe el # de etiqueta.');
   const maquina = $('r-maquina').value, maquinaGenera = $('r-maq-genera').value;
   if(!maquina) return err('Elige la máquina de inspección.');
@@ -1661,13 +1669,13 @@ async function guardarRechazo(){
   const defectos = lin.defectos;
 
   const etq = await rBuscarEtiqueta(true) || {clave: claveEtiq($('r-etiqueta').value), encontrada:null};
-  if(ed) return guardarEdicion({folio, maquina, maquinaGenera, per, defectos, etq}, err);
+  if(ed) return guardarEdicion({folio, ordenProduccion, maquina, maquinaGenera, per, defectos, etq}, err);
   $('r-guardar').disabled = true;
   let folioApartado = false;
   try{
     const ahora = new Date();
     const rec = {
-      folio, etiqueta: etq.clave,
+      folio, ordenProduccion, etiqueta: etq.clave,
       etiquetaNombre: $('r-etq-nombre').value.trim(), etiquetaCliente: $('r-etq-cliente').value.trim(),
       maquina, maquinaGenera, ...per, defectos,
       metrosTotal:  +defectos.reduce((a,d)=>a+d.metros, 0).toFixed(3),
@@ -1702,7 +1710,7 @@ async function guardarRechazo(){
 }
 
 function limpiarRechazo(){
-  ['r-folio','r-etiqueta','r-nom-sup','r-nom-ope'].forEach(i=>$(i).value='');
+  ['r-folio','r-op','r-etiqueta','r-nom-sup','r-nom-ope'].forEach(i=>$(i).value='');
   $('r-maquina').value = ''; $('r-maq-genera').value = '';
   $('r-defectos').innerHTML = ''; agregarDefectoRechazo(); totalRechazo();
   rEtiquetaEscrita(); rPersonaEscrita('sup'); rPersonaEscrita('ope');
@@ -1847,6 +1855,7 @@ function defectosDe(r){
    `folio: true` marca los datos del folio, que se repiten en cada defecto. */
 const R_COLUMNAS = [
   {t:'Folio',              v:r=>r.folio,            w:11, folio:true},
+  {t:'Orden de producción', v:r=>r.ordenProduccion, w:14, folio:true},    // SPEC-024
   {t:'Fecha',              v:r=>r.fecha,            w:11, folio:true, fecha:true},
   {t:'Turno',              v:r=>r.turno,            w:11, folio:true},
   {t:'# de etiqueta',      v:r=>r.etiqueta,         w:11, folio:true},
@@ -2145,6 +2154,7 @@ function descargarPlantilla(){
 // espacios ni guiones bajos.
 const R_ENCABEZADOS = {
   folio:['folio','foliodederechazo','foliorechazo'],
+  ordenProduccion:['ordendeproduccion','ordenproduccion','op','orden'],
   fecha:['fecha'],
   turno:['turno'],
   etiqueta:['#deetiqueta','#etiqueta','etiqueta','etiq','numerodeetiqueta'],
@@ -2307,6 +2317,7 @@ async function procesarExcelRechazos(filas){
 
     candidatos.push({
       folio, fecha, turno, maquina, maquinaGenera, defectos, med: calculado ? med : null,
+      ordenProduccion: primero('ordenProduccion').replace(/\s+/g,' ').toUpperCase(),
       etiqueta: primero('etiqueta') ? claveEtiq(primero('etiqueta')) : '',
       etiquetaNombre: primero('etiquetaNombre'), etiquetaCliente: primero('etiquetaCliente'),
       supervisorNomina: primero('supervisorNomina'), supervisorNombre: primero('supervisorNombre'),
@@ -2330,7 +2341,7 @@ async function procesarExcelRechazos(filas){
   let fueraGaleria = 0;
   const ahora = new Date().toISOString();
   const recs = nuevos.map(c=>{
-    const r = {folio:c.folio, fecha:c.fecha, maquina:c.maquina, defectos:c.defectos,
+    const r = {folio:c.folio, ordenProduccion:c.ordenProduccion, fecha:c.fecha, maquina:c.maquina, defectos:c.defectos,
       metrosTotal: +c.defectos.reduce((a,d)=>a+d.metros,0).toFixed(3),
       bobinasTotal: c.defectos.reduce((a,d)=>a+(d.bobinas||0),0),
       etiquetasTotal: c.defectos.reduce((a,d)=>a+(d.etiquetas||0),0),
@@ -2491,6 +2502,7 @@ async function editarRechazo(id){
   rEditando = r;
   $('r-err').textContent = '';
   $('r-folio').value = r.folio || '';
+  $('r-op').value = r.ordenProduccion || '';
   $('r-etiqueta').value = r.etiqueta || ''; rEtiquetaEscrita();
   $('r-maquina').value = r.maquina || '';
   $('r-maq-genera').value = r.maquinaGenera || '';
@@ -2550,7 +2562,7 @@ async function guardarEdicion(d, err){
   const viejo = rEditando, id = viejo._id;
   const {_id, ...antes} = viejo;
   const ahora = new Date().toISOString();
-  const rec = {...antes, folio:d.folio, maquina:d.maquina, maquinaGenera:d.maquinaGenera, ...d.per, defectos:d.defectos,
+  const rec = {...antes, folio:d.folio, ordenProduccion:d.ordenProduccion, maquina:d.maquina, maquinaGenera:d.maquinaGenera, ...d.per, defectos:d.defectos,
     metrosTotal:  +d.defectos.reduce((a,x)=>a+x.metros, 0).toFixed(3),
     bobinasTotal: d.defectos.reduce((a,x)=>a+(x.bobinas||0), 0),
     etiquetasTotal: d.defectos.reduce((a,x)=>a+(x.etiquetas||0), 0),

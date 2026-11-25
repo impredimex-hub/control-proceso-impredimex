@@ -11,6 +11,17 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.16.0] — 2026-11-25
+
+### Agregado
+
+- **Orden de producción** en el formulario de rechazo, entre Folio y # de
+  etiqueta (SPEC-024). Obligatoria al capturar; columna nueva en tabla, Excel y
+  plantilla; opcional al cargar un Excel.
+- Caché del service worker a `calidad-v1.16.0`.
+
+---
+
 ## [1.15.1] — 2026-11-25
 
 ### Cambiado

@@ -3,7 +3,7 @@
 Lo que necesita saber quien reciba esta aplicación para operarla, corregirla y
 extenderla sin depender de quien la construyó.
 
-**Versión de la aplicación:** 1.15.1
+**Versión de la aplicación:** 1.16.0
 **Última actualización de este documento:** 24 de noviembre de 2026
 **Desarrollo original:** Victor Moreno
 
@@ -151,7 +151,7 @@ en la SPEC-010.
 | `cal/hallazgos/<id>` | Inspector, Admin; al cerrar, Supervisor o Admin | Lo de la inspección más `defecto`, `causa`, `causaDeterminada`, `metros`, `paro`, `obs`, `estado`; al cerrar, `correccion`, `cerradoPorNomina`, `cerradoPorNombre`, `fechaCierre`, `tsCierre` |
 | `cal/matriz/<defecto>@<máquina>` | Admin | `defecto`, `maquina` (vacía = todas), `vars: [{nombre, peso}]`, `actualizadoPor`, `actualizadoEn` |
 | `cal/merma` | Ya nadie (hasta la v1.7.0, Admin) | La última carga del cargador anterior: `datos[línea][defecto][AAAA-MM] = metros`, `registros`, `ultimoMes`, `cargadoPor`, `cargadoEn`. Si existe, es la base histórica del foco (SPEC-018) |
-| `cal/merma2/<AAAA-MM-DD>_<id>` | Los tres papeles (formulario); Admin (Excel) | Cada rechazo. La clave empieza con su fecha para leer un mes sin índices; los de antes de la v1.8.0 tienen clave sin fecha. Campos: `origen` (`formulario` o `excel`), `folio`, `etiqueta`, `etiquetaNombre`, `etiquetaCliente`, `etiquetaEnGaleria`, `maquina` (de inspección), `maquinaGenera` (la que genera el defecto; con ella cuenta el foco, SPEC-021), nómina y nombre de supervisor, operador e inspector, `defectos: [{defecto, numero, etiquetas, metros, bobinas}]` (cada defecto puede traer además `recuperadoEtiquetas`, `recuperadoMetros`, `accion`, `accionPorNomina`, `accionPorNombre` y `accionEn`, registrados en Acciones, SPEC-023), `etiquetasTotal`, `metrosTotal`, `bobinasTotal`, `medDes` y `repeticiones` (copia de las medidas con que se calcularon los metros, SPEC-020), `fecha`, `turno`, `ts`, `capturoNomina`, `capturoNombre` (SPEC-017) |
+| `cal/merma2/<AAAA-MM-DD>_<id>` | Los tres papeles (formulario); Admin (Excel) | Cada rechazo. La clave empieza con su fecha para leer un mes sin índices; los de antes de la v1.8.0 tienen clave sin fecha. Campos: `origen` (`formulario` o `excel`), `ordenProduccion` (SPEC-024), `folio`, `etiqueta`, `etiquetaNombre`, `etiquetaCliente`, `etiquetaEnGaleria`, `maquina` (de inspección), `maquinaGenera` (la que genera el defecto; con ella cuenta el foco, SPEC-021), nómina y nombre de supervisor, operador e inspector, `defectos: [{defecto, numero, etiquetas, metros, bobinas}]` (cada defecto puede traer además `recuperadoEtiquetas`, `recuperadoMetros`, `accion`, `accionPorNomina`, `accionPorNombre` y `accionEn`, registrados en Acciones, SPEC-023), `etiquetasTotal`, `metrosTotal`, `bobinasTotal`, `medDes` y `repeticiones` (copia de las medidas con que se calcularon los metros, SPEC-020), `fecha`, `turno`, `ts`, `capturoNomina`, `capturoNombre` (SPEC-017) |
 | `cal/merma2Folios/<folio>` | Los tres papeles | El `<id>` del rechazo con ese folio. Es lo que impide repetir un folio |
 | `cal/merma2Ediciones/<clave>/<n>` | Admin, al editar | `antes` (el rechazo como estaba), `editadoPorNomina`, `editadoPorNombre`, `editadoEn` (SPEC-019) |
 | `cal/merma2Borrados/<clave>` | Admin, al borrar | Copia de cada rechazo borrado con `borradoPorNomina`, `borradoPorNombre`, `borradoEn` y `motivo` (SPEC-019) |

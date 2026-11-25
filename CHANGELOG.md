@@ -11,6 +11,25 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.17.0] — 2026-11-25
+
+### Agregado
+
+- **Máquinas REV1, REV2, REV3 y REV6** (área REVISADO) en el catálogo
+  (SPEC-025).
+
+### Cambiado
+
+- **Carga de Excel ajustada al archivo «Rechazo interno»** (SPEC-025): basta
+  con la máquina de inspección o la que genera; `R5`, `R6` y `R7` se leen como
+  `RT5`, `RT6` y `RT7`; un `#N/A` en # defecto cuenta como vacío; se aceptan
+  los encabezados «Supervisor», «Operador» e «Inspector»; se rechazan fechas
+  futuras.
+- Al editar un rechazo sin máquina de inspección, puede seguir sin ella.
+- Caché del service worker a `calidad-v1.17.0`.
+
+---
+
 ## [1.16.0] — 2026-11-25
 
 ### Agregado

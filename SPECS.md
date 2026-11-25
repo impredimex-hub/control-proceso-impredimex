@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.16.0 — estados revisados contra el código el 24 de
+**Versión vigente:** 1.17.0 — estados revisados contra el código el 24 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -56,6 +56,7 @@ se puede ir del documento al código y de regreso.
 | 022 | Catálogo de defectos editable y numerado; editar y borrar etiquetas | Implementado |
 | 023 | Acciones de merma: recuperado y acción | Implementado |
 | 024 | Orden de producción en el rechazo | Implementado |
+| 025 | Carga del histórico «Rechazo interno» | Implementado |
 
 ---
 
@@ -498,8 +499,9 @@ Es el único contenido irreemplazable de la versión anterior y se conserva.
   administran en la pestaña Galería (SPEC-022). Los 40 del código
   (`DATOS.defectos`) son el punto de partida y el respaldo mientras la base no
   responde.
-- **Las 20 máquinas** con su área también están en el código
-  (`DATOS.maquinas`).
+- **Las máquinas** con su área también están en el código
+  (`DATOS.maquinas`): 24 desde la v1.17.0, al agregarse REV1, REV2, REV3 y REV6
+  (área REVISADO), que aparecen en el histórico de rechazos (SPEC-025).
 
 ### Lo que falta
 - Pasar defectos y máquinas a la base para ajustarlos sin tocar el código.
@@ -1380,6 +1382,46 @@ acción, lo último que se haya guardado).
 - Columna **Orden de producción** después de Folio en la tabla, la exportación
   y la plantilla. Al cargar un Excel es opcional; se reconoce también como
   `OP` u `Orden`.
+
+---
+
+# SPEC-025 — Carga del histórico «Rechazo interno»
+
+**Estado:** implementado (v1.17.0)
+
+### Por qué existe
+Calidad llevaba los rechazos de 2026 en el archivo `rechazo_interno.xlsx` (1,092
+folios, de enero a noviembre). Al revisarlo para cargarlo (SPEC-018) salieron
+diferencias con lo que la carga esperaba; se resolvieron así.
+
+### Ajustes a la carga
+- **Basta con una de las dos máquinas.** El archivo no trae máquina de
+  inspección, solo la que genera. Antes se exigía la de inspección; ahora se
+  rechaza un folio solo si no trae ninguna. La que venga debe estar en el
+  catálogo. Al editar un rechazo sin máquina de inspección, puede seguir sin
+  ella.
+- **Claves abreviadas:** `R5`, `R6` y `R7` se leen como `RT5`, `RT6` y `RT7`
+  (confirmado por Calidad el 25/11/2026).
+- **Máquinas nuevas** en el catálogo: REV1, REV2, REV3 y REV6, área REVISADO.
+- **Un error de fórmula de Excel** (`#N/A`, `#REF!`…) en # defecto cuenta como
+  vacío; manda el nombre del defecto.
+- **Encabezados** «Supervisor», «Operador» e «Inspector» se aceptan como el
+  nombre de cada uno.
+- **Fecha futura:** se rechaza el folio.
+
+### Lo que Calidad hace antes de cargar
+- Dar de alta en el catálogo de defectos, con el número que ya usa el archivo:
+  **37 SPOT MOVIDO**, **38 LÍNEA DE ADHESIVO**, **39 MANGA DOBLADA**, y
+  **FALTA DE TINTA** con el siguiente libre (en el archivo va sin número).
+- Dar de alta en la galería las etiquetas del archivo que no están, con
+  `Med_des` y `Repeticiones`; sin ellas no se calculan los metros y el folio
+  se rechaza.
+
+### Resultado esperado
+Con los defectos dados de alta y la galería actual, la vista previa da 1,020
+folios nuevos y 72 rechazados: 71 por etiquetas fuera de la galería y 1 por
+fecha futura (2026-88). Al cargarlos, el foco usa los rechazos desde enero de
+2026 y la semilla incrustada solo para 2025.
 
 ---
 

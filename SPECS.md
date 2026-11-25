@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.14.1 — estados revisados contra el código el 24 de
+**Versión vigente:** 1.15.0 — estados revisados contra el código el 24 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -449,6 +449,14 @@ revisar, cuántos defectos se aceptan y a partir de cuántos se rechaza.
   `cal/inspecciones`, ligada por `hallazgoId`.
 - En **Acciones**, el supervisor o el administrador escribe qué se corrigió y
   puede corregir la causa. Al cerrar se guarda quién, cuándo y la corrección.
+- Desde la v1.15.0 las acciones de la inspección se ven **en tabla, con el mismo
+  formato que las de merma** (SPEC-023): Fecha fija a la izquierda; después
+  Estado y **Corrección**, con el defecto arriba y un solo botón **Atender y
+  cerrar** (supervisor y administrador); luego defecto, causa, paro, máquina,
+  etiqueta con nombre y cliente, turno, etapa, metros afectados,
+  observaciones, quién detectó, quién cerró y fecha de cierre. Filtro por
+  estado (Abiertas por omisión) y por mes (Todo el histórico por omisión, para
+  no esconder acciones abiertas de meses anteriores), y **Exportar a Excel**.
 
 ### Lo que falta
 - **El aviso al supervisor.** La app no notifica: al marcar paro solo le

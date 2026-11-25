@@ -11,6 +11,18 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.15.0] — 2026-11-25
+
+### Cambiado
+
+- **Acciones de la inspección en tabla**, con el mismo formato que las de
+  merma (SPEC-007): Fecha fija, Estado y Corrección con un solo botón
+  **Atender y cerrar**, y el resto de los datos del hallazgo en columnas.
+  Filtro por estado y por mes, y **Exportar a Excel**.
+- Caché del service worker a `calidad-v1.15.0`.
+
+---
+
 ## [1.14.1] — 2026-11-25
 
 ### Cambiado

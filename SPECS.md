@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.13.0 — estados revisados contra el código el 24 de
+**Versión vigente:** 1.14.0 — estados revisados contra el código el 24 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -54,6 +54,7 @@ se puede ir del documento al código y de regreso.
 | 020 | Cantidad rechazada en etiquetas, metros calculados | Implementado |
 | 021 | Máquina de inspección y máquina que genera; defecto con autocompletado | Implementado |
 | 022 | Catálogo de defectos editable y numerado; editar y borrar etiquetas | Implementado |
+| 023 | Acciones de merma: recuperado y acción | Implementado |
 
 ---
 
@@ -158,6 +159,8 @@ Las pestañas se muestran según el papel:
 | Merma: formulario y tabla | ✓ | ✓ | ✓ |
 | Merma: cargar Excel | | | ✓ |
 | Merma: editar y borrar un rechazo | | | ✓ |
+| Acciones de merma: consultar | ✓ | ✓ | ✓ |
+| Acciones de merma: registrar recuperado y acción | | ✓ | ✓ |
 | Galería (consulta) | ✓ | ✓ | ✓ |
 | Galería (cargar, alta, edición y borrado de etiquetas; catálogo de defectos) | | | ✓ |
 
@@ -1304,6 +1307,54 @@ DE TINTA, LAMINACIÓN y PEGADO.
   una copia en `cal/etiquetasBorradas/<Etiq>` con quién y cuándo. Los
   rechazos e inspecciones que ya la tienen conservan su copia de nombre,
   cliente y medidas (SPEC-009).
+
+---
+
+# SPEC-023 — Acciones de merma: recuperado y acción
+
+**Estado:** implementado (v1.14.0)
+
+### Por qué existe
+El material se rechaza **por muestreo**: al revisarlo completo, parte se puede
+recuperar. Y un rechazo, como un hallazgo de inspección, pide una acción para
+que no vuelva a ocurrir. La pestaña Acciones solo tenía los hallazgos de la
+inspección.
+
+### La pestaña Acciones
+1. **Acciones de la inspección**: los hallazgos, como hasta ahora (SPEC-007).
+2. **Acciones de merma**: la misma tabla de rechazos registrados de la pestaña
+   Merma (SPEC-017), con dos columnas más, **Recuperado** y **Acción**, justo
+   después de Folio para que se alcancen en el teléfono sin desplazar la tabla.
+   Tiene su propio selector de mes, un filtro (todas, sin acción, con acción) y
+   su propia exportación a Excel. En la celda de Recuperado se ve el nombre del
+   defecto, porque en el teléfono la columna Defecto queda lejos. No tiene Editar ni Borrar: el rechazo se
+   corrige en Merma.
+
+### Recuperado y acción
+- Se registran **por defecto** (por renglón): cada defecto de un folio tiene
+  su cantidad y puede tener su propia causa.
+- Botón **Registrar** (o **Cambiar**) en la celda, para `SUPERVISOR` y
+  `ADMIN`, como el cierre de acciones de inspección. El `INSPECTOR` consulta.
+- **Recuperado** se captura en **número de etiquetas**, como el rechazo, y la
+  app calcula los metros en la misma proporción que el renglón (metros
+  rechazados × recuperadas ÷ rechazadas). No puede pasar de lo rechazado. En
+  un rechazo anterior sin número de etiquetas, se captura en metros.
+- **Acción**: texto libre, qué se hará para que no vuelva a ocurrir.
+- Se guarda en el renglón: `recuperadoEtiquetas`, `recuperadoMetros`,
+  `accion`, `accionPorNomina`, `accionPorNombre` y `accionEn`.
+- Si el rechazo se edita en Merma (SPEC-019), cada defecto conserva su
+  recuperado y su acción.
+
+### El foco no cambia
+El foco sigue contando **lo rechazado**: mide qué tan seguido ocurre cada
+defecto en cada máquina, y el defecto ocurrió aunque el material se haya
+recuperado. Lo recuperado se reporta aparte.
+
+### Excel
+La exportación de Acciones de merma trae las columnas de la de Merma más
+**Etiquetas recuperadas**, **Metros recuperados**, **Merma neta (m)**
+(rechazado menos recuperado), **Acción**, **Registró** y **Fecha de registro** (de lo recuperado o la
+acción, lo último que se haya guardado).
 
 ---
 

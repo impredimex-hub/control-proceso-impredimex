@@ -282,6 +282,12 @@ textarea.derivado[readonly]{background:var(--bg);color:var(--navy-dark);font-wei
 .gal-tabla.r-tabla tbody tr.f-alt td,
 .gal-tabla.r-tabla tbody tr.f-alt:hover td{background:#F1F5FB}
 .gal-tabla.r-tabla td{vertical-align:top}
+/* SPEC-023: Recuperado y Acción; la acción se lee completa, en varias líneas. */
+.gal-tabla.r-tabla td.a-rec{min-width:120px}
+.gal-tabla.r-tabla td.a-acc{white-space:normal;min-width:220px;max-width:320px;line-height:1.4}
+.gal-tabla.r-tabla td.a-rec .r-acc,.gal-tabla.r-tabla td.a-acc .r-acc{display:block;margin-top:5px}
+.a-vacio{color:var(--text3);font-style:italic}
+.a-def{font-size:10.5px;font-weight:700;color:var(--navy);letter-spacing:.03em;margin-bottom:3px}
 /* En los renglones del segundo defecto en adelante, la primera celda es el
    Defecto (el Folio viene de la celda alta de arriba). Por eso aquí la columna
    fija se marca con la clase .fija y no con :first-child, que dejaba pegado el
@@ -474,7 +480,7 @@ main.ancha{max-width:1400px}
   <!-- Acciones correctivas (SPEC-007) -->
   <section id="pg-acciones" class="hide">
     <div class="card">
-      <div class="card-t">Acciones correctivas</div>
+      <div class="card-t">Acciones de la inspección</div>
       <div class="row" style="margin-bottom:12px">
         <select id="f-estado" onchange="pintarAcciones()">
           <option value="abierta">Abiertas</option>
@@ -483,6 +489,23 @@ main.ancha{max-width:1400px}
         </select>
       </div>
       <div id="lista-acciones"></div>
+    </div>
+    <!-- SPEC-023: los rechazos de Merma con lo recuperado y la acción -->
+    <div class="card">
+      <div class="card-t">Acciones de merma</div>
+      <div style="font-size:12.5px;color:var(--text2);line-height:1.55;margin-bottom:6px">
+        El material se rechaza por muestreo. En <b>Recuperado</b> va lo que se pudo rescatar al
+        revisarlo, y en <b>Acción</b> lo que se hará para que no vuelva a ocurrir.
+      </div>
+      <div class="gal-acciones">
+        <span id="a-cuenta" class="r-cuenta">—</span>
+        <select id="a-filtro" class="r-mes" aria-label="Filtro" onchange="repintarVista('acciones')">
+          <option value="">Todas</option><option value="sin">Sin acción</option><option value="con">Con acción</option>
+        </select>
+        <select id="a-mes" class="r-mes" aria-label="Periodo" onchange="leerTablaRechazos('acciones')"></select>
+        <button class="btn btn-sm" id="a-exportar" onclick="exportarRechazos('acciones')">Exportar a Excel</button>
+      </div>
+      <div id="a-lista"><div class="vacio">Cargando…</div></div>
     </div>
   </section>
 
@@ -753,7 +776,7 @@ async function abrirSesion(user){
   $('login').classList.add('hide'); $('app').classList.remove('hide');
   arranqueListo(true);
 
-  armarNav(); poblarSelects(); baseLista = conectar();
+  armarNav(); poblarSelects(); conectar().then(resolverBase, fallarBase);
 }
 
 /**
@@ -821,6 +844,7 @@ function verPagina(id, btn){
   if(id==='matriz')    cargarMatriz();
   if(id==='galeria'){  leerGaleria(false); pintarDefectos(); }
   if(id==='merma')     prepararMerma();
+  if(id==='acciones')  prepararAcciones();            // SPEC-023
   // SPEC-015: la tabla de la galería aprovecha la pantalla ancha.
   document.querySelector('main').classList.toggle('ancha', id==='galeria');
 }
@@ -837,7 +861,11 @@ function poblarSelects(){
 /* ═══════════════ DATOS (SPEC-010) ═══════════════ */
 // Se cumple cuando la sesión en la base de Calidad está abierta. Las lecturas
 // que dispara el usuario (galería, etiqueta, tabla de rechazos) la esperan.
-let baseLista = new Promise(()=>{});
+// Se crea desde el arranque y conectar() la cumple: así lo que se abre antes de
+// tener la conexión (la primera pestaña, por ejemplo) espera a la misma promesa.
+let resolverBase, fallarBase;
+const baseLista = new Promise((ok, no)=>{ resolverBase = ok; fallarBase = no; });
+baseLista.catch(()=>{});      // el fallo ya se avisa en conectar()
 async function conectar(){
   db = firebase.database();
   // SPEC-010: las reglas piden sesión en cal/, y hoy la anónima basta. No
@@ -1247,7 +1275,7 @@ function abrirCierre(id){
     <label>Causa confirmada</label>
     <input id="c-causa" value="${esc(h.causa)}">
     <div style="font-size:11px;color:var(--text2);margin-top:6px">
-      Si al atenderlo resultó ser otra variable, corrígela. Es lo que alimenta la matriz.
+      Si al atenderlo resultó ser otra variable, corrígela: queda registrada como la causa del hallazgo.
     </div>
     <div class="row" style="margin-top:14px">
       <button class="btn btn-2" style="margin:0" onclick="cerrarModal('modal-cierre')">Cancelar</button>
@@ -1782,28 +1810,49 @@ const R_COLUMNAS = [
 
 const ordenRechazos = (a,b) => String(b.fecha||'').localeCompare(String(a.fecha||'')) || (b.ts||0)-(a.ts||0);
 
-function pintarRechazos(lista, mes){
-  const esAdmin = sesion.rol==='ADMIN';
-  rTablaPorId = {}; lista.forEach(r=>{ if(r._id) rTablaPorId[r._id] = r; });
-  lista.sort(ordenRechazos);
+/* La misma tabla se pinta en dos lugares (SPEC-023): Merma, con Editar y
+   Borrar, y Acciones, con Recuperado y Acción. */
+const VISTAS = {
+  merma:    {mes:'r-mes', lista:'r-lista', cuenta:'r-cuenta', exportar:'r-exportar', refs:[], ultima:null},
+  acciones: {mes:'a-mes', lista:'a-lista', cuenta:'a-cuenta', exportar:'a-exportar', refs:[], ultima:null, acciones:true}
+};
+function repintarVista(v){ const u = VISTAS[v].ultima; if(u) pintarRechazos(u.lista, u.mes, v); }
+
+function pintarRechazos(lista, mes, vista){
+  const V = VISTAS[vista||'merma'], enAcciones = !!V.acciones;
+  V.ultima = {lista, mes};
+  const esAdmin = sesion.rol==='ADMIN' && !enAcciones, puedeAcc = enAcciones && puedeRegistrarAccion();
+  lista.forEach(r=>{ if(r._id) rTablaPorId[r._id] = r; });
+  lista = lista.slice().sort(ordenRechazos);
   if(!mes) lista = lista.slice(0, 300);
-  if(!lista.length){
-    $('r-cuenta').textContent = '';
-    $('r-lista').innerHTML = `<div class="vacio">${mes ? 'No hay rechazos registrados en '+nombreMes(mes)+'.'
-                                                     : 'Todavía no hay rechazos registrados.'}</div>`; return;
+  // SPEC-023: filtro por renglón (defecto) en Acciones; se conserva el índice del defecto.
+  const filtro = enAcciones ? $('a-filtro').value : '';
+  const filas = lista.map(r=>({r, defs: defectosDe(r).map((d,idx)=>({d, idx}))
+      .filter(x=> !filtro || (filtro==='con' ? !!x.d.accion : !x.d.accion))}))
+    .filter(x=>x.defs.length || !filtro);
+  if(!filas.length){
+    $(V.cuenta).textContent = '';
+    $(V.lista).innerHTML = `<div class="vacio">${filtro ? 'Ningún rechazo coincide con el filtro.'
+      : mes ? 'No hay rechazos registrados en '+nombreMes(mes)+'.' : 'Todavía no hay rechazos registrados.'}</div>`; return;
   }
+  lista = filas.map(x=>x.r);
   const fmt = v => v==null ? '' : (typeof v==='number' ? v.toLocaleString('es-MX') : String(v));
-  const nDef = lista.reduce((a,r)=>a+defectosDe(r).length, 0);
-  const metros = lista.reduce((a,r)=>a+defectosDe(r).reduce((x,d)=>x+(+d.metros||0),0), 0);
-  $('r-cuenta').textContent = (mes ? `${lista.length} folio${lista.length===1?'':'s'} en ${nombreMes(mes)}`
-                                   : `Últimos ${lista.length} folio${lista.length===1?'':'s'}`) +
+  const lineas = filas.flatMap(x=>x.defs.map(y=>y.d));
+  const nDef = lineas.length, metros = lineas.reduce((a,d)=>a+(+d.metros||0), 0);
+  let cuenta = (mes ? `${lista.length} folio${lista.length===1?'':'s'} en ${nombreMes(mes)}`
+                    : `Últimos ${lista.length} folio${lista.length===1?'':'s'}`) +
     ` · ${nDef} defecto${nDef===1?'':'s'} · ${(+metros.toFixed(1)).toLocaleString('es-MX')} m`;
+  if(enAcciones){
+    const recup = lineas.reduce((a,d)=>a+(+d.recuperadoMetros||0), 0), sin = lineas.filter(d=>!d.accion).length;
+    cuenta += ` · ${(+recup.toFixed(1)).toLocaleString('es-MX')} m recuperados · ${sin} sin acción`;
+  }
+  $(V.cuenta).textContent = cuenta;
   let cuerpo = '';
-  lista.forEach((r,i)=>{
-    const defs = defectosDe(r), alto = Math.max(defs.length,1), alt = i%2 ? ' class="f-alt"' : '';
-    (defs.length ? defs : [{}]).forEach((d,j)=>{
+  filas.forEach(({r, defs: defsF},i)=>{
+    const alto = Math.max(defsF.length,1), alt = i%2 ? ' class="f-alt"' : '';
+    (defsF.length ? defsF : [{d:{}, idx:-1}]).forEach(({d, idx},j)=>{
       cuerpo += `<tr${alt}>` + R_COLUMNAS.map(c=>{
-        if(c.folio && j>0) return '';                     // ya va en la celda alta del primer renglón
+        if(c.folio && j>0 && c.t!=='Folio') return '';   // ya va en la celda alta del primer renglón
         const rs = c.folio && alto>1 ? ` rowspan="${alto}"` : '';
         const cls = [c.num?'num':'', c.t==='Folio'?'fija':''].join(' ').trim();
         // SPEC-019: Editar y Borrar, cada una en su columna, después de Folio.
@@ -1811,21 +1860,32 @@ function pintarRechazos(lista, mes){
           ? `<td${rs} class="r-acc-td"><button class="r-acc" onclick="editarRechazo('${esc(r._id)}')">Editar</button></td>` +
             `<td${rs} class="r-acc-td"><button class="r-acc r-acc-borrar" onclick="pedirBorrarRechazo('${esc(r._id)}')">Borrar</button></td>`
           : '';
-        return `<td${rs} class="${cls}">${esc(fmt(c.v(r,d)))}</td>${acciones}`;
+        // SPEC-023: Recuperado y Acción, por defecto, después de Folio.
+        const btn = t => puedeAcc && idx>=0
+          ? `<button class="r-acc" onclick="registrarAccionMerma('${esc(r._id)}',${idx})">${t}</button>` : '';
+        const tieneAlgo = d.accion || d.recuperadoMetros!=null;
+        const celdasAcc = c.t==='Folio' && enAcciones
+          ? `<td class="a-rec">${d.defecto ? `<div class="a-def">${esc(d.defecto)}</div>` : ''}` +   // en el teléfono, Defecto queda lejos
+            `${esc(textoRecuperado(d))||'<span class="a-vacio">—</span>'}${btn(tieneAlgo?'Cambiar':'Registrar')}</td>` +
+            `<td class="a-acc">${d.accion ? esc(d.accion) : '<span class="a-vacio">Sin acción</span>'}${btn(tieneAlgo?'Cambiar':'Registrar')}</td>`
+          : '';
+        if(c.t==='Folio' && j>0) return celdasAcc;
+        return `<td${rs} class="${cls}">${esc(fmt(c.v(r,d)))}</td>${acciones}${celdasAcc}`;
       }).join('') + '</tr>';
     });
   });
-  $('r-lista').innerHTML = `<div class="gal-tabla-wrap"><table class="gal-tabla r-tabla">
+  $(V.lista).innerHTML = `<div class="gal-tabla-wrap"><table class="gal-tabla r-tabla">
     <thead><tr>${R_COLUMNAS.map(c=>`<th class="${c.num?'num':''}">${c.t}</th>` +
-      (c.t==='Folio' && esAdmin ? '<th>Editar</th><th>Borrar</th>' : '')).join('')}</tr></thead>
+      (c.t==='Folio' && esAdmin ? '<th>Editar</th><th>Borrar</th>' : '') +
+      (c.t==='Folio' && enAcciones ? '<th>Recuperado</th><th>Acción</th>' : '')).join('')}</tr></thead>
     <tbody>${cuerpo}</tbody></table></div>`;
 }
 
 /* ── Exportar a Excel por mes, o todo el histórico ──
    Se ofrecen el mes en curso (por omisión) y los once anteriores. El mes se
    toma de la fecha del rechazo, no de cuándo se exporta. */
-function pintarMesesExcel(){
-  const sel = $('r-mes'); if(sel.options.length) return;
+function pintarMesesExcel(id){
+  const sel = $(id||'r-mes'); if(sel.options.length) return;
   const hoy = new Date(), ops = [];
   for(let i=0; i<12; i++){
     const d = new Date(hoy.getFullYear(), hoy.getMonth()-i, 1);
@@ -1839,21 +1899,22 @@ function pintarMesesExcel(){
    así que un mes se lee por rango de clave, sin índices en las reglas. Los
    rechazos de antes de la v1.8.0 tienen clave sin fecha (empieza con «-») y
    se leen aparte. */
-let rTablaRefs = [];
-async function leerTablaRechazos(){
-  try{ await baseLista; }catch(e){ $('r-lista').innerHTML = '<div class="vacio">Sin acceso a la base.</div>'; return; }
-  rTablaRefs.forEach(([q,f])=>q.off('value', f)); rTablaRefs = [];
-  const mes = $('r-mes').value, partes = {};
-  $('r-lista').innerHTML = '<div class="vacio">Cargando…</div>';
+async function leerTablaRechazos(vista){
+  vista = vista || 'merma';
+  const V = VISTAS[vista];
+  try{ await baseLista; }catch(e){ $(V.lista).innerHTML = '<div class="vacio">Sin acceso a la base.</div>'; return; }
+  V.refs.forEach(([q,f])=>q.off('value', f)); V.refs = [];
+  const mes = $(V.mes).value, partes = {};
+  $(V.lista).innerHTML = '<div class="vacio">Cargando…</div>';
   const pintar = () => {
     let l = [].concat(...Object.values(partes));
     if(mes) l = l.filter(r => String(r.fecha||'').slice(0,7) === mes);
-    pintarRechazos(l, mes);
+    pintarRechazos(l, mes, vista);
   };
   const escuchar = (nombre, q) => {
     const f = s => { const v = s.val()||{}; partes[nombre] = Object.keys(v).map(k=>({_id:k, ...v[k]})); pintar(); };
-    q.on('value', f, e=>{ $('r-lista').innerHTML = `<div class="vacio">No se pudo leer: ${esc(e.message)}</div>`; });
-    rTablaRefs.push([q, f]);
+    q.on('value', f, e=>{ $(V.lista).innerHTML = `<div class="vacio">No se pudo leer: ${esc(e.message)}</div>`; });
+    V.refs.push([q, f]);
   };
   const ref = db.ref('cal/merma2');
   escuchar('anteriores', ref.orderByKey().startAt('-').endAt('-\uf8ff'));
@@ -1861,8 +1922,10 @@ async function leerTablaRechazos(){
                            : ref.orderByKey().startAt('0').limitToLast(300));
 }
 
-async function exportarRechazos(){
-  const btn = $('r-exportar'), mes = $('r-mes').value;
+async function exportarRechazos(vista){
+  const V = VISTAS[vista||'merma'];
+  const COLS = V.acciones ? R_COLUMNAS.concat(R_COL_ACCIONES) : R_COLUMNAS;   // SPEC-023
+  const btn = $(V.exportar), mes = $(V.mes).value;
   btn.disabled = true; btn.textContent = 'Preparando…';
   try{
     const v = (await db.ref('cal/merma2').once('value')).val() || {};
@@ -1881,15 +1944,15 @@ async function exportarRechazos(){
       return a ? (Date.UTC(a,m-1,d) - Date.UTC(1899,11,30)) / 86400000 : null; };
 
     const ws = {}; let fila = 0;
-    R_COLUMNAS.forEach((c,j)=>{ ws[XLSX.utils.encode_cell({r:0,c:j})] = {v:c.t, t:'s', s:sCab}; });
+    COLS.forEach((c,j)=>{ ws[XLSX.utils.encode_cell({r:0,c:j})] = {v:c.t, t:'s', s:sCab}; });
     lista.forEach((r,i)=>{
       const relleno = i%2 ? {fill:{patternType:'solid', fgColor:{rgb:'EEF3FA'}}} : {};
       const defs = defectosDe(r);
       (defs.length ? defs : [{}]).forEach(d=>{
         fila++;
-        R_COLUMNAS.forEach((c,j)=>{
+        COLS.forEach((c,j)=>{
           let val = c.v(r,d), celda;
-          const s = {border:bordes, alignment:{vertical:'top'}, ...relleno};
+          const s = {border:bordes, alignment:{vertical:'top', wrapText: c.t==='Acción'}, ...relleno};
           if(c.fecha && serie(val)!==null) celda = {v:serie(val), t:'n', z:'dd/mm/yyyy', s};
           // Entero sin decimales; con decimales, sin el punto suelto que deja «#,##0.##» en un entero.
           else if(c.num && typeof val==='number') celda = {v:val, t:'n', z: Number.isInteger(val) ? '#,##0' : '#,##0.0##',
@@ -1899,14 +1962,15 @@ async function exportarRechazos(){
         });
       });
     });
-    const rango = XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:fila, c:R_COLUMNAS.length-1}});
+    const rango = XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:fila, c:COLS.length-1}});
     ws['!ref'] = rango;
     ws['!autofilter'] = {ref: rango};
-    ws['!cols'] = R_COLUMNAS.map(c=>({wch:c.w}));
+    ws['!cols'] = COLS.map(c=>({wch:c.w}));
     ws['!rows'] = [{hpt:30}];
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Rechazos');
-    XLSX.writeFile(wb, mes ? `Rechazos_Calidad_${mes}.xlsx` : `Rechazos_Calidad_historico_${fechaLocal()}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, V.acciones ? 'Acciones de merma' : 'Rechazos');
+    const base = V.acciones ? 'Acciones_Merma_Calidad' : 'Rechazos_Calidad';
+    XLSX.writeFile(wb, mes ? `${base}_${mes}.xlsx` : `${base}_historico_${fechaLocal()}.xlsx`);
     toast(`Excel con ${lista.length} folio${lista.length===1?'':'s'}`);
   }catch(e){ toast('No se pudo exportar: '+e.message); }
   finally{ btn.disabled = false; btn.textContent = 'Exportar a Excel'; }
@@ -2431,6 +2495,13 @@ async function guardarEdicion(d, err){
     etiquetasTotal: d.defectos.reduce((a,x)=>a+(x.etiquetas||0), 0),
     editadoPorNomina: sesion.nomina, editadoPorNombre: sesion.nombre, editadoEn: ahora};
   delete rec.defecto; delete rec.metros; delete rec.bobinas;      // formato de la v1.5.0
+  // SPEC-023: cada defecto conserva su recuperado y su acción.
+  const previos = {}; defectosDe(antes).forEach(x=>{ previos[x.defecto] = x; });
+  rec.defectos = rec.defectos.map(x=>{
+    const p = previos[x.defecto], extra = {};
+    if(p) CAMPOS_ACCION.forEach(k=>{ if(p[k]!=null) extra[k] = p[k]; });
+    return {...x, ...extra};
+  });
   ['etiqueta','etiquetaNombre','etiquetaCliente','etiquetaEnGaleria','medDes','repeticiones'].forEach(k=>delete rec[k]);
   const med = medidasEtiqueta();
   if(med && d.defectos.some(x=>x.etiquetas)){ rec.medDes = med.medDes; rec.repeticiones = med.rep; }
@@ -2741,6 +2812,104 @@ async function borrarEtiqueta(k){
     cerrarModal('modal-etiqueta'); poblarTiposGaleria(); pintarGaleria();
     toast(`Etiqueta ${k} borrada`);
   }catch(err){ toast('No se pudo borrar: '+err.message); }
+}
+
+/* ═══════════════ ACCIONES DE MERMA (SPEC-023) ═══════════════
+   La tabla de rechazos de Merma, en la pestaña Acciones, con Recuperado y
+   Acción por defecto. Lo registran SUPERVISOR y ADMIN. */
+const CAMPOS_ACCION = ['recuperadoEtiquetas','recuperadoMetros','accion','accionPorNomina','accionPorNombre','accionEn'];
+const puedeRegistrarAccion = () => sesion.rol==='SUPERVISOR' || sesion.rol==='ADMIN';
+
+// Columnas extra del Excel de Acciones de merma.
+const R_COL_ACCIONES = [
+  {t:'Etiquetas recuperadas', v:(r,d)=>d.recuperadoEtiquetas, w:12, num:true},
+  {t:'Metros recuperados',    v:(r,d)=>d.recuperadoMetros,    w:12, num:true},
+  {t:'Merma neta (m)',        v:(r,d)=>d.metros!=null ? +((+d.metros||0)-(+d.recuperadoMetros||0)).toFixed(2) : null, w:12, num:true},
+  {t:'Acción',                v:(r,d)=>d.accion,              w:50},
+  {t:'Registró',             v:(r,d)=>d.accionPorNombre ? `${d.accionPorNombre} (${d.accionPorNomina})` : '', w:32},
+  {t:'Fecha de registro',    v:(r,d)=>d.accionEn ? String(d.accionEn).slice(0,10) : '', w:12}
+];
+
+function textoRecuperado(d){
+  const n = v => Number(v).toLocaleString('es-MX', {maximumFractionDigits:2});
+  if(d.recuperadoEtiquetas!=null) return `${n(d.recuperadoEtiquetas)} etq · ${n(d.recuperadoMetros||0)} m`;
+  if(d.recuperadoMetros!=null) return `${n(d.recuperadoMetros)} m`;
+  return '';
+}
+
+let aVistaLista = false;
+function prepararAcciones(){
+  pintarMesesExcel('a-mes');
+  if(!aVistaLista){ aVistaLista = true; leerTablaRechazos('acciones'); }
+}
+
+function registrarAccionMerma(id, idx){
+  if(!puedeRegistrarAccion()) return;
+  const r = rTablaPorId[id]; if(!r) return;
+  const d = defectosDe(r)[idx]; if(!d) return;
+  const n = v => Number(v||0).toLocaleString('es-MX', {maximumFractionDigits:2});
+  const conEtq = d.etiquetas>0;
+  cerrarModal('modal-accion');
+  const c = document.createElement('div'); c.className='modal'; c.id='modal-accion';
+  c.innerHTML = `<div class="modal-box">
+    <div class="modal-t">Folio ${esc(r.folio)} · ${esc(d.defecto)}</div>
+    <div style="font-size:12.5px;color:var(--text2);margin-bottom:10px">
+      ${esc(r.fecha)} · ${esc(r.maquinaGenera||r.maquina)}${r.etiqueta ? ' · etiqueta '+esc(r.etiqueta) : ''}<br>
+      Rechazado: <b>${conEtq ? n(d.etiquetas)+' etiquetas · ' : ''}${n(d.metros)} m</b></div>
+    <label>${conEtq ? 'Recuperado (número de etiquetas)' : 'Recuperado (metros lineales)'}</label>
+    <input id="ac-rec" inputmode="${conEtq?'numeric':'decimal'}" autocomplete="off"
+      value="${conEtq ? (d.recuperadoEtiquetas ?? '') : (d.recuperadoMetros ?? '')}" oninput="calcularRecuperado('${esc(id)}',${idx})">
+    <div id="ac-rec-m" class="r-def-nota"></div>
+    <label>Acción para evitar que vuelva a ocurrir</label>
+    <textarea id="ac-accion" rows="4" maxlength="1000">${esc(d.accion||'')}</textarea>
+    <div id="ac-err" style="color:var(--red);font-size:12.5px;margin-top:8px"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn btn-2" style="margin:0" onclick="cerrarModal('modal-accion')">Cancelar</button>
+      <button class="btn" style="margin:0" id="ac-ok" onclick="guardarAccionMerma('${esc(id)}',${idx})">Guardar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(c);
+  calcularRecuperado(id, idx);
+}
+
+// Metros recuperados en la misma proporción que el renglón.
+function recuperadoDe(d, valor){
+  const x = numDe(valor);
+  if(x===null) return {vacio:true};
+  if(Number.isNaN(x) || x<0) return {error:'Debe ser un número, cero o más.'};
+  if(d.etiquetas>0){
+    if(!Number.isInteger(x)) return {error:'El número de etiquetas debe ser entero.'};
+    if(x>d.etiquetas) return {error:`No puede pasar de las ${Number(d.etiquetas).toLocaleString('es-MX')} etiquetas rechazadas.`};
+    return {etiquetas:x, metros:+((+d.metros||0) * x / d.etiquetas).toFixed(2)};
+  }
+  if(x>(+d.metros||0)) return {error:`No puede pasar de los ${Number(d.metros).toLocaleString('es-MX')} m rechazados.`};
+  return {metros:+x.toFixed(2)};
+}
+function calcularRecuperado(id, idx){
+  const d = defectosDe(rTablaPorId[id]||{})[idx]; if(!d) return;
+  const r = recuperadoDe(d, $('ac-rec').value);
+  $('ac-rec-m').textContent = r.vacio ? '' : r.error ? r.error
+    : d.etiquetas>0 ? `= ${r.metros.toLocaleString('es-MX')} m · merma neta ${(+((+d.metros||0)-r.metros).toFixed(2)).toLocaleString('es-MX')} m`
+    : `Merma neta ${(+((+d.metros||0)-r.metros).toFixed(2)).toLocaleString('es-MX')} m`;
+}
+
+async function guardarAccionMerma(id, idx){
+  const r = rTablaPorId[id]; if(!r || !puedeRegistrarAccion()) return;
+  const defs = defectosDe(r).map(x=>({...x})), d = defs[idx]; if(!d) return;
+  const rec = recuperadoDe(d, $('ac-rec').value), accion = $('ac-accion').value.trim();
+  if(rec.error) return void($('ac-err').textContent = rec.error);
+  if(rec.vacio && !accion) return void($('ac-err').textContent = 'Escribe lo recuperado, la acción o ambos.');
+  delete d.recuperadoEtiquetas; delete d.recuperadoMetros;
+  if(!rec.vacio){ if(rec.etiquetas!=null) d.recuperadoEtiquetas = rec.etiquetas; d.recuperadoMetros = rec.metros; }
+  if(accion) d.accion = accion; else delete d.accion;
+  d.accionPorNomina = sesion.nomina; d.accionPorNombre = sesion.nombre; d.accionEn = new Date().toISOString();
+  $('ac-ok').disabled = true;
+  try{
+    // Se reescribe la lista de defectos del rechazo; los de la v1.5.0 (defecto
+    // suelto) quedan así con lista.
+    await db.ref('cal/merma2/'+id+'/defectos').set(defs);
+    cerrarModal('modal-accion'); toast('Guardado');
+  }catch(e){ $('ac-ok').disabled = false; $('ac-err').textContent = 'No se pudo guardar: '+e.message; }
 }
 
 /* ═══════════════ GALERÍA DE ETIQUETAS (SPEC-015) ═══════════════

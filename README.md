@@ -4,7 +4,7 @@ Inspección de calidad en línea: foco por máquina, hallazgos con causa y
 acciones correctivas que se cierran.
 
 **Dirección:** https://impredimex-hub.github.io/control-proceso-impredimex/
-**Versión vigente:** 1.13.0 (ver [`CHANGELOG.md`](./CHANGELOG.md))
+**Versión vigente:** 1.14.0 (ver [`CHANGELOG.md`](./CHANGELOG.md))
 **Estado:** reconstruida y publicada; varias especificaciones están parciales
 (ver la tabla de estado en [`SPECS.md`](./SPECS.md))
 
@@ -34,7 +34,9 @@ y se entra desde el portal https://impredimex-hub.github.io/.
   escribir la etiqueta muestra su nombre y cliente; el turno se pone solo con
   la hora
 - **Hallazgos con causa obligatoria**, paro de máquina y observaciones
-- **Acciones correctivas** que el supervisor atiende y cierra
+- **Acciones correctivas** que el supervisor atiende y cierra: las de la
+  inspección, y las de merma, donde se registra por defecto el material
+  recuperado y la acción para que no vuelva a ocurrir
 - **Comportamiento** de cada defecto mes a mes en todo el histórico
 - **Merma**: registro de rechazos con folio único, etiqueta, máquina de
   inspección y máquina que genera, y uno o

@@ -11,6 +11,32 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.14.0] — 2026-11-25
+
+### Agregado
+
+- **Acciones de merma** en la pestaña Acciones (SPEC-023), debajo de las
+  acciones de la inspección: la tabla de rechazos de Merma con las columnas
+  **Recuperado** y **Acción** después de Folio, por defecto. Supervisor y
+  Administrador registran lo recuperado (en etiquetas, con los metros en la
+  misma proporción; en metros si el rechazo no tiene etiquetas) y la acción.
+  Filtro por mes y por acción, y exportación a Excel con etiquetas y metros
+  recuperados, merma neta, acción, quién registró y fecha.
+- Al editar un rechazo en Merma, cada defecto conserva su recuperado y su
+  acción.
+
+### Corregido
+
+- **Lo que se abría en el primer instante se quedaba en «Cargando…»**: la
+  espera de conexión se creaba antes de conectar y nunca se cumplía. Le pasaba
+  al supervisor, cuya primera pestaña es Acciones.
+- El cierre de una acción de inspección decía que la causa confirmada
+  «alimenta la matriz», lo que todavía no es cierto. Ahora dice que queda
+  registrada como la causa del hallazgo.
+- Caché del service worker a `calidad-v1.14.0`.
+
+---
+
 ## [1.13.0] — 2026-11-24
 
 ### Cambiado

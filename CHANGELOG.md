@@ -11,6 +11,17 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.14.1] — 2026-11-25
+
+### Cambiado
+
+- En Acciones de merma queda **un solo botón Registrar**, en Recuperado, que
+  captura lo recuperado y la acción juntos. El de la columna Acción hacía lo
+  mismo y se veía desalineado (SPEC-023).
+- Caché del service worker a `calidad-v1.14.1`.
+
+---
+
 ## [1.14.0] — 2026-11-25
 
 ### Agregado

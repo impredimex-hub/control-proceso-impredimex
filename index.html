@@ -1867,7 +1867,8 @@ function pintarRechazos(lista, mes, vista){
         const celdasAcc = c.t==='Folio' && enAcciones
           ? `<td class="a-rec">${d.defecto ? `<div class="a-def">${esc(d.defecto)}</div>` : ''}` +   // en el teléfono, Defecto queda lejos
             `${esc(textoRecuperado(d))||'<span class="a-vacio">—</span>'}${btn(tieneAlgo?'Cambiar':'Registrar')}</td>` +
-            `<td class="a-acc">${d.accion ? esc(d.accion) : '<span class="a-vacio">Sin acción</span>'}${btn(tieneAlgo?'Cambiar':'Registrar')}</td>`
+            // Un solo botón, en Recuperado: abre la captura de lo recuperado y la acción.
+            `<td class="a-acc">${d.accion ? esc(d.accion) : '<span class="a-vacio">Sin acción</span>'}</td>`
           : '';
         if(c.t==='Folio' && j>0) return celdasAcc;
         return `<td${rs} class="${cls}">${esc(fmt(c.v(r,d)))}</td>${acciones}${celdasAcc}`;

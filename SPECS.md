@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.14.0 — estados revisados contra el código el 24 de
+**Versión vigente:** 1.14.1 — estados revisados contra el código el 24 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -1333,7 +1333,8 @@ inspección.
 ### Recuperado y acción
 - Se registran **por defecto** (por renglón): cada defecto de un folio tiene
   su cantidad y puede tener su propia causa.
-- Botón **Registrar** (o **Cambiar**) en la celda, para `SUPERVISOR` y
+- Un solo botón **Registrar** (o **Cambiar**), en la celda de Recuperado, que
+  abre la captura de lo recuperado y la acción juntos; para `SUPERVISOR` y
   `ADMIN`, como el cierre de acciones de inspección. El `INSPECTOR` consulta.
 - **Recuperado** se captura en **número de etiquetas**, como el rechazo, y la
   app calcula los metros en la misma proporción que el renglón (metros

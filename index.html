@@ -1445,18 +1445,23 @@ function pintarPuntos(){            // cuando cambia la etiqueta: cambian los es
   if($('f-etapa').value==='arranque') pintarArranque(); else pintarSeguimiento();
 }
 
-// En el seguimiento con corrida, OP y etiqueta son los de la corrida y no se editan.
+// Con la corrida liberada, los datos quedan bloqueados: OP y etiqueta son los de
+// la corrida y el master es el siguiente al último revisado. Solo la nómina del
+// operador se cambia (cambio de turno o de persona en la máquina).
 function fijarCorrida(c){
-  const id = c ? c._id : null, op = $('f-op'), et = $('f-etiqueta');
-  op.readOnly = et.readOnly = !!c;
-  op.classList.toggle('derivado-m', !!c); et.classList.toggle('derivado-m', !!c);
+  const id = c ? c._id : null, op = $('f-op'), et = $('f-etiqueta'), ms = $('f-master');
+  [op, et, ms].forEach(e=>{ e.readOnly = !!c; e.classList.toggle('derivado-m', !!c); e.tabIndex = c ? -1 : 0; });
+  if(c) ms.value = String((+c.masters||0) + 1);
   if(id === corridaFijada) return;
   const antes = corridaFijada; corridaFijada = id;
   if(c){
-    op.value = c.op || ''; $('f-master').value = String((+c.masters||0) + 1);
+    op.value = c.op || '';
     if(claveEtiq(et.value) !== c.etiqueta){ et.value = c.etiqueta || ''; etiquetaEscrita(); buscarEtiqueta(true); }
+    // El operador se propone: el de la última revisión de la corrida, o el del arranque.
+    const nom = c.ultimoOperadorNomina || c.operadorNomina;
+    if(nom && $('f-nom-ope').value.trim() !== nom){ $('f-nom-ope').value = nom; fOperadorEscrito(); fBuscarOperador(); }
   } else if(antes){
-    op.value = ''; et.value = ''; $('f-master').value = ''; etiquetaEscrita();
+    op.value = ''; et.value = ''; ms.value = ''; etiquetaEscrita();
   }
 }
 
@@ -1630,6 +1635,7 @@ function guardarInspeccion(base, extra){
     upd[r+'revisiones'] = firebase.database.ServerValue.increment(1);
     upd[r+'ultimaTs'] = base.ts; upd[r+'ultimaFecha'] = base.fecha; upd[r+'ultimaHora'] = base.hora;
     upd[r+'ultimoResultado'] = base.resultado;
+    upd[r+'ultimoOperadorNomina'] = base.operadorNomina; upd[r+'ultimoOperadorNombre'] = base.operadorNombre;
     if(base.master) upd[r+'masters'] = Math.max(+(c && c.masters)||0, base.master);
   }
   return db.ref('cal').update(upd).then(()=>k);

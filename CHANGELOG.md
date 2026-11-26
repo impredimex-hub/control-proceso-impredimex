@@ -11,6 +11,19 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.21.1] — 2026-11-26
+
+### Cambiado
+
+- **Con la corrida liberada, los datos quedan bloqueados** (SPEC-028): en el
+  seguimiento, OP, etiqueta y número de master no se modifican; el master es
+  el siguiente al último revisado. Solo se cambia la nómina del operador, que
+  la app propone (la de la última revisión de la corrida, o la del arranque).
+- La corrida guarda el último operador que revisó.
+- Caché del service worker a `calidad-v1.21.1`.
+
+---
+
 ## [1.21.0] — 2026-11-26
 
 ### Cambiado

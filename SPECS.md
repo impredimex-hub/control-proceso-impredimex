@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.21.0 — estados revisados contra el código el 26 de
+**Versión vigente:** 1.21.1 — estados revisados contra el código el 26 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -1589,8 +1589,12 @@ Es el «Apartado exclusivo de calidad» de la hoja de arranque, en la app.
 - **Método: por master**, que es como se trabaja hoy. Cada revisión lleva el
   **número de master**; la app propone el siguiente al último revisado.
 - En una máquina con formato, el seguimiento se liga a la **corrida activa**:
-  la OP y la etiqueta salen de ella y no se editan. El número de master es
-  obligatorio en las máquinas con formato y opcional en las demás. **Si no hay
+  la OP y la etiqueta salen de ella. El número de master es obligatorio en las
+  máquinas con formato y opcional en las demás.
+- **Con la corrida liberada, los datos quedan bloqueados**: OP, etiqueta y
+  número de master (el siguiente al último revisado) no se modifican. Lo único
+  que se cambia es la **nómina del operador**; la app propone la de la última
+  revisión de la corrida, o la del arranque. **Si no hay
   corrida activa, no se puede registrar el seguimiento**: primero se libera el
   arranque. Las máquinas de áreas sin formato todavía no tienen arranque, así
   que siguen con la inspección de variables como antes.
@@ -1629,8 +1633,8 @@ disponible (por ejemplo, una etiqueta sin código de barras).
   grado y el estándar o rango con que se evaluó), área libre, comentarios,
   resultado, motivos, intento y la corrida que abrió.
 - `cal/corridas/<id>`: máquina, área, OP, etiqueta, arranque, quién liberó y
-  cuándo, estado (activa / cerrada), `masters` (el más alto revisado) y última
-  revisión, y el cierre.
+  cuándo, estado (activa / cerrada), `masters` (el más alto revisado), última
+  revisión, último operador, y el cierre.
 - En la inspección de seguimiento (`cal/inspecciones`): `op`, `corridaId`,
   `master`, `puntos` y `puntosNoCumple`.
 - `cal/especificaciones/<área>/<punto>`: lo que el administrador cambió; el

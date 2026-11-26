@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.19.0 — estados revisados contra el código el 24 de
+**Versión vigente:** 1.20.0 — estados revisados contra el código el 26 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -34,10 +34,10 @@ se puede ir del documento al código y de regreso.
 |---|---|---|
 | 001 | Acceso a la aplicación | Implementado |
 | 002 | Papeles | Parcial — un administrador puede cerrar un hallazgo que él mismo levantó |
-| 003 | Etapas de inspección | Parcial — la etapa se registra, pero no cambia lo que se pregunta |
+| 003 | Etapas de inspección | Implementado desde la v1.20.0 con la SPEC-028 (roto y flexo; faltan otras áreas) |
 | 004 | Los dos enfoques y el foco | Parcial — falta mover la ventana y el foco por etiqueta |
 | 005 | Matriz defecto ↔ variable | Parcial — el editor funciona; el contenido lo define la junta |
-| 006 | Muestreo por AQL | Pendiente |
+| 006 | Muestreo por AQL | Pendiente — el seguimiento a corrida es por bobina (SPEC-028) |
 | 007 | Hallazgo, paro y acción correctiva | Parcial — falta el aviso al supervisor y la hora del paro |
 | 008 | Catálogo de variables de calidad | Parcial — los defectos ya viven en la base (SPEC-022); los 54 criterios no se han cargado |
 | 009 | Identidad y personal desde la suite | Implementado |
@@ -59,6 +59,7 @@ se puede ir del documento al código y de regreso.
 | 025 | Carga del histórico «Rechazo interno» | Implementado |
 | 026 | Folio de rechazo automático | Implementado |
 | 027 | Operador, hora y auditor en la inspección | Implementado |
+| 028 | Arranque de calidad y seguimiento a corrida | Implementado — faltan formatos de digital, laminado y acondicionado, y rangos |
 
 ---
 
@@ -182,14 +183,15 @@ El botón «Atender y cerrar» solo aparece a `SUPERVISOR` y `ADMIN`.
 
 # SPEC-003 — Etapas de inspección
 
-**Estado:** parcial (v1.0.0)
+**Estado:** implementado (v1.20.0) con la SPEC-028
 
 Dos etapas, no una:
 
 **Arranque.** Antes de liberar la corrida. Se verifica que las condiciones para
 producir bien estén dadas.
 
-**En proceso.** Durante la corrida, en los recorridos del inspector.
+**Seguimiento a corrida** (antes «En proceso»). Durante la corrida, en los
+recorridos del inspector.
 
 ### Reglas de negocio
 - **Se descartó la etapa de fin de corrida.** Existía en la idea original por la
@@ -198,11 +200,11 @@ producir bien estén dadas.
 - La etapa determina qué se pregunta: el arranque mira condiciones previas; la
   inspección en proceso mira producto y variables.
 
-### Lo que falta
-La etapa se elige (Arranque o En proceso, esta última por omisión) y se graba en
-cada inspección, pero **las dos etapas muestran el mismo formulario**. Que el
-arranque pregunte por condiciones previas depende del catálogo de criterios de
-la SPEC-008, que todavía no se ha cargado.
+### Cómo quedó
+Desde la v1.20.0 la etapa sí cambia lo que se pregunta: el arranque es el
+formato de liberación de cada área y el seguimiento revisa producto y variables
+por bobina, ligado a la corrida que abrió el arranque. El detalle está en la
+SPEC-028. Antes de esa versión las dos etapas mostraban el mismo formulario.
 
 ---
 
@@ -412,7 +414,14 @@ revisar, cuántos defectos se aceptan y a partir de cuántos se rechaza.
   rechazar queda registrada junto con el plan que se aplicó. Sin eso, un
   resultado no es auditable meses después.
 
+### Relación con el seguimiento a corrida
+Desde la v1.20.0 el seguimiento a corrida (SPEC-028) es **por bobina**. Calidad
+quiere poder hacerlo por AQL; cuando se defina el criterio, el AQL entra como
+segundo método del seguimiento.
+
 ### Pendiente de definir
+- Qué es el lote en el seguimiento por AQL: la OP completa, las bobinas o las
+  etiquetas
 - Qué niveles de inspección y valores de AQL usa Calidad
 - Si la aplicación debe aplicar las **reglas de cambio de severidad** del
   estándar —pasar a inspección rigurosa tras cierto número de lotes rechazados,
@@ -1507,6 +1516,125 @@ el texto «vigilar: …» ya no empuja su barra y todas empiezan en el mismo lug
 
 ---
 
+# SPEC-028 — Arranque de calidad y seguimiento a corrida
+
+**Estado:** implementado (v1.20.0). Faltan los formatos de digital, laminado y
+acondicionado, y los rangos de código de barras y medidas, que Calidad todavía
+no tiene definidos.
+
+### Por qué
+Calidad revisa el semiterminado: cuando el producto ya salió mal, no hay nada
+que hacer. Las variables de proceso (SPEC-004, SPEC-005) se quedan para
+prevenir el defecto, pero además hace falta revisar **al arrancar** el trabajo y
+**durante la corrida**, para detectar el problema antes de que haya material
+malo. Con esto se cumple lo que la SPEC-003 dejó pendiente: que la etapa
+determine qué se pregunta.
+
+### Las dos etapas
+En **Datos de la inspección** la etapa es **Arranque** o **Seguimiento a
+corrida** (antes «En proceso»; se graba con el mismo valor, `proceso`, para que
+las inspecciones anteriores se sigan leyendo igual). Las dos piden máquina,
+etiqueta y operador; hora y auditor son automáticos (SPEC-027). Hay un campo
+nuevo, **orden de producción**: obligatorio en el arranque; en el seguimiento
+viene de la corrida.
+
+### Arranque (liberación)
+Es el «Apartado exclusivo de calidad» de la hoja de arranque, en la app.
+
+- **El formato sale del área de la máquina.** Rotograbado (RT5–RT7) y
+  Flexografía (FL1–FL4) tienen el suyo, con los puntos y estándares de la hoja
+  tal cual. Las máquinas de otras áreas todavía no tienen formato: la app lo
+  dice y no deja registrar el arranque. Los formatos de digital, laminado y
+  acondicionado se agregan cuando Calidad los comparta.
+- **Requisitos previos** (Sí / No): orden de producción, control de tintas, kit
+  completo, etiquetas MP y sábana de arranque.
+- **Verificación contra estándar**: cada punto con su estándar y su resultado
+  **Cumple / No cumple / NA**.
+  - **Rotograbado (16):** propuesta, tonos, textos, registro de impresión, spot
+    (medidas y densidad), dirección de impresión en máquina, espesor de
+    material, curling, código de barras, medida eje, medida desarrollo, barniz
+    mate, barniz sobre impresión, etiqueta sin repinte, etiqueta sin velo y
+    anclaje de tinta.
+  - **Flexografía (15):** propuesta, tonos, textos, registro de impresión,
+    alineación de grabado, spot, dirección de impresión en máquina, espesor de
+    material, código de barras, medida eje, medida desarrollo,
+    laminado/barnizado, curling, presión de suaje y anclaje de tinta.
+- **Estándares desde la galería** (SPEC-015): medida eje y medida desarrollo
+  muestran `Med_eje` y `Med_des` de la etiqueta, pasados de cm a **mm**, que es
+  como se mide en piso; espesor de material muestra sus sustratos. Lo demás
+  muestra el estándar de la hoja.
+- **El área queda libre del trabajo del pedido anterior** (Sí / No) y
+  **comentarios de calidad**.
+- **Firma de calidad**: el auditor en sesión. **Hora**: al terminar.
+- **Resultado automático**: **Liberado** si los cinco requisitos están en Sí,
+  todos los puntos en Cumple o NA y el área quedó libre; si no, **No liberado**,
+  con la lista de motivos. No se registra un arranque con algo sin contestar.
+- **Un arranque no liberado se repite** cuando se corrige; cada intento queda
+  registrado con su número (1, 2, 3…) para esa máquina, OP y etiqueta.
+
+### Corrida
+- Un arranque **liberado abre una corrida** en esa máquina: OP, etiqueta, quién
+  liberó y a qué hora.
+- **Una máquina tiene a lo sumo una corrida activa.** Liberar un arranque nuevo
+  en una máquina cierra la corrida anterior (motivo: nuevo arranque).
+- **Terminar corrida**: cualquier usuario la cierra cuando termina la OP; queda
+  quién y cuándo.
+
+### Seguimiento a corrida
+- **Método: por bobina**, que es como se trabaja hoy. Cada revisión lleva el
+  **número de bobina**; la app propone la siguiente a la última revisada.
+- En una máquina con formato, el seguimiento se liga a la **corrida activa**:
+  la OP y la etiqueta salen de ella y no se editan. La bobina es obligatoria en
+  las máquinas con formato y opcional en las demás. Si no hay corrida activa se puede
+  registrar igual, pero queda marcado **sin arranque liberado**, para que se
+  note en el historial.
+- Cada revisión incluye:
+  - los **puntos del producto** marcados «en seguimiento» del formato. Por
+    omisión son tonos, textos, registro, spot, curling, código de barras,
+    medidas eje y desarrollo, repinte, velo, presión de suaje y anclaje de
+    tinta;
+  - las **variables de proceso** (SPEC-004), como antes;
+  - **Pasa / No pasa**. Con un punto en No cumple no se puede registrar Pasa:
+    se registra No pasa y se abre el hallazgo (SPEC-007).
+- **Corridas activas**: la pestaña muestra todas, con máquina, OP y etiqueta,
+  hora de liberación, bobinas revisadas y última revisión. Tocar una corrida
+  elige su máquina.
+- **Por AQL** (SPEC-006) queda como segundo método, para cuando Calidad defina
+  el criterio.
+
+### Especificaciones y rangos
+En **Galería** hay una tabla **Formatos de arranque** por área. Todos la ven;
+solo el administrador edita. De cada punto se puede cambiar:
+- el **estándar** que se muestra;
+- si se revisa **en seguimiento**;
+- en **medida eje / desarrollo**: la **tolerancia ±** en mm. Con tolerancia, el
+  inspector escribe la medida en mm y la app marca Cumple o No cumple contra el
+  valor de la galería;
+- en **código de barras**: el **grado mínimo** (A–E). Con grado mínimo, el
+  inspector elige el grado y la app marca el resultado.
+
+Mientras no haya rango, el inspector marca Cumple / No cumple como en la hoja, y
+puede anotar la medida o el grado de todos modos. Con rango, NA sigue
+disponible (por ejemplo, una etiqueta sin código de barras).
+
+### Qué se guarda
+- `cal/arranques/<id>`: máquina, área, OP, etiqueta (y nombre, cliente),
+  operador, auditor, fecha, hora, turno, requisitos, puntos (resultado, medida,
+  grado y el estándar o rango con que se evaluó), área libre, comentarios,
+  resultado, motivos, intento y la corrida que abrió.
+- `cal/corridas/<id>`: máquina, área, OP, etiqueta, arranque, quién liberó y
+  cuándo, estado (activa / cerrada), bobinas y última revisión, y el cierre.
+- En la inspección de seguimiento (`cal/inspecciones`): `op`, `corridaId`,
+  `bobina`, `puntos`, `puntosNoCumple` y, si aplica, `sinArranque`.
+- `cal/especificaciones/<área>/<punto>`: lo que el administrador cambió; el
+  resto viene del código.
+
+### Dónde se ve
+**Historial** muestra arranques y seguimientos juntos: los arranques con
+Liberado / No liberado, intento y motivos; los seguimientos con OP y bobina.
+
+---
+
 # Convenciones del código
 
 - **Ancho de pantalla.** Desde la v1.18.1 todas las pestañas, la barra de
@@ -1531,6 +1659,10 @@ el texto «vigilar: …» ya no empuja su barra y todas empiezan en el mismo lug
   LAMINACIÓN, PEGADO): decidir si su historia se suma a otro defecto de la
   lista. Si sí, se renombra cada uno al defecto destino y su historia se une.
 
+- **Rangos del arranque y del seguimiento** (SPEC-028): grado mínimo del código
+  de barras y tolerancia de las medidas eje y desarrollo. La app ya tiene dónde
+  capturarlos (Galería → Formatos de arranque).
+- **Formatos de arranque de digital, laminado y acondicionado** (SPEC-028).
 - **La matriz defecto ↔ variable** (SPEC-005), en junta de calidad, producción e
   ingeniería de procesos.
 - **El criterio de muestreo** (SPEC-006): niveles, valores de AQL y si el cambio

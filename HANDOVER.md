@@ -3,7 +3,7 @@
 Lo que necesita saber quien reciba esta aplicación para operarla, corregirla y
 extenderla sin depender de quien la construyó.
 
-**Versión de la aplicación:** 1.19.0
+**Versión de la aplicación:** 1.20.0
 **Última actualización de este documento:** 24 de noviembre de 2026
 **Desarrollo original:** Victor Moreno
 
@@ -147,8 +147,11 @@ en la SPEC-010.
 
 | Ruta | Quién escribe | Qué guarda |
 |---|---|---|
-| `cal/inspecciones/<id>` | Inspector, Admin | Etapa, turno, `hora` (SPEC-027), máquina, etiqueta, `operadorNomina`, `operadorNombre`, `etiquetaNombre`, `etiquetaCliente`, `etiquetaEnGaleria`, fecha (local, `AAAA-MM-DD`), `ts`, `inspectorNomina`, `inspectorNombre`, `resultado`, `variables`, `variablesDesviadas` y, si no pasó, `hallazgoId` |
+| `cal/inspecciones/<id>` | Inspector, Admin | Etapa (`arranque` en registros viejos; `proceso` = seguimiento a corrida), `op`, `bobina`, `corridaId`, `puntos`, `puntosNoCumple`, `sinArranque` (SPEC-028), turno, `hora` (SPEC-027), máquina, etiqueta, `operadorNomina`, `operadorNombre`, `etiquetaNombre`, `etiquetaCliente`, `etiquetaEnGaleria`, fecha (local, `AAAA-MM-DD`), `ts`, `inspectorNomina`, `inspectorNombre`, `resultado`, `variables`, `variablesDesviadas` y, si no pasó, `hallazgoId` |
 | `cal/hallazgos/<id>` | Inspector, Admin; al cerrar, Supervisor o Admin | Lo de la inspección más `defecto`, `causa`, `causaDeterminada`, `metros`, `paro`, `obs`, `estado`; al cerrar, `correccion`, `cerradoPorNomina`, `cerradoPorNombre`, `fechaCierre`, `tsCierre` |
+| `cal/arranques/<id>` | Los tres papeles | Arranque de calidad (SPEC-028): máquina, `area`, `formato`, `op`, etiqueta, operador, auditor, fecha, hora, turno, `requisitos`, `puntos` (`r`, `medida`, `nominal`, `tol`, `grado`, `gradoMin`, `estandar`), `areaLibre`, `comentarios`, `resultado` (`liberado` / `no liberado`), `motivos`, `intento` y, si se liberó, `corridaId` |
+| `cal/corridas/<id>` | Los tres papeles | Corrida abierta por un arranque liberado: máquina, `op`, etiqueta, `arranqueId`, `liberoNomina`, `liberoNombre`, fecha, hora, `estado` (`activa` / `cerrada`), `revisiones`, `bobinas` (la más alta revisada), `ultimaHora`, `ultimoResultado`; al cerrar, `cerrada*` y `motivoCierre` (`terminada` / `nuevo arranque`) |
+| `cal/especificaciones/<área>/<punto>` | Admin | Lo que cambió del formato de arranque: `std`, `seg`, `tol` (mm), `gradoMin`, y quién y cuándo. Lo que no está aquí viene del código (`FORMATOS_BASE`) |
 | `cal/matriz/<defecto>@<máquina>` | Admin | `defecto`, `maquina` (vacía = todas), `vars: [{nombre, peso}]`, `actualizadoPor`, `actualizadoEn` |
 | `cal/merma` | Ya nadie (hasta la v1.7.0, Admin) | La última carga del cargador anterior: `datos[línea][defecto][AAAA-MM] = metros`, `registros`, `ultimoMes`, `cargadoPor`, `cargadoEn`. Si existe, es la base histórica del foco (SPEC-018) |
 | `cal/merma2/<AAAA-MM-DD>_<id>` | Los tres papeles (formulario); Admin (Excel) | Cada rechazo. La clave empieza con su fecha para leer un mes sin índices; los de antes de la v1.8.0 tienen clave sin fecha. Campos: `origen` (`formulario` o `excel`), `ordenProduccion` (SPEC-024), `folio` (automático, `año-N`, SPEC-026), `folioAnterior` (el que tenía antes de renumerar), `folioArchivo` (el del Excel de donde se cargó), `folio`, `etiqueta`, `etiquetaNombre`, `etiquetaCliente`, `etiquetaEnGaleria`, `maquina` (de inspección), `maquinaGenera` (la que genera el defecto; con ella cuenta el foco, SPEC-021), nómina y nombre de supervisor, operador e inspector, `defectos: [{defecto, numero, etiquetas, metros, bobinas}]` (cada defecto puede traer además `recuperadoEtiquetas`, `recuperadoMetros`, `accion`, `accionPorNomina`, `accionPorNombre` y `accionEn`, registrados en Acciones, SPEC-023), `etiquetasTotal`, `metrosTotal`, `bobinasTotal`, `medDes` y `repeticiones` (copia de las medidas con que se calcularon los metros, SPEC-020), `fecha`, `turno`, `ts`, `capturoNomina`, `capturoNombre` (SPEC-017) |

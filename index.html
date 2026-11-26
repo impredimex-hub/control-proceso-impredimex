@@ -252,6 +252,34 @@ input:focus,select:focus,textarea:focus{border-color:var(--navy-mid)}
 .etq-info b{display:block;color:var(--navy-dark);font-size:13px}
 .etq-no{background:var(--amber-bg);color:var(--amber)}
 
+/* ── Arranque y seguimiento a corrida (SPEC-028) ──
+   Un punto por renglón en el teléfono; en computadora, dos columnas como la hoja. */
+.pts{display:grid;grid-template-columns:minmax(0,1fr);column-gap:28px}
+@media (min-width:900px){ #a-puntos,#s-puntos,#a-requisitos{grid-template-columns:repeat(2,minmax(0,1fr))} }
+.pt{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.pt-t{flex:1 1 170px;min-width:0;font-size:13px;font-weight:600;color:var(--navy-dark)}
+.pt-std{display:block;font-size:11px;font-weight:400;color:var(--text2);margin-top:1px}
+.pt-med{width:88px;padding:7px 9px;font-size:13px}
+.pt.pendiente .pt-t{color:var(--red)}
+.ck{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex:0 0 auto}
+.ck button{border:none;border-left:1px solid var(--line);background:#fff;color:var(--navy);
+  padding:7px 10px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit}
+.ck button:first-child{border-left:none}
+.ck button.on-ok{background:var(--green);color:#fff}
+.ck button.on-no{background:var(--red);color:#fff}
+.ck button.on-na{background:var(--navy-light);color:var(--navy-dark)}
+.ck button.on-g{background:var(--navy);color:#fff}
+.ck.auto button[data-v="cumple"],.ck.auto button[data-v="no"]{cursor:default}
+.res-arr{border-radius:9px;padding:10px 12px;font-size:12.5px;line-height:1.5}
+.res-arr b{font-size:13.5px}
+.res-ok{background:var(--green-bg);color:var(--green)}
+.res-no{background:var(--red-bg);color:var(--red)}
+.corr-fila{cursor:pointer}
+.corr-info{font-size:12.5px;line-height:1.55;color:var(--text2)}
+.corr-info b{color:var(--navy-dark)}
+.e-tabla td{white-space:normal}
+input.derivado-m{background:var(--bg);color:var(--navy-dark);font-weight:600}
+
 /* ── Formulario de rechazo (SPEC-017): los campos que se derivan se ven en gris ── */
 /* Textarea de un renglón que crece con el texto: un nombre del padrón llega a
    pasar de 70 caracteres y en el teléfono no cabe en una casilla. */
@@ -440,27 +468,39 @@ textarea.derivado[readonly]{background:var(--bg);color:var(--navy-dark);font-wei
 
 <nav id="nav"></nav>
 <main>
-  <!-- Nueva inspección (SPEC-003 etapa, SPEC-004 foco y variables) -->
+  <!-- Nueva inspección (SPEC-003 etapa, SPEC-004 foco y variables, SPEC-028 arranque y seguimiento) -->
   <section id="pg-inspeccion">
+    <!-- SPEC-028: corridas abiertas por un arranque liberado -->
+    <div class="card" id="c-corridas">
+      <div class="card-t">Corridas activas</div>
+      <div id="corridas-activas"></div>
+    </div>
+
     <div class="card">
       <div class="card-t">Datos de la inspección</div>
       <div class="row">
         <div><label>Etapa</label>
-          <select id="f-etapa">
+          <select id="f-etapa" onchange="pintarEtapa()">
             <option value="arranque">Arranque</option>
-            <option value="proceso" selected>En proceso</option>
+            <!-- SPEC-028: «En proceso» pasó a llamarse así; se graba con el mismo valor -->
+            <option value="proceso" selected>Seguimiento a corrida</option>
           </select></div>
         <!-- SPEC-016: el turno sale de la hora; no se elige -->
         <div><label>Turno · automático</label>
           <div id="f-turno" class="campo-fijo">—</div></div>
       </div>
       <div class="row">
-        <div><label>Máquina</label><select id="f-maquina" onchange="pintarFoco()"></select></div>
+        <div><label>Máquina</label><select id="f-maquina" onchange="maquinaElegida()"></select></div>
         <!-- SPEC-016: acepta letras (hay claves como D0018) y busca en la galería -->
         <div><label>Etiqueta</label><input id="f-etiqueta" autocapitalize="characters" autocomplete="off"
           placeholder="Núm. de etiqueta" oninput="etiquetaEscrita()" onchange="buscarEtiqueta(true)"></div>
       </div>
       <div id="f-etiqueta-info"></div>
+      <!-- SPEC-028: orden de producción; en el seguimiento, la bobina que se revisa -->
+      <div class="row">
+        <div><label>Orden de producción</label><input id="f-op" autocapitalize="characters" autocomplete="off" onchange="this.value=normOP(this.value)"></div>
+        <div id="f-bobina-c"><label>Bobina núm.</label><input id="f-bobina" inputmode="numeric" autocomplete="off"></div>
+      </div>
       <!-- SPEC-027: operador (nombre desde el padrón), hora y auditor automáticos -->
       <div class="row r-persona" style="margin-top:2px">
         <div><label>Nómina operador</label><input id="f-nom-ope" inputmode="numeric" autocomplete="off"
@@ -476,28 +516,66 @@ textarea.derivado[readonly]{background:var(--bg);color:var(--navy-dark);font-wei
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-t">Qué vigilar en esta máquina</div>
-      <div id="foco"></div>
+    <!-- SPEC-028: arranque (liberación), el «Apartado exclusivo de calidad» de la hoja -->
+    <div id="bloque-arranque" class="hide">
+      <div id="a-hecho"></div>
+      <div id="a-sin-formato"></div>
+      <div id="a-formato">
+        <div class="card">
+          <div class="card-t">Requisitos previos</div>
+          <div id="a-requisitos" class="pts"></div>
+        </div>
+        <div class="card">
+          <div class="card-t"><span>Verificación contra estándar · <span id="a-formato-nom"></span></span></div>
+          <div id="a-puntos" class="pts"></div>
+        </div>
+        <div class="card">
+          <div class="card-t">Cierre del arranque</div>
+          <div id="a-area" class="pts"></div>
+          <label>Comentarios de calidad</label>
+          <textarea id="a-coment" rows="3"></textarea>
+          <div id="a-resultado" style="margin-top:12px"></div>
+          <button class="btn" onclick="registrarArranque()">Registrar arranque</button>
+        </div>
+      </div>
     </div>
 
-    <div class="card">
-      <div class="card-t">Variables de proceso vigiladas</div>
-      <div style="font-size:12.5px;color:var(--text2);margin-bottom:10px">
-        Son las que provocan los defectos de arriba. Revisarlas es lo que evita la
-        merma; la inspección de producto solo la detecta cuando ya ocurrió.
+    <div id="bloque-seguimiento">
+      <!-- SPEC-028: la corrida de la máquina elegida -->
+      <div class="card" id="c-corrida">
+        <div class="card-t">Corrida en esta máquina</div>
+        <div id="corrida-info"></div>
       </div>
-      <div id="variables"></div>
-    </div>
 
-    <div class="card">
-      <div class="card-t">Inspección de producto</div>
-      <div style="font-size:12.5px;color:var(--text2);margin-bottom:12px">
-        Semiterminado o terminado. El resultado es binario.
+      <div class="card">
+        <div class="card-t">Qué vigilar en esta máquina</div>
+        <div id="foco"></div>
       </div>
-      <div class="row">
-        <button class="btn" style="background:var(--green);margin:0" onclick="resolver(true)">Pasa</button>
-        <button class="btn btn-red" style="margin:0" onclick="resolver(false)">No pasa</button>
+
+      <!-- SPEC-028: puntos del producto que el formato marca «en seguimiento» -->
+      <div class="card" id="c-puntos-seg">
+        <div class="card-t"><span>Puntos del producto · <span id="s-formato-nom"></span></span></div>
+        <div id="s-puntos" class="pts"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-t">Variables de proceso vigiladas</div>
+        <div style="font-size:12.5px;color:var(--text2);margin-bottom:10px">
+          Son las que provocan los defectos de arriba. Revisarlas es lo que evita la
+          merma; la inspección de producto solo la detecta cuando ya ocurrió.
+        </div>
+        <div id="variables"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-t">Inspección de producto</div>
+        <div style="font-size:12.5px;color:var(--text2);margin-bottom:12px">
+          Semiterminado o terminado. El resultado es binario.
+        </div>
+        <div class="row">
+          <button class="btn" style="background:var(--green);margin:0" onclick="resolver(true)">Pasa</button>
+          <button class="btn btn-red" style="margin:0" onclick="resolver(false)">No pasa</button>
+        </div>
       </div>
     </div>
   </section>
@@ -586,6 +664,15 @@ textarea.derivado[readonly]{background:var(--bg);color:var(--navy-dark);font-wei
         <button class="btn btn-sm hide" id="d-nuevo" onclick="abrirDefecto(null)">Nuevo defecto</button>
       </div>
       <div class="gal-tabla-wrap" style="max-height:50vh"><table class="gal-tabla d-tabla" id="d-tabla"></table></div>
+    </div>
+    <!-- SPEC-028: formatos de arranque, estándares y rangos -->
+    <div class="card">
+      <div class="card-t">Formatos de arranque</div>
+      <div class="gal-acciones" style="margin-top:0">
+        <select id="e-area" class="r-mes" onchange="pintarEspecs()"></select>
+        <span id="e-nota" class="r-cuenta"></span>
+      </div>
+      <div class="gal-tabla-wrap" style="max-height:60vh"><table class="gal-tabla e-tabla" id="e-tabla"></table></div>
     </div>
   </section>
 
@@ -876,7 +963,7 @@ function verPagina(id, btn){
   if(id==='historial') pintarHistorial();
   if(id==='tendencia') pintarTendencia();
   if(id==='matriz')    cargarMatriz();
-  if(id==='galeria'){  leerGaleria(false); pintarDefectos(); }
+  if(id==='galeria'){  leerGaleria(false); pintarDefectos(); pintarEspecs(); }   // SPEC-028: formatos de arranque
   if(id==='merma')     prepararMerma();
   if(id==='acciones')  prepararAcciones();            // SPEC-023
 }
@@ -887,7 +974,8 @@ function poblarSelects(){
   $('m-maquina').innerHTML = '<option value="">— Todas —</option>' + om;
   refrescarCatalogo();            // lista oficial mientras llega la de la base
   pintarTurno(); pintarAuditor();
-  pintarFoco();
+  estArr.formato = areaDe($('f-maquina').value);
+  pintarFoco(); pintarEtapa();                  // SPEC-028
 }
 
 /* ═══════════════ DATOS (SPEC-010) ═══════════════ */
@@ -940,6 +1028,19 @@ async function conectar(){
   db.ref('cal/defectosRenombrados').on('value', s=>{
     ALIAS_DEF = s.val() || {}; MERMA_COMBINADA = null; pintarFoco(); pintarTendencia();
   }, fallo('cal/defectosRenombrados'));
+  // SPEC-028: arranques, corridas y especificaciones. Las claves de push van en
+  // orden de creación: las últimas bastan para el historial y las corridas activas.
+  db.ref('cal/arranques').orderByKey().limitToLast(400).on('value', s=>{
+    const v = s.val()||{}; ARRANQUES = Object.keys(v).map(id=>({_id:id, ...v[id]}));
+    if(!$('pg-historial').classList.contains('hide')) pintarHistorial();
+  }, fallo('cal/arranques'));
+  db.ref('cal/corridas').orderByKey().limitToLast(300).on('value', s=>{
+    const v = s.val()||{}; CORRIDAS = Object.keys(v).map(id=>({_id:id, ...v[id]}));
+    pintarEtapa();
+  }, fallo('cal/corridas'));
+  db.ref('cal/especificaciones').on('value', s=>{
+    ESPECS = s.val()||{}; pintarEtapa(); pintarEspecs();
+  }, fallo('cal/especificaciones'));
   // SPEC-018: el resumen de los rechazos. Si no existe, se arma una vez.
   db.ref('cal/mermaResumen').on('value', s=>{
     RESUMEN = s.val();
@@ -1134,6 +1235,512 @@ function variablesDe(defecto, maquina){
   return src ? (src.vars||[]).map(v=>v.nombre) : [];
 }
 
+/* ═══════════════ ARRANQUE Y SEGUIMIENTO A CORRIDA (SPEC-028) ═══════════════
+   El arranque es el «Apartado exclusivo de calidad» de la hoja de arranque: el
+   formato sale del área de la máquina. Un arranque liberado abre una corrida, y
+   el seguimiento a corrida (por bobina) se liga a ella. */
+const REQUISITOS_ARRANQUE = [
+  {id:'op', t:'Orden de producción'}, {id:'tintas', t:'Control de tintas'},
+  {id:'kit', t:'Kit completo'}, {id:'etqmp', t:'Etiquetas MP'}, {id:'sabana', t:'Sábana de arranque'}];
+// Puntos y estándares tal cual las hojas de arranque. `seg`: también se revisa en
+// el seguimiento (por omisión; el administrador lo cambia). `tipo`: 'visual'
+// (Cumple / No cumple / NA), 'medida' (en mm, contra la galería ± tolerancia) o
+// 'grado' (código de barras, A–E).
+const PF = (id, t, std, seg, extra) => Object.assign({id, t, std, seg, tipo:'visual'}, extra||{});
+const MEDIDAS_ARR = [
+  PF('eje','Medida Eje','Ficha Gráfica',true,{tipo:'medida', galeria:'Med_eje'}),
+  PF('desarrollo','Medida Desarrollo','Ficha Gráfica',true,{tipo:'medida', galeria:'Med_des'})];
+const FORMATOS_BASE = {
+  ROTOGRABADO: {nombre:'Rotograbado', puntos:[
+    PF('propuesta','Propuesta','Ficha Gráfica',false),
+    PF('tonos','Tonos','Std. Kit',true),
+    PF('textos','Textos','Legibles, Completos',true),
+    PF('registro','Registro de impresión','Max. 3mm',true),
+    PF('spot','Spot (medidas y Densidad)','Std. Kit',true),
+    PF('direccion','Dir. Impresión en Máquina','Orden',false),
+    PF('espesor','Espesor de Material','Ficha Gráfica',false,{galeria:'sustratos'}),
+    PF('curling','Curling','Menor a 30°',true),
+    PF('barras','Código de Barras','A · B · C · D · E',true,{tipo:'grado'}),
+    ...MEDIDAS_ARR,
+    PF('barniz_mate','Barniz mate','Ficha Gráfica',false),
+    PF('barniz_simp','Barniz s/impresión','Ficha Gráfica',false),
+    PF('repinte','Etiqueta sin repinte','NA',true),
+    PF('velo','Etiqueta sin velo','NA',true),
+    PF('anclaje','Anclaje de Tinta','Sin desprendimiento',true)]},
+  FLEXOGRAFIA: {nombre:'Flexografía', puntos:[
+    PF('propuesta','Propuesta','Ficha Gráfica',false),
+    PF('tonos','Tonos','Std. Kit',true),
+    PF('textos','Textos','Legibles, Completos',true),
+    PF('registro','Registro de impresión','Max. 3mm',true),
+    PF('alineacion','Alineación de Grabado','Paralelo',false),
+    PF('spot','Spot (medidas y Densidad)','Std. Kit',true),
+    PF('direccion','Dir. Impresión en Máquina','Orden',false),
+    PF('espesor','Espesor de Material','Ficha Gráfica',false,{galeria:'sustratos'}),
+    PF('barras','Código de Barras','A · B · C · D · E',true,{tipo:'grado'}),
+    ...MEDIDAS_ARR,
+    PF('laminado','Laminado/ Barnizado','Ficha Gráfica',false),
+    PF('curling','Curling','Menor a 30°',true),
+    PF('suaje','Presión de Suaje','Sin paso de tinta',true),
+    PF('anclaje','Anclaje de Tinta','Sin desprendimiento',true)]}
+};
+let ARRANQUES = [], CORRIDAS = [], ESPECS = {};
+let fGal = null;                       // registro de galería de la etiqueta escrita
+const estArr = {req:{}, pts:{}, area:null, formato:''};
+const estSeg = {pts:{}};
+let corridaFijada = null;              // corrida cuyos OP y etiqueta están puestos en el formulario
+const fmtNum = v => (+v).toLocaleString('es-MX', {maximumFractionDigits:2});
+const numMed = t => { const x = String(t==null?'':t).trim().replace(',', '.'); if(!x) return null;
+  const n = +x; return Number.isFinite(n) && n>0 ? n : null; };
+const normOP = t => String(t||'').trim().replace(/\s+/g,' ').toUpperCase();     // como en la SPEC-024
+// «OP-48213» ya trae el prefijo; «48213» no.
+const conOP = op => /^OP/i.test(String(op||'')) ? String(op) : 'OP ' + (op||'');
+const sinNulos = o => Object.fromEntries(Object.entries(o).filter(([,v])=>v!==null && v!==undefined));
+
+function areaDe(maq){ const m = MAQUINAS.find(x=>x.id===maq); return m ? m.area : ''; }
+// El formato de un área con lo que el administrador cambió encima (cal/especificaciones).
+function formatoArea(area){
+  const base = FORMATOS_BASE[area]; if(!base) return null;
+  const esp = ESPECS[area] || {};
+  return {area, nombre: base.nombre, puntos: base.puntos.map(p=>{
+    const e = esp[p.id] || {}, q = {...p, stdBase: p.std, segBase: p.seg};
+    if(typeof e.std==='string' && e.std.trim()) q.std = e.std.trim();
+    if(typeof e.seg==='boolean') q.seg = e.seg;
+    if(p.tipo==='medida' && +e.tol>0) q.tol = +e.tol;
+    if(p.tipo==='grado' && /^[A-E]$/.test(e.gradoMin||'')) q.gradoMin = e.gradoMin;
+    return q;
+  })};
+}
+const formatoDe = maq => formatoArea(areaDe(maq));
+function corridaActiva(maq){
+  return CORRIDAS.filter(c=>c.maquina===maq && c.estado==='activa')
+                 .sort((a,b)=>(b.inicioTs||0)-(a.inicioTs||0))[0] || null;
+}
+
+/* ── Estándar y resultado de un punto ── */
+// Med_eje y Med_des están en cm en la galería; en piso se mide en mm.
+function nominalMm(p){
+  if(p.tipo!=='medida' || !fGal) return null;
+  const v = +fGal[p.galeria]; return v>0 ? +(v*10).toFixed(2) : null;
+}
+function textoEstandar(p){
+  let t = p.std;
+  if(p.galeria==='sustratos' && fGal){
+    const ss = ['Sustrato1','Sustrato2','Sustrato3'].map(k=>String(fGal[k]||'').trim()).filter(Boolean);
+    if(ss.length) t += ' · ' + ss.join(', ');
+  }
+  if(p.tipo==='medida'){
+    const n = nominalMm(p);
+    t += n!==null ? ` · ${fmtNum(n)} mm (galería)` : (fGal ? ' · sin medida en la galería' : '');
+    if(p.tol) t += ` ± ${fmtNum(p.tol)} mm`;
+  }
+  if(p.tipo==='grado' && p.gradoMin) t += ` · mínimo ${p.gradoMin}`;
+  return t;
+}
+// Con rango definido, el resultado lo da la medida o el grado; sin rango, lo marca el inspector.
+const autoDe = p => (p.tipo==='medida' && p.tol>0 && nominalMm(p)!==null) || (p.tipo==='grado' && !!p.gradoMin);
+// 'cumple' | 'no' | 'na' | '' (sin contestar)
+function resultadoPunto(p, st){
+  st = st || {};
+  if(st.r==='na') return 'na';
+  if(autoDe(p)){
+    if(p.tipo==='medida'){ const v = numMed(st.valor); if(v===null) return '';
+      return Math.abs(v - nominalMm(p)) <= p.tol + 1e-9 ? 'cumple' : 'no'; }
+    if(!st.grado) return '';
+    return st.grado <= p.gradoMin ? 'cumple' : 'no';          // A es el mejor grado
+  }
+  return st.r || '';
+}
+// Lo que se guarda de un punto: resultado y con qué estándar o rango se evaluó.
+function puntoGuardado(p, st, r){
+  const o = {r, punto: p.t, estandar: textoEstandar(p)};
+  if(p.tipo==='medida'){
+    const v = numMed(st.valor), n = nominalMm(p);
+    if(v!==null) o.medida = v; if(n!==null) o.nominal = n; if(p.tol) o.tol = p.tol;
+  }
+  if(p.tipo==='grado'){ if(st.grado) o.grado = st.grado; if(p.gradoMin) o.gradoMin = p.gradoMin; }
+  if(autoDe(p) && r!=='na') o.auto = true;
+  return o;
+}
+
+/* ── Renglones ── */
+const estDe = ctx => ctx==='a' ? estArr.pts : estSeg.pts;
+function botonesResultado(p, r){
+  const b = (v, t, cls) => `<button type="button" data-v="${v}" class="${r===v?cls:''}"
+    onclick="marcarPunto(this,'${p.id}','${v}')">${t}</button>`;
+  return b('cumple','Cumple','on-ok') + b('no','No cumple','on-no') + b('na','NA','on-na');
+}
+function filaPunto(p, ctx){
+  const st = estDe(ctx)[p.id] || {}, r = resultadoPunto(p, st);
+  let extra = '';
+  if(p.tipo==='medida') extra = `<input class="pt-med" inputmode="decimal" placeholder="mm" aria-label="Medida en mm"
+      value="${esc(st.valor||'')}" oninput="medidaPunto(this,'${p.id}')">`;
+  if(p.tipo==='grado') extra = `<span class="ck ck-grado">${['A','B','C','D','E'].map(g=>
+      `<button type="button" class="${st.grado===g?'on-g':''}" onclick="gradoPunto(this,'${p.id}','${g}')">${g}</button>`).join('')}</span>`;
+  return `<div class="pt" id="pt-${ctx}-${p.id}" data-ctx="${ctx}">
+    <div class="pt-t">${esc(p.t)}<span class="pt-std">${esc(textoEstandar(p))}</span></div>
+    ${extra}<span class="ck ck-res${autoDe(p)?' auto':''}">${botonesResultado(p, r)}</span></div>`;
+}
+function filaSiNo(ctx, id, t, val, fn){
+  return `<div class="pt" id="pt-${ctx}-${id}"><div class="pt-t">${esc(t)}</div><span class="ck">
+    <button type="button" class="${val==='si'?'on-ok':''}" onclick="${fn}('${id}','si')">Sí</button>
+    <button type="button" class="${val==='no'?'on-no':''}" onclick="${fn}('${id}','no')">No</button></span></div>`;
+}
+const puntoPorId = (ctx, id) => { const f = formatoDe($('f-maquina').value); return f && f.puntos.find(p=>p.id===id); };
+// Repinta solo los botones del renglón: así el campo de la medida no pierde el foco.
+function refrescarFila(ctx, id){
+  const p = puntoPorId(ctx, id), fila = $('pt-'+ctx+'-'+id); if(!p || !fila) return;
+  const st = estDe(ctx)[id] || {};
+  fila.querySelector('.ck-res').innerHTML = botonesResultado(p, resultadoPunto(p, st));
+  const g = fila.querySelector('.ck-grado');
+  if(g) [...g.children].forEach(b=>b.className = st.grado===b.textContent ? 'on-g' : '');
+  if(resultadoPunto(p, st)) fila.classList.remove('pendiente');
+  if(ctx==='a') pintarResultadoArr();
+}
+function marcarPunto(btn, id, v){
+  const ctx = btn.closest('.pt').dataset.ctx, p = puntoPorId(ctx, id); if(!p) return;
+  const est = estDe(ctx), st = est[id] = est[id] || {};
+  if(autoDe(p) && v!=='na'){
+    toast(p.tipo==='medida' ? 'Se marca solo: escribe la medida en mm' : 'Se marca solo: elige el grado'); return;
+  }
+  st.r = (autoDe(p) && st.r==='na') ? '' : v;
+  refrescarFila(ctx, id);
+}
+function medidaPunto(inp, id){
+  const ctx = inp.closest('.pt').dataset.ctx, est = estDe(ctx), st = est[id] = est[id] || {};
+  st.valor = inp.value; if(st.r==='na' && inp.value.trim()) st.r = '';
+  refrescarFila(ctx, id);
+}
+function gradoPunto(btn, id, g){
+  const ctx = btn.closest('.pt').dataset.ctx, est = estDe(ctx), st = est[id] = est[id] || {};
+  st.grado = st.grado===g ? '' : g; if(st.r==='na' && st.grado) st.r = '';
+  refrescarFila(ctx, id);
+}
+function resaltarFaltantes(ctx, ids){
+  ids.forEach(id=>{ const e = $('pt-'+ctx+'-'+id); if(e) e.classList.add('pendiente'); });
+  const e = ids.length && $('pt-'+ctx+'-'+ids[0]); if(e) e.scrollIntoView({block:'center', behavior:'smooth'});
+}
+
+/* ── Etapa: qué se muestra ── */
+function maquinaElegida(){
+  const area = areaDe($('f-maquina').value);
+  if(area !== estArr.formato){ estArr.pts = {}; estArr.formato = area; }
+  estSeg.pts = {}; $('a-hecho').innerHTML = '';
+  pintarFoco(); pintarEtapa();
+}
+function pintarEtapa(){
+  if(!$('f-maquina').value) return;
+  const arr = $('f-etapa').value==='arranque';
+  $('bloque-arranque').classList.toggle('hide', !arr);
+  $('bloque-seguimiento').classList.toggle('hide', arr);
+  $('c-corridas').classList.toggle('hide', arr);
+  $('f-bobina-c').classList.toggle('hide', arr);
+  fijarCorrida(arr ? null : corridaActiva($('f-maquina').value));
+  if(arr) pintarArranque(); else pintarSeguimiento();
+  pintarCorridasActivas();
+}
+function pintarPuntos(){            // cuando cambia la etiqueta: cambian los estándares de la galería
+  if(!$('f-maquina').value) return;
+  if($('f-etapa').value==='arranque') pintarArranque(); else pintarSeguimiento();
+}
+
+// En el seguimiento con corrida, OP y etiqueta son los de la corrida y no se editan.
+function fijarCorrida(c){
+  const id = c ? c._id : null, op = $('f-op'), et = $('f-etiqueta');
+  op.readOnly = et.readOnly = !!c;
+  op.classList.toggle('derivado-m', !!c); et.classList.toggle('derivado-m', !!c);
+  if(id === corridaFijada) return;
+  const antes = corridaFijada; corridaFijada = id;
+  if(c){
+    op.value = c.op || ''; $('f-bobina').value = String((+c.bobinas||0) + 1);
+    if(claveEtiq(et.value) !== c.etiqueta){ et.value = c.etiqueta || ''; etiquetaEscrita(); buscarEtiqueta(true); }
+  } else if(antes){
+    op.value = ''; et.value = ''; $('f-bobina').value = ''; etiquetaEscrita();
+  }
+}
+
+function pintarArranque(){
+  const f = formatoDe($('f-maquina').value);
+  $('a-formato').classList.toggle('hide', !f);
+  $('a-sin-formato').innerHTML = f ? '' : `<div class="card"><div class="aviso aviso-amber" style="margin:0">
+    ${esc($('f-maquina').value)} es del área ${esc(areaDe($('f-maquina').value)||'—')}, que todavía no tiene
+    formato de arranque. Hoy lo tienen Rotograbado y Flexografía; digital, laminado y acondicionado
+    se agregan cuando Calidad comparta sus hojas.</div></div>`;
+  if(!f) return;
+  $('a-formato-nom').textContent = f.nombre;
+  $('a-requisitos').innerHTML = REQUISITOS_ARRANQUE.map(r=>filaSiNo('a', r.id, r.t, estArr.req[r.id], 'marcarReq')).join('');
+  $('a-puntos').innerHTML = f.puntos.map(p=>filaPunto(p, 'a')).join('');
+  $('a-area').innerHTML = filaSiNo('a', 'area', 'El área queda libre del trabajo del pedido anterior', estArr.area, 'marcarArea');
+  pintarResultadoArr();
+}
+function marcarReq(id, v){ estArr.req[id] = v; $('a-requisitos').innerHTML =
+  REQUISITOS_ARRANQUE.map(r=>filaSiNo('a', r.id, r.t, estArr.req[r.id], 'marcarReq')).join(''); pintarResultadoArr(); }
+function marcarArea(id, v){ estArr.area = v; $('a-area').innerHTML =
+  filaSiNo('a', 'area', 'El área queda libre del trabajo del pedido anterior', estArr.area, 'marcarArea'); pintarResultadoArr(); }
+
+// Liberado: los cinco requisitos en Sí, todos los puntos en Cumple o NA y el área libre.
+function evaluarArranque(f){
+  const faltan = [], motivos = [];
+  REQUISITOS_ARRANQUE.forEach(r=>{ const v = estArr.req[r.id];
+    if(!v) faltan.push({id:r.id, t:r.t}); else if(v==='no') motivos.push('Requisito previo: ' + r.t); });
+  f.puntos.forEach(p=>{ const r = resultadoPunto(p, estArr.pts[p.id]);
+    if(!r) faltan.push({id:p.id, t:p.t}); else if(r==='no') motivos.push(p.t + ': no cumple'); });
+  if(!estArr.area) faltan.push({id:'area', t:'Área libre del pedido anterior'});
+  else if(estArr.area==='no') motivos.push('El área no quedó libre del pedido anterior');
+  return {faltan, motivos, liberado: !faltan.length && !motivos.length};
+}
+function pintarResultadoArr(){
+  const f = formatoDe($('f-maquina').value); if(!f) return;
+  const ev = evaluarArranque(f), caja = $('a-resultado');
+  if(ev.motivos.length) caja.innerHTML = `<div class="res-arr res-no"><b>No liberado</b>${ev.faltan.length ?
+      ` · faltan ${ev.faltan.length} por contestar` : ''}<br>${ev.motivos.map(esc).join('<br>')}</div>`;
+  else if(ev.faltan.length) caja.innerHTML = `<div class="aviso" style="margin:0">Faltan ${ev.faltan.length} de
+      ${REQUISITOS_ARRANQUE.length + f.puntos.length + 1} por contestar.</div>`;
+  else caja.innerHTML = `<div class="res-arr res-ok"><b>Liberado</b> · todo cumple. Al registrarlo se abre la corrida.</div>`;
+}
+
+/* Lo que piden el arranque y el seguimiento por igual (SPEC-016, SPEC-027):
+   etiqueta y operador válidos. Devuelve los datos comunes del registro, o null. */
+async function validarComunes(){
+  if(!$('f-etiqueta').value.trim()){ toast('Escribe el número de etiqueta'); return null; }
+  if(!$('f-nom-ope').value.trim()){ toast('Escribe la nómina del operador'); return null; }
+  const op = await fBuscarOperador();
+  if(!op || op.estado==='error'){ toast('No se pudo consultar la nómina del operador'); return null; }
+  if(op.estado==='no'){ toast('La nómina del operador no está en el padrón de RRHH'); return null; }
+  if(op.estado==='baja'){ toast('El operador está dado de baja en RRHH'); return null; }
+  const info = await buscarEtiqueta(true);
+  const enGaleria = info.encontrada===true ? {etiquetaNombre: info.nombre, etiquetaCliente: info.cliente, etiquetaEnGaleria: true}
+                  : info.encontrada===false ? {etiquetaEnGaleria: false} : {};
+  const ahora = new Date();
+  return {
+    turno: turnoDe(ahora), maquina: $('f-maquina').value, etiqueta: info.clave, ...enGaleria,
+    fecha: fechaLocal(ahora), hora: horaLocal(ahora), ts: ahora.getTime(),
+    operadorNomina: op.nomina, operadorNombre: op.nombre,
+    inspectorNomina: sesion.nomina, inspectorNombre: sesion.nombre
+  };
+}
+
+async function registrarArranque(){
+  const maq = $('f-maquina').value, f = formatoDe(maq);
+  if(!f){ toast('Esta máquina todavía no tiene formato de arranque'); return; }
+  const op = normOP($('f-op').value);
+  if(!op){ toast('Escribe la orden de producción'); $('f-op').focus(); return; }
+  const ev = evaluarArranque(f);
+  if(ev.faltan.length){
+    resaltarFaltantes('a', ev.faltan.map(x=>x.id));
+    toast(`Falta contestar: ${ev.faltan[0].t}${ev.faltan.length>1 ? ' y '+(ev.faltan.length-1)+' más' : ''}`); return;
+  }
+  const comun = await validarComunes(); if(!comun) return;
+  const puntos = {};
+  f.puntos.forEach(p=>{ const st = estArr.pts[p.id] || {}; puntos[p.id] = puntoGuardado(p, st, resultadoPunto(p, st)); });
+  const intento = 1 + ARRANQUES.filter(a=>a.maquina===maq && a.op===op && a.etiqueta===comun.etiqueta).length;
+  const rec = {...comun, etapa:'arranque', area:f.area, formato:f.nombre, op,
+    requisitos:{...estArr.req}, puntos, areaLibre: estArr.area, comentarios: $('a-coment').value.trim(),
+    resultado: ev.liberado ? 'liberado' : 'no liberado', motivos: ev.motivos, intento};
+  const aKey = db.ref('cal/arranques').push().key, upd = {};
+  if(ev.liberado){
+    const cKey = db.ref('cal/corridas').push().key; rec.corridaId = cKey;
+    // Una máquina tiene a lo sumo una corrida activa: la anterior se cierra.
+    CORRIDAS.filter(c=>c.maquina===maq && c.estado==='activa').forEach(c=>{
+      const r = 'corridas/'+c._id+'/';
+      Object.assign(upd, {[r+'estado']:'cerrada', [r+'cerradaTs']:rec.ts, [r+'cerradaFecha']:rec.fecha,
+        [r+'cerradaHora']:rec.hora, [r+'cerradaPorNomina']:sesion.nomina, [r+'cerradaPorNombre']:sesion.nombre,
+        [r+'motivoCierre']:'nuevo arranque'});
+    });
+    upd['corridas/'+cKey] = sinNulos({maquina:maq, area:f.area, op, etiqueta:rec.etiqueta,
+      etiquetaNombre:rec.etiquetaNombre, etiquetaCliente:rec.etiquetaCliente, arranqueId:aKey,
+      inicioTs:rec.ts, fecha:rec.fecha, hora:rec.hora, liberoNomina:sesion.nomina, liberoNombre:sesion.nombre,
+      operadorNomina:rec.operadorNomina, operadorNombre:rec.operadorNombre,
+      estado:'activa', revisiones:0, bobinas:0});
+  }
+  upd['arranques/'+aKey] = rec;
+  try{ await db.ref('cal').update(upd); }
+  catch(e){ toast('Error: '+e.message); return; }
+  mostrarHoraInspeccion(rec.hora);
+  if(ev.liberado){
+    toast(`Arranque liberado a las ${rec.hora}. Se abrió la corrida.`);
+    estArr.req = {}; estArr.pts = {}; estArr.area = null; $('a-coment').value = '';
+    $('a-hecho').innerHTML = `<div class="card"><div class="res-arr res-ok"><b>Arranque liberado</b> ·
+      ${esc(maq)} · ${esc(conOP(op))} · etiqueta ${esc(rec.etiqueta)} · ${esc(rec.hora)}${intento>1 ? ' · intento '+intento : ''}<br>
+      Se abrió la corrida: el seguimiento por bobina se registra en «Seguimiento a corrida».</div>
+      <button class="btn btn-2" onclick="irACorrida('${esc(maq)}')">Ir al seguimiento</button></div>`;
+  } else {
+    toast(`Arranque no liberado (intento ${intento})`);
+    $('a-hecho').innerHTML = `<div class="card"><div class="res-arr res-no"><b>No liberado</b> · intento ${intento} ·
+      ${esc(maq)} · ${esc(conOP(op))} · ${esc(rec.hora)}<br>${ev.motivos.map(esc).join('<br>')}<br>
+      Cuando se corrija, vuelve a registrar el arranque: las respuestas se quedan para que solo cambies lo corregido.</div></div>`;
+  }
+  pintarArranque();
+  $('a-hecho').scrollIntoView({block:'start', behavior:'smooth'});
+}
+
+/* ── Seguimiento a corrida ── */
+function pintarSeguimiento(){
+  const maq = $('f-maquina').value, f = formatoDe(maq), c = corridaActiva(maq);
+  $('c-corrida').classList.toggle('hide', !f && !c);
+  if(c){
+    const lib = c.fecha===fechaLocal(new Date()) ? 'hoy a las '+c.hora : c.fecha.split('-').reverse().join('/')+' a las '+c.hora;
+    $('corrida-info').innerHTML = `<div class="corr-info"><b>${esc(conOP(c.op))} · etiqueta ${esc(c.etiqueta)}</b>
+      ${c.etiquetaNombre ? '<br>'+esc(c.etiquetaNombre)+(c.etiquetaCliente ? ' · '+esc(c.etiquetaCliente) : '') : ''}
+      <br>Liberada ${esc(lib)} por ${esc(c.liberoNombre||'')}
+      <br>Revisiones: ${+c.revisiones||0}${c.bobinas ? ' · última bobina '+c.bobinas : ''}${c.ultimaHora ? ' · última revisión '+esc(c.ultimaHora) : ''}</div>
+      <button class="btn btn-2 btn-sm" style="margin-top:10px" onclick="pedirTerminarCorrida('${c._id}')">Terminar corrida</button>`;
+  } else if(f){
+    $('corrida-info').innerHTML = `<div class="aviso aviso-amber" style="margin:0">No hay un arranque liberado en
+      ${esc(maq)}. Haz primero la inspección de arranque. Si registras el seguimiento así, queda marcado
+      «sin arranque liberado».</div>`;
+  }
+  const ps = f ? f.puntos.filter(p=>p.seg) : [];
+  $('c-puntos-seg').classList.toggle('hide', !ps.length);
+  $('s-formato-nom').textContent = f ? f.nombre : '';
+  $('s-puntos').innerHTML = ps.map(p=>filaPunto(p, 's')).join('');
+}
+
+// Revisa bobina y puntos del producto; devuelve lo que se agrega a la inspección, o null.
+function datosSeguimiento(pasa){
+  const maq = $('f-maquina').value, f = formatoDe(maq), c = corridaActiva(maq);
+  const bt = $('f-bobina').value.trim(), bob = /^\d+$/.test(bt) && +bt>0 ? +bt : null;
+  if(bt && bob===null){ toast('La bobina debe ser un número entero mayor que cero'); return null; }
+  if(f && bob===null){ toast('Escribe el número de bobina'); $('f-bobina').focus(); return null; }
+  const ps = f ? f.puntos.filter(p=>p.seg) : [], puntos = {}, noCumple = [], faltan = [];
+  ps.forEach(p=>{ const st = estSeg.pts[p.id] || {}, r = resultadoPunto(p, st);
+    if(!r) faltan.push(p); else { puntos[p.id] = puntoGuardado(p, st, r); if(r==='no') noCumple.push(p.t); } });
+  if(faltan.length){
+    resaltarFaltantes('s', faltan.map(p=>p.id));
+    toast(`Falta contestar: ${faltan[0].t}${faltan.length>1 ? ' y '+(faltan.length-1)+' más' : ''}`); return null;
+  }
+  if(pasa && noCumple.length){ toast(`${noCumple[0]} no cumple: registra «No pasa»`); return null; }
+  const op = c ? c.op : normOP($('f-op').value);
+  return sinNulos({op: op || null, bobina: bob, corridaId: c ? c._id : null,
+    puntos: ps.length ? puntos : null, puntosNoCumple: noCumple.length ? noCumple : null,
+    sinArranque: f && !c ? true : null});
+}
+
+// Graba la inspección y, si es de una corrida, actualiza la corrida en la misma escritura.
+function guardarInspeccion(base, extra){
+  const k = db.ref('cal/inspecciones').push().key;
+  const upd = Object.assign({['inspecciones/'+k]: base}, extra||{});
+  if(base.corridaId){
+    const r = 'corridas/'+base.corridaId+'/', c = CORRIDAS.find(x=>x._id===base.corridaId);
+    upd[r+'revisiones'] = firebase.database.ServerValue.increment(1);
+    upd[r+'ultimaTs'] = base.ts; upd[r+'ultimaFecha'] = base.fecha; upd[r+'ultimaHora'] = base.hora;
+    upd[r+'ultimoResultado'] = base.resultado;
+    if(base.bobina) upd[r+'bobinas'] = Math.max(+(c && c.bobinas)||0, base.bobina);
+  }
+  return db.ref('cal').update(upd).then(()=>k);
+}
+function limpiarTrasInspeccion(base){
+  estSeg.pts = {};
+  if(base.corridaId){ if(base.bobina) $('f-bobina').value = String(base.bobina + 1); }
+  else { $('f-etiqueta').value = ''; etiquetaEscrita(); $('f-bobina').value = ''; }
+  // el operador se queda: suele seguir en la máquina
+  pintarSeguimiento();
+}
+
+/* ── Corridas activas ── */
+function pintarCorridasActivas(){
+  const lista = CORRIDAS.filter(c=>c.estado==='activa').sort((a,b)=>String(a.maquina).localeCompare(String(b.maquina)));
+  const hoy = fechaLocal(new Date());
+  $('corridas-activas').innerHTML = !lista.length
+    ? '<div class="vacio" style="padding:10px">No hay corridas activas. Se abren al liberar un arranque.</div>'
+    : `<div class="gal-tabla-wrap"><table class="gal-tabla"><thead><tr><th>Máquina</th><th>OP · etiqueta</th>
+        <th>Liberada</th><th>Revisiones</th><th>Última revisión</th></tr></thead><tbody>${lista.map(c=>`
+        <tr class="corr-fila" onclick="irACorrida('${esc(c.maquina)}')">
+          <td><b>${esc(c.maquina)}</b></td><td>${esc(c.op)} · ${esc(c.etiqueta)}</td>
+          <td>${c.fecha===hoy ? '' : esc(c.fecha.split('-').reverse().slice(0,2).join('/'))+' '}${esc(c.hora||'')}</td>
+          <td>${+c.revisiones||0}${c.bobinas ? ' · bobina '+c.bobinas : ''}</td>
+          <td>${c.ultimaHora ? (c.ultimaFecha && c.ultimaFecha!==hoy ? esc(c.ultimaFecha.split('-').reverse().slice(0,2).join('/'))+' ' : '')+esc(c.ultimaHora) : '—'}</td>
+        </tr>`).join('')}</tbody></table></div>`;
+}
+function irACorrida(maq){
+  $('f-etapa').value = 'proceso'; $('f-maquina').value = maq; maquinaElegida();
+  $('c-corrida').scrollIntoView({block:'start', behavior:'smooth'});
+}
+function pedirTerminarCorrida(id){
+  const c = CORRIDAS.find(x=>x._id===id); if(!c) return;
+  const cont = document.createElement('div');
+  cont.className = 'modal'; cont.id = 'modal-corrida';
+  cont.innerHTML = `<div class="modal-box">
+    <div class="modal-t">Terminar corrida</div>
+    <div style="font-size:13px;line-height:1.5;color:var(--text2)">${esc(c.maquina)} · ${esc(conOP(c.op))} · etiqueta
+      ${esc(c.etiqueta)}<br>Úsalo cuando termine la orden de producción. Después, el seguimiento en esta
+      máquina pide un arranque nuevo.</div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn btn-2" style="margin:0" onclick="cerrarModal('modal-corrida')">Cancelar</button>
+      <button class="btn" style="margin:0" onclick="terminarCorrida('${id}')">Terminar corrida</button>
+    </div></div>`;
+  document.body.appendChild(cont);
+}
+function terminarCorrida(id){
+  const ahora = new Date();
+  db.ref('cal/corridas/'+id).update({estado:'cerrada', cerradaTs: ahora.getTime(), cerradaFecha: fechaLocal(ahora),
+    cerradaHora: horaLocal(ahora), cerradaPorNomina: sesion.nomina, cerradaPorNombre: sesion.nombre, motivoCierre:'terminada'})
+    .then(()=>{ cerrarModal('modal-corrida'); toast('Corrida terminada'); })
+    .catch(e=>toast('Error: '+e.message));
+}
+
+/* ── Especificaciones y rangos: Galería → Formatos de arranque ── */
+function pintarEspecs(){
+  const sel = $('e-area'); if(!sel || !sesion) return;
+  if(!sel.options.length) sel.innerHTML = Object.keys(FORMATOS_BASE).map(a=>`<option value="${a}">${FORMATOS_BASE[a].nombre}</option>`).join('');
+  const area = sel.value, f = formatoArea(area), admin = sesion.rol==='ADMIN';
+  const maqs = MAQUINAS.filter(m=>m.area===area).map(m=>m.id).join(', ');
+  $('e-nota').textContent = `Máquinas: ${maqs || '—'}. ` + (admin ? 'Edita un punto para cambiar su estándar o su rango.'
+    : 'Solo un administrador cambia estándares y rangos.');
+  const tipo = p => p.tipo==='medida' ? 'Medida (mm) contra galería' : p.tipo==='grado' ? 'Grado A–E' : 'Visual';
+  const rango = p => p.tipo==='medida' ? (p.tol ? '± '+fmtNum(p.tol)+' mm' : '<span class="a-vacio">sin definir</span>')
+                   : p.tipo==='grado' ? (p.gradoMin ? 'mínimo '+p.gradoMin : '<span class="a-vacio">sin definir</span>') : '—';
+  $('e-tabla').innerHTML = `<thead><tr><th>#</th><th>Punto</th><th>Estándar</th><th>Tipo</th><th>Rango</th>
+    <th>En seguimiento</th>${admin ? '<th>Editar</th>' : ''}</tr></thead><tbody>` +
+    f.puntos.map((p,i)=>`<tr><td>${i+1}</td><td><b>${esc(p.t)}</b></td><td>${esc(p.std)}</td><td>${tipo(p)}</td>
+      <td>${rango(p)}</td><td>${p.seg ? 'Sí' : 'No'}</td>
+      ${admin ? `<td><button class="r-acc" onclick="abrirEspec('${area}','${p.id}')">Editar</button></td>` : ''}</tr>`).join('') +
+    `</tbody>`;
+}
+function abrirEspec(area, id){
+  if(sesion.rol!=='ADMIN') return;
+  const p = formatoArea(area).puntos.find(x=>x.id===id); if(!p) return;
+  const hay = !!((ESPECS[area]||{})[id]);
+  const cont = document.createElement('div');
+  cont.className = 'modal'; cont.id = 'modal-espec';
+  cont.innerHTML = `<div class="modal-box">
+    <div class="modal-t">${esc(p.t)} · ${esc(FORMATOS_BASE[area].nombre)}</div>
+    <label>Estándar</label><input id="e-std" value="${esc(p.std)}" placeholder="${esc(p.stdBase)}">
+    ${p.tipo==='medida' ? `<label>Tolerancia ± (mm)</label><input id="e-tol" inputmode="decimal" value="${p.tol ? esc(String(p.tol)) : ''}" placeholder="Sin definir">
+      <div class="r-def-nota">Con tolerancia, el inspector escribe la medida y la app la compara contra
+      ${p.galeria==='Med_eje' ? 'Med_eje' : 'Med_des'} de la galería. Vacía, el inspector marca Cumple o No cumple.</div>` : ''}
+    ${p.tipo==='grado' ? `<label>Grado mínimo aceptable</label><select id="e-grado">
+      <option value="">Sin definir</option>${['A','B','C','D','E'].map(g=>`<option ${p.gradoMin===g?'selected':''}>${g}</option>`).join('')}</select>
+      <div class="r-def-nota">Con grado mínimo, el inspector elige el grado y la app marca el resultado. Sin él, lo marca el inspector.</div>` : ''}
+    <label style="display:flex;align-items:center;gap:8px;margin-top:14px">
+      <input type="checkbox" id="e-seg" style="width:auto" ${p.seg ? 'checked' : ''}> Se revisa en el seguimiento a corrida</label>
+    <div class="row" style="margin-top:14px">
+      <button class="btn btn-2" style="margin:0" onclick="cerrarModal('modal-espec')">Cancelar</button>
+      ${hay ? `<button class="btn btn-2" style="margin:0" onclick="restablecerEspec('${area}','${id}')">Restablecer</button>` : ''}
+      <button class="btn" style="margin:0" onclick="guardarEspec('${area}','${id}')">Guardar</button>
+    </div></div>`;
+  document.body.appendChild(cont);
+}
+function guardarEspec(area, id){
+  const base = FORMATOS_BASE[area].puntos.find(x=>x.id===id);
+  const std = $('e-std').value.trim().replace(/\s+/g,' ');
+  if(!std){ toast('El estándar no puede quedar vacío'); return; }
+  const o = {};
+  if(std !== base.std) o.std = std;
+  if($('e-seg').checked !== base.seg) o.seg = $('e-seg').checked;
+  if(base.tipo==='medida'){ const t = $('e-tol').value.trim();
+    if(t){ const n = numMed(t); if(n===null){ toast('La tolerancia debe ser un número mayor que cero'); return; } o.tol = n; } }
+  if(base.tipo==='grado' && $('e-grado').value) o.gradoMin = $('e-grado').value;
+  const ref = db.ref('cal/especificaciones/'+area+'/'+id);
+  const hecho = Object.keys(o).length
+    ? ref.set({...o, editadoPorNomina: sesion.nomina, editadoPorNombre: sesion.nombre, editadoEn: Date.now()})
+    : ref.remove();
+  hecho.then(()=>{ cerrarModal('modal-espec'); toast('Especificación guardada'); }).catch(e=>toast('Error: '+e.message));
+}
+function restablecerEspec(area, id){
+  db.ref('cal/especificaciones/'+area+'/'+id).remove()
+    .then(()=>{ cerrarModal('modal-espec'); toast('Se restableció lo de la hoja'); }).catch(e=>toast('Error: '+e.message));
+}
+
 /* ═══════════════ INSPECCIÓN (SPEC-004, SPEC-007) ═══════════════ */
 /* ── SPEC-027: operador, hora y auditor en la inspección ── */
 let fOperador = null, fOpTimer = null;
@@ -1168,42 +1775,26 @@ async function fBuscarOperador(){
 }
 
 async function resolver(pasa){
-  // SPEC-004: la etiqueta es obligatoria; sin ella el foco por etiqueta es imposible.
-  if(!$('f-etiqueta').value.trim()){ toast('Escribe el número de etiqueta'); return; }
-  // SPEC-027: el operador es obligatorio y debe estar activo en el padrón.
-  if(!$('f-nom-ope').value.trim()){ toast('Escribe la nómina del operador'); return; }
-  const op = await fBuscarOperador();
-  if(!op || op.estado==='error'){ toast('No se pudo consultar la nómina del operador'); return; }
-  if(op.estado==='no'){ toast('La nómina del operador no está en el padrón de RRHH'); return; }
-  if(op.estado==='baja'){ toast('El operador está dado de baja en RRHH'); return; }
-  // SPEC-016: se asegura la consulta a la galería aunque no haya salido del campo.
-  const info = await buscarEtiqueta(true);
-  const etiqueta = info.clave;
-  const enGaleria = info.encontrada===true ? {etiquetaNombre: info.nombre, etiquetaCliente: info.cliente,
-                                               etiquetaEnGaleria: true}
-                  : info.encontrada===false ? {etiquetaEnGaleria: false} : {};
-  const ahora = new Date();                       // SPEC-027: el momento en que termina la inspección
+  // SPEC-028: en el seguimiento se revisan bobina y puntos del producto antes que lo demás.
+  const seg = $('f-etapa').value!=='arranque' ? datosSeguimiento(pasa) : {};
+  if(!seg) return;
+  // SPEC-004, SPEC-016, SPEC-027: etiqueta y operador obligatorios y válidos.
+  const comun = await validarComunes(); if(!comun) return;
   const base = {
+    ...comun,                                     // turno, fecha y hora de cuando termina (SPEC-016, SPEC-027)
     etapa: $('f-etapa').value,                    // SPEC-003
-    turno: turnoDe(ahora),                        // SPEC-016: el de la hora de registro
-    maquina: $('f-maquina').value, etiqueta, ...enGaleria,
-    fecha: fechaLocal(ahora),                     // SPEC-016: fecha local, no universal
-    hora: horaLocal(ahora),                       // SPEC-027
-    ts: ahora.getTime(),
-    operadorNomina: op.nomina, operadorNombre: op.nombre,   // SPEC-027: copia, como todo lo de la suite
+    ...seg,                                       // SPEC-028: op, bobina, corrida y puntos
     // SPEC-009: copia, no referencia. Quién inspeccionó queda grabado con nombre y
-    // nómina tal como estaban. El inspector es quien inició sesión, no un
-    // nombre elegido de una lista.
-    inspectorNomina: sesion.nomina, inspectorNombre: sesion.nombre,
+    // nómina tal como estaban (inspectorNomina, inspectorNombre, en `comun`).
     resultado: pasa ? 'pasa' : 'no pasa',
     // Enfoque preventivo: qué variables se revisaron y cómo salieron.
     variables: vigiladas,
     variablesDesviadas: Object.keys(vigiladas).filter(k=>vigiladas[k]==='desviada')
   };
   if(pasa){
-    db.ref('cal/inspecciones').push(base)
+    guardarInspeccion(base)
       .then(()=>{ toast(`Inspección registrada a las ${base.hora}`); mostrarHoraInspeccion(base.hora);
-                  $('f-etiqueta').value=''; etiquetaEscrita(); })   // el operador se queda: suele seguir en la máquina
+                  limpiarTrasInspeccion(base); })
       .catch(e=>toast('Error: '+e.message));
   } else {
     pendiente = base; abrirHallazgo();
@@ -1219,7 +1810,8 @@ function abrirHallazgo(){
   cont.innerHTML = `<div class="modal-box">
     <div class="modal-t">Registrar hallazgo</div>
     <div style="font-size:12.5px;color:var(--text2);margin-bottom:10px">
-      ${esc(pendiente.maquina)} · etiqueta ${esc(pendiente.etiqueta)} · ${esc(pendiente.turno)}
+      ${esc(pendiente.maquina)} · etiqueta ${esc(pendiente.etiqueta)} · ${esc(pendiente.turno)}${pendiente.op ? ' · '+esc(conOP(pendiente.op)) : ''}${pendiente.bobina ? ' · bobina '+pendiente.bobina : ''}
+      ${pendiente.puntosNoCumple ? '<br>No cumple: '+esc(pendiente.puntosNoCumple.join(', ')) : ''}
       ${pendiente.etiquetaNombre ? '<br>'+esc(pendiente.etiquetaNombre)+' · '+esc(pendiente.etiquetaCliente||'') : ''}
     </div>
     <label>Defecto encontrado</label>
@@ -1288,14 +1880,14 @@ function guardarHallazgo(){
     obs: $('h-obs').value.trim(),
     estado: 'abierta'
   };
-  const ref = db.ref('cal/hallazgos').push();
-  ref.set(h)
-    .then(()=>db.ref('cal/inspecciones').push({...pendiente, hallazgoId: ref.key}))
+  // SPEC-028: hallazgo, inspección y corrida en una sola escritura.
+  const hk = db.ref('cal/hallazgos').push().key;
+  guardarInspeccion({...pendiente, hallazgoId: hk}, {['hallazgos/'+hk]: h})
     .then(()=>{
       cerrarModal('modal-hallazgo');
       toast(h.paro ? 'Hallazgo registrado. Avisa al supervisor del paro.' : 'Hallazgo registrado');
       mostrarHoraInspeccion(pendiente.hora);
-      $('f-etiqueta').value=''; etiquetaEscrita(); pendiente=null;
+      limpiarTrasInspeccion(pendiente); pendiente=null;
     })
     .catch(e=>toast('Error: '+e.message));
 }
@@ -1316,7 +1908,7 @@ const I_COLUMNAS = [
   {t:'Cliente',            v:h=>h.etiquetaCliente,   w:36},
   {t:'Turno',              v:h=>h.turno,             w:11},
   {t:'Hora',               v:h=>h.hora,              w:8},       // SPEC-027
-  {t:'Etapa',              v:h=>h.etapa==='arranque' ? 'Arranque' : 'En proceso', w:11},
+  {t:'Etapa',              v:h=>h.etapa==='arranque' ? 'Arranque' : 'Seguimiento', w:11},   // SPEC-028
   {t:'Metros afectados',   v:h=>h.metros!=null && h.metros!=='' ? +h.metros : null, w:12, num:true},
   {t:'Observaciones',      v:h=>h.obs,               w:36, largo:true},
   {t:'Operador',           v:h=>h.operadorNombre ? `${h.operadorNombre} (${h.operadorNomina})` : '', w:32},   // SPEC-027
@@ -1431,18 +2023,31 @@ function confirmarCierre(id){
 /* ═══════════════ HISTORIAL (SPEC-014) ═══════════════
    Las 60 inspecciones más recientes, de consulta. */
 function pintarHistorial(){
-  const list = [...DB.inspecciones].sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,60);
+  // SPEC-028: arranques y seguimientos juntos, del más reciente al más antiguo.
+  const list = [...DB.inspecciones, ...ARRANQUES.map(a=>({...a, _arranque:true}))]
+    .sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,60);
   if(!list.length){ $('lista-historial').innerHTML='<div class="vacio">Todavía no hay inspecciones.</div>'; return; }
-  $('lista-historial').innerHTML = list.map(i=>`<div class="item">
+  $('lista-historial').innerHTML = list.map(i=>{
+    const pill = i._arranque
+      ? `<span class="pill ${i.resultado==='liberado'?'p-green':'p-red'}">${esc(i.resultado)}</span>`
+      : `<span class="pill ${i.resultado==='pasa'?'p-green':'p-red'}">${esc(i.resultado)}</span>`;
+    const etapa = i._arranque ? 'arranque' + (i.intento>1 ? ' · intento '+i.intento : '')
+                : i.etapa==='arranque' ? 'arranque' : 'seguimiento';
+    const op = [i.op ? esc(conOP(i.op)) : '', i.bobina ? 'bobina '+i.bobina : ''].filter(Boolean).join(' · ');
+    const motivos = i._arranque && i.motivos && i.motivos.length ? i.motivos
+                  : (!i._arranque && i.puntosNoCumple ? i.puntosNoCumple.map(t=>t+': no cumple') : []);
+    return `<div class="item">
     <div style="display:flex;justify-content:space-between;gap:8px">
       <h4>${esc(i.maquina)} · etiqueta ${esc(i.etiqueta)}</h4>
-      <span class="pill ${i.resultado==='pasa'?'p-green':'p-red'}">${esc(i.resultado)}</span>
+      <span>${i.sinArranque ? '<span class="pill p-amber">sin arranque liberado</span> ' : ''}${pill}</span>
     </div>
     ${datosEtiqueta(i)}
-    <div class="meta">${esc(i.fecha)}${i.hora ? ' · '+esc(i.hora) : ''} · ${esc(i.turno)} · ${i.etapa==='arranque'?'arranque':'en proceso'}</div>
+    <div class="meta">${esc(i.fecha)}${i.hora ? ' · '+esc(i.hora) : ''} · ${esc(i.turno)} · ${etapa}${op ? ' · '+op : ''}</div>
+    ${motivos.length ? `<div class="meta" style="color:var(--red)">${motivos.map(esc).join(' · ')}</div>` : ''}
+    ${i.comentarios ? `<div class="meta">Comentarios: ${esc(i.comentarios)}</div>` : ''}
     ${i.operadorNombre ? `<div class="meta">Operador: ${esc(i.operadorNombre)} (${esc(i.operadorNomina)})</div>` : ''}
     <div class="meta">Auditor: ${esc(i.inspectorNombre)} (${esc(i.inspectorNomina)})</div>
-  </div>`).join('');
+  </div>`;}).join('');
 }
 
 /* ═══════════════ COMPORTAMIENTO EN EL TIEMPO (SPEC-004) ═══════════════
@@ -1543,6 +2148,7 @@ async function etiquetaDeGaleria(k){
 
 function etiquetaEscrita(){
   etiqInfo = null; $('f-etiqueta-info').innerHTML = '';
+  if(fGal){ fGal = null; pintarPuntos(); }                 // SPEC-028
   clearTimeout(etiqTimer);
   if($('f-etiqueta').value.trim().length >= 5) etiqTimer = setTimeout(()=>buscarEtiqueta(false), 250);
 }
@@ -1570,6 +2176,7 @@ async function buscarEtiqueta(fijar){
   // ya no corresponde a lo que hay en el campo: no se pinta.
   if(claveEtiq(campo.value) !== k) return info;
   etiqInfo = fallo ? null : info;
+  fGal = fallo ? null : (e || null); pintarPuntos();      // SPEC-028: estándares de la galería
   caja.innerHTML = fallo
     ? `<div class="etq-info etq-no">No se pudo consultar la galería. La inspección se puede registrar igual.</div>`
     : info.encontrada

@@ -11,6 +11,41 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.20.0] — 2026-11-26
+
+### Agregado
+
+- **Arranque de calidad y seguimiento a corrida** (SPEC-028; completa la
+  SPEC-003). La etapa ahora cambia lo que se pregunta:
+  - **Arranque**: el «Apartado exclusivo de calidad» de la hoja, con el formato
+    del área de la máquina: Rotograbado (16 puntos) y Flexografía (15).
+    Requisitos previos, verificación contra estándar (Cumple / No cumple / NA),
+    área libre del pedido anterior, comentarios, y firma y hora automáticas.
+    Liberado / No liberado se calcula solo, con los motivos. Cada intento queda
+    registrado.
+  - Medida eje y desarrollo muestran `Med_eje` y `Med_des` de la galería en mm;
+    espesor de material muestra los sustratos.
+  - **Corrida**: un arranque liberado la abre; una máquina tiene a lo sumo una
+    activa; se termina a mano o con el siguiente arranque liberado.
+  - **Seguimiento a corrida** (antes «En proceso»), por bobina: OP y etiqueta
+    salen de la corrida; puntos del producto, variables de proceso y Pasa / No
+    pasa. Con un punto en No cumple solo se puede registrar No pasa. Sin
+    corrida activa se registra igual, marcado «sin arranque liberado».
+  - Tabla de **corridas activas** en la pestaña Inspección.
+  - Campo **Orden de producción** en la inspección.
+- **Formatos de arranque** en Galería: estándares, si el punto se revisa en el
+  seguimiento, tolerancia de medidas (mm) y grado mínimo del código de barras.
+  Solo el administrador edita; los rangos quedan sin definir hasta que Calidad
+  los tenga.
+- El historial muestra arranques y seguimientos juntos.
+
+### Cambiado
+
+- Inspección, hallazgo y corrida se graban en una sola escritura.
+- Caché del service worker a `calidad-v1.20.0`.
+
+---
+
 ## [1.19.0] — 2026-11-26
 
 ### Agregado

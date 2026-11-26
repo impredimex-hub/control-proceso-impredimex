@@ -11,6 +11,24 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.19.0] — 2026-11-26
+
+### Agregado
+
+- **Operador, hora y auditor en la inspección** (SPEC-027): nómina del
+  operador con el nombre desde el padrón (obligatorio), hora de inspección que
+  se registra al tocar Pasa o No pasa, y auditor tomado de la sesión. Se
+  guardan en la inspección y el hallazgo, y se ven en Historial y en las
+  Acciones de la inspección (columnas Hora, Operador y Auditor).
+
+### Corregido
+
+- En «Qué vigilar en esta máquina», la barra del defecto con variables
+  («vigilar: …») empezaba más a la derecha que las demás.
+- Caché del service worker a `calidad-v1.19.0`.
+
+---
+
 ## [1.18.1] — 2026-11-25
 
 ### Cambiado

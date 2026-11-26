@@ -496,10 +496,10 @@ textarea.derivado[readonly]{background:var(--bg);color:var(--navy-dark);font-wei
           placeholder="Núm. de etiqueta" oninput="etiquetaEscrita()" onchange="buscarEtiqueta(true)"></div>
       </div>
       <div id="f-etiqueta-info"></div>
-      <!-- SPEC-028: orden de producción; en el seguimiento, la bobina que se revisa -->
+      <!-- SPEC-028: orden de producción; en el seguimiento, el master que se revisa -->
       <div class="row">
         <div><label>Orden de producción</label><input id="f-op" autocapitalize="characters" autocomplete="off" onchange="this.value=normOP(this.value)"></div>
-        <div id="f-bobina-c"><label>Bobina núm.</label><input id="f-bobina" inputmode="numeric" autocomplete="off"></div>
+        <div id="f-master-c"><label>Número de master</label><input id="f-master" inputmode="numeric" autocomplete="off"></div>
       </div>
       <!-- SPEC-027: operador (nombre desde el padrón), hora y auditor automáticos -->
       <div class="row r-persona" style="margin-top:2px">
@@ -547,6 +547,7 @@ textarea.derivado[readonly]{background:var(--bg);color:var(--navy-dark);font-wei
         <div id="corrida-info"></div>
       </div>
 
+      <div id="seg-cuerpo">
       <div class="card">
         <div class="card-t">Qué vigilar en esta máquina</div>
         <div id="foco"></div>
@@ -576,6 +577,7 @@ textarea.derivado[readonly]{background:var(--bg);color:var(--navy-dark);font-wei
           <button class="btn" style="background:var(--green);margin:0" onclick="resolver(true)">Pasa</button>
           <button class="btn btn-red" style="margin:0" onclick="resolver(false)">No pasa</button>
         </div>
+      </div>
       </div>
     </div>
   </section>
@@ -1238,7 +1240,7 @@ function variablesDe(defecto, maquina){
 /* ═══════════════ ARRANQUE Y SEGUIMIENTO A CORRIDA (SPEC-028) ═══════════════
    El arranque es el «Apartado exclusivo de calidad» de la hoja de arranque: el
    formato sale del área de la máquina. Un arranque liberado abre una corrida, y
-   el seguimiento a corrida (por bobina) se liga a ella. */
+   el seguimiento a corrida (por master) se liga a ella; sin arranque liberado no hay seguimiento. */
 const REQUISITOS_ARRANQUE = [
   {id:'op', t:'Orden de producción'}, {id:'tintas', t:'Control de tintas'},
   {id:'kit', t:'Kit completo'}, {id:'etqmp', t:'Etiquetas MP'}, {id:'sabana', t:'Sábana de arranque'}];
@@ -1433,7 +1435,7 @@ function pintarEtapa(){
   $('bloque-arranque').classList.toggle('hide', !arr);
   $('bloque-seguimiento').classList.toggle('hide', arr);
   $('c-corridas').classList.toggle('hide', arr);
-  $('f-bobina-c').classList.toggle('hide', arr);
+  $('f-master-c').classList.toggle('hide', arr);
   fijarCorrida(arr ? null : corridaActiva($('f-maquina').value));
   if(arr) pintarArranque(); else pintarSeguimiento();
   pintarCorridasActivas();
@@ -1451,10 +1453,10 @@ function fijarCorrida(c){
   if(id === corridaFijada) return;
   const antes = corridaFijada; corridaFijada = id;
   if(c){
-    op.value = c.op || ''; $('f-bobina').value = String((+c.bobinas||0) + 1);
+    op.value = c.op || ''; $('f-master').value = String((+c.masters||0) + 1);
     if(claveEtiq(et.value) !== c.etiqueta){ et.value = c.etiqueta || ''; etiquetaEscrita(); buscarEtiqueta(true); }
   } else if(antes){
-    op.value = ''; et.value = ''; $('f-bobina').value = ''; etiquetaEscrita();
+    op.value = ''; et.value = ''; $('f-master').value = ''; etiquetaEscrita();
   }
 }
 
@@ -1550,7 +1552,7 @@ async function registrarArranque(){
       etiquetaNombre:rec.etiquetaNombre, etiquetaCliente:rec.etiquetaCliente, arranqueId:aKey,
       inicioTs:rec.ts, fecha:rec.fecha, hora:rec.hora, liberoNomina:sesion.nomina, liberoNombre:sesion.nombre,
       operadorNomina:rec.operadorNomina, operadorNombre:rec.operadorNombre,
-      estado:'activa', revisiones:0, bobinas:0});
+      estado:'activa', revisiones:0, masters:0});
   }
   upd['arranques/'+aKey] = rec;
   try{ await db.ref('cal').update(upd); }
@@ -1561,7 +1563,7 @@ async function registrarArranque(){
     estArr.req = {}; estArr.pts = {}; estArr.area = null; $('a-coment').value = '';
     $('a-hecho').innerHTML = `<div class="card"><div class="res-arr res-ok"><b>Arranque liberado</b> ·
       ${esc(maq)} · ${esc(conOP(op))} · etiqueta ${esc(rec.etiqueta)} · ${esc(rec.hora)}${intento>1 ? ' · intento '+intento : ''}<br>
-      Se abrió la corrida: el seguimiento por bobina se registra en «Seguimiento a corrida».</div>
+      Se abrió la corrida: el seguimiento por master se registra en «Seguimiento a corrida».</div>
       <button class="btn btn-2" onclick="irACorrida('${esc(maq)}')">Ir al seguimiento</button></div>`;
   } else {
     toast(`Arranque no liberado (intento ${intento})`);
@@ -1582,25 +1584,30 @@ function pintarSeguimiento(){
     $('corrida-info').innerHTML = `<div class="corr-info"><b>${esc(conOP(c.op))} · etiqueta ${esc(c.etiqueta)}</b>
       ${c.etiquetaNombre ? '<br>'+esc(c.etiquetaNombre)+(c.etiquetaCliente ? ' · '+esc(c.etiquetaCliente) : '') : ''}
       <br>Liberada ${esc(lib)} por ${esc(c.liberoNombre||'')}
-      <br>Revisiones: ${+c.revisiones||0}${c.bobinas ? ' · última bobina '+c.bobinas : ''}${c.ultimaHora ? ' · última revisión '+esc(c.ultimaHora) : ''}</div>
+      <br>Revisiones: ${+c.revisiones||0}${c.masters ? ' · último master '+c.masters : ''}${c.ultimaHora ? ' · última revisión '+esc(c.ultimaHora) : ''}</div>
       <button class="btn btn-2 btn-sm" style="margin-top:10px" onclick="pedirTerminarCorrida('${c._id}')">Terminar corrida</button>`;
   } else if(f){
     $('corrida-info').innerHTML = `<div class="aviso aviso-amber" style="margin:0">No hay un arranque liberado en
-      ${esc(maq)}. Haz primero la inspección de arranque. Si registras el seguimiento así, queda marcado
-      «sin arranque liberado».</div>`;
+      ${esc(maq)}. El seguimiento a corrida empieza después de liberar el arranque.</div>
+      <button class="btn btn-2" onclick="irAlArranque()">Hacer el arranque</button>`;
   }
+  // Sin arranque liberado no hay seguimiento: en una máquina con formato se oculta el resto.
+  const bloqueado = !!f && !c;
+  $('seg-cuerpo').classList.toggle('hide', bloqueado);
+  $('f-master-c').classList.toggle('hide', bloqueado);
   const ps = f ? f.puntos.filter(p=>p.seg) : [];
   $('c-puntos-seg').classList.toggle('hide', !ps.length);
   $('s-formato-nom').textContent = f ? f.nombre : '';
   $('s-puntos').innerHTML = ps.map(p=>filaPunto(p, 's')).join('');
 }
 
-// Revisa bobina y puntos del producto; devuelve lo que se agrega a la inspección, o null.
+// Revisa master y puntos del producto; devuelve lo que se agrega a la inspección, o null.
 function datosSeguimiento(pasa){
   const maq = $('f-maquina').value, f = formatoDe(maq), c = corridaActiva(maq);
-  const bt = $('f-bobina').value.trim(), bob = /^\d+$/.test(bt) && +bt>0 ? +bt : null;
-  if(bt && bob===null){ toast('La bobina debe ser un número entero mayor que cero'); return null; }
-  if(f && bob===null){ toast('Escribe el número de bobina'); $('f-bobina').focus(); return null; }
+  if(f && !c){ toast('Primero libera el arranque de esta máquina'); return null; }
+  const mt = $('f-master').value.trim(), mas = /^\d+$/.test(mt) && +mt>0 ? +mt : null;
+  if(mt && mas===null){ toast('El número de master debe ser un entero mayor que cero'); return null; }
+  if(f && mas===null){ toast('Escribe el número de master'); $('f-master').focus(); return null; }
   const ps = f ? f.puntos.filter(p=>p.seg) : [], puntos = {}, noCumple = [], faltan = [];
   ps.forEach(p=>{ const st = estSeg.pts[p.id] || {}, r = resultadoPunto(p, st);
     if(!r) faltan.push(p); else { puntos[p.id] = puntoGuardado(p, st, r); if(r==='no') noCumple.push(p.t); } });
@@ -1610,9 +1617,8 @@ function datosSeguimiento(pasa){
   }
   if(pasa && noCumple.length){ toast(`${noCumple[0]} no cumple: registra «No pasa»`); return null; }
   const op = c ? c.op : normOP($('f-op').value);
-  return sinNulos({op: op || null, bobina: bob, corridaId: c ? c._id : null,
-    puntos: ps.length ? puntos : null, puntosNoCumple: noCumple.length ? noCumple : null,
-    sinArranque: f && !c ? true : null});
+  return sinNulos({op: op || null, master: mas, corridaId: c ? c._id : null,
+    puntos: ps.length ? puntos : null, puntosNoCumple: noCumple.length ? noCumple : null});
 }
 
 // Graba la inspección y, si es de una corrida, actualiza la corrida en la misma escritura.
@@ -1624,14 +1630,14 @@ function guardarInspeccion(base, extra){
     upd[r+'revisiones'] = firebase.database.ServerValue.increment(1);
     upd[r+'ultimaTs'] = base.ts; upd[r+'ultimaFecha'] = base.fecha; upd[r+'ultimaHora'] = base.hora;
     upd[r+'ultimoResultado'] = base.resultado;
-    if(base.bobina) upd[r+'bobinas'] = Math.max(+(c && c.bobinas)||0, base.bobina);
+    if(base.master) upd[r+'masters'] = Math.max(+(c && c.masters)||0, base.master);
   }
   return db.ref('cal').update(upd).then(()=>k);
 }
 function limpiarTrasInspeccion(base){
   estSeg.pts = {};
-  if(base.corridaId){ if(base.bobina) $('f-bobina').value = String(base.bobina + 1); }
-  else { $('f-etiqueta').value = ''; etiquetaEscrita(); $('f-bobina').value = ''; }
+  if(base.corridaId){ if(base.master) $('f-master').value = String(base.master + 1); }
+  else { $('f-etiqueta').value = ''; etiquetaEscrita(); $('f-master').value = ''; }
   // el operador se queda: suele seguir en la máquina
   pintarSeguimiento();
 }
@@ -1647,9 +1653,13 @@ function pintarCorridasActivas(){
         <tr class="corr-fila" onclick="irACorrida('${esc(c.maquina)}')">
           <td><b>${esc(c.maquina)}</b></td><td>${esc(c.op)} · ${esc(c.etiqueta)}</td>
           <td>${c.fecha===hoy ? '' : esc(c.fecha.split('-').reverse().slice(0,2).join('/'))+' '}${esc(c.hora||'')}</td>
-          <td>${+c.revisiones||0}${c.bobinas ? ' · bobina '+c.bobinas : ''}</td>
+          <td>${+c.revisiones||0}${c.masters ? ' · master '+c.masters : ''}</td>
           <td>${c.ultimaHora ? (c.ultimaFecha && c.ultimaFecha!==hoy ? esc(c.ultimaFecha.split('-').reverse().slice(0,2).join('/'))+' ' : '')+esc(c.ultimaHora) : '—'}</td>
         </tr>`).join('')}</tbody></table></div>`;
+}
+function irAlArranque(){
+  $('f-etapa').value = 'arranque'; pintarEtapa();
+  $('bloque-arranque').scrollIntoView({block:'start', behavior:'smooth'});
 }
 function irACorrida(maq){
   $('f-etapa').value = 'proceso'; $('f-maquina').value = maq; maquinaElegida();
@@ -1775,7 +1785,7 @@ async function fBuscarOperador(){
 }
 
 async function resolver(pasa){
-  // SPEC-028: en el seguimiento se revisan bobina y puntos del producto antes que lo demás.
+  // SPEC-028: en el seguimiento se revisan corrida, master y puntos del producto antes que lo demás.
   const seg = $('f-etapa').value!=='arranque' ? datosSeguimiento(pasa) : {};
   if(!seg) return;
   // SPEC-004, SPEC-016, SPEC-027: etiqueta y operador obligatorios y válidos.
@@ -1783,7 +1793,7 @@ async function resolver(pasa){
   const base = {
     ...comun,                                     // turno, fecha y hora de cuando termina (SPEC-016, SPEC-027)
     etapa: $('f-etapa').value,                    // SPEC-003
-    ...seg,                                       // SPEC-028: op, bobina, corrida y puntos
+    ...seg,                                       // SPEC-028: op, master, corrida y puntos
     // SPEC-009: copia, no referencia. Quién inspeccionó queda grabado con nombre y
     // nómina tal como estaban (inspectorNomina, inspectorNombre, en `comun`).
     resultado: pasa ? 'pasa' : 'no pasa',
@@ -1810,7 +1820,7 @@ function abrirHallazgo(){
   cont.innerHTML = `<div class="modal-box">
     <div class="modal-t">Registrar hallazgo</div>
     <div style="font-size:12.5px;color:var(--text2);margin-bottom:10px">
-      ${esc(pendiente.maquina)} · etiqueta ${esc(pendiente.etiqueta)} · ${esc(pendiente.turno)}${pendiente.op ? ' · '+esc(conOP(pendiente.op)) : ''}${pendiente.bobina ? ' · bobina '+pendiente.bobina : ''}
+      ${esc(pendiente.maquina)} · etiqueta ${esc(pendiente.etiqueta)} · ${esc(pendiente.turno)}${pendiente.op ? ' · '+esc(conOP(pendiente.op)) : ''}${pendiente.master ? ' · master '+pendiente.master : ''}
       ${pendiente.puntosNoCumple ? '<br>No cumple: '+esc(pendiente.puntosNoCumple.join(', ')) : ''}
       ${pendiente.etiquetaNombre ? '<br>'+esc(pendiente.etiquetaNombre)+' · '+esc(pendiente.etiquetaCliente||'') : ''}
     </div>
@@ -2033,13 +2043,13 @@ function pintarHistorial(){
       : `<span class="pill ${i.resultado==='pasa'?'p-green':'p-red'}">${esc(i.resultado)}</span>`;
     const etapa = i._arranque ? 'arranque' + (i.intento>1 ? ' · intento '+i.intento : '')
                 : i.etapa==='arranque' ? 'arranque' : 'seguimiento';
-    const op = [i.op ? esc(conOP(i.op)) : '', i.bobina ? 'bobina '+i.bobina : ''].filter(Boolean).join(' · ');
+    const op = [i.op ? esc(conOP(i.op)) : '', i.master ? 'master '+i.master : ''].filter(Boolean).join(' · ');
     const motivos = i._arranque && i.motivos && i.motivos.length ? i.motivos
                   : (!i._arranque && i.puntosNoCumple ? i.puntosNoCumple.map(t=>t+': no cumple') : []);
     return `<div class="item">
     <div style="display:flex;justify-content:space-between;gap:8px">
       <h4>${esc(i.maquina)} · etiqueta ${esc(i.etiqueta)}</h4>
-      <span>${i.sinArranque ? '<span class="pill p-amber">sin arranque liberado</span> ' : ''}${pill}</span>
+      ${pill}
     </div>
     ${datosEtiqueta(i)}
     <div class="meta">${esc(i.fecha)}${i.hora ? ' · '+esc(i.hora) : ''} · ${esc(i.turno)} · ${etapa}${op ? ' · '+op : ''}</div>

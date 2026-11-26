@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.20.0 — estados revisados contra el código el 26 de
+**Versión vigente:** 1.21.0 — estados revisados contra el código el 26 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -37,7 +37,7 @@ se puede ir del documento al código y de regreso.
 | 003 | Etapas de inspección | Implementado desde la v1.20.0 con la SPEC-028 (roto y flexo; faltan otras áreas) |
 | 004 | Los dos enfoques y el foco | Parcial — falta mover la ventana y el foco por etiqueta |
 | 005 | Matriz defecto ↔ variable | Parcial — el editor funciona; el contenido lo define la junta |
-| 006 | Muestreo por AQL | Pendiente — el seguimiento a corrida es por bobina (SPEC-028) |
+| 006 | Muestreo por AQL | Pendiente — el seguimiento a corrida es por master (SPEC-028) |
 | 007 | Hallazgo, paro y acción correctiva | Parcial — falta el aviso al supervisor y la hora del paro |
 | 008 | Catálogo de variables de calidad | Parcial — los defectos ya viven en la base (SPEC-022); los 54 criterios no se han cargado |
 | 009 | Identidad y personal desde la suite | Implementado |
@@ -203,7 +203,7 @@ recorridos del inspector.
 ### Cómo quedó
 Desde la v1.20.0 la etapa sí cambia lo que se pregunta: el arranque es el
 formato de liberación de cada área y el seguimiento revisa producto y variables
-por bobina, ligado a la corrida que abrió el arranque. El detalle está en la
+por master, ligado a la corrida que abrió el arranque. El detalle está en la
 SPEC-028. Antes de esa versión las dos etapas mostraban el mismo formulario.
 
 ---
@@ -415,12 +415,12 @@ revisar, cuántos defectos se aceptan y a partir de cuántos se rechaza.
   resultado no es auditable meses después.
 
 ### Relación con el seguimiento a corrida
-Desde la v1.20.0 el seguimiento a corrida (SPEC-028) es **por bobina**. Calidad
+Desde la v1.20.0 el seguimiento a corrida (SPEC-028) es **por master**. Calidad
 quiere poder hacerlo por AQL; cuando se defina el criterio, el AQL entra como
 segundo método del seguimiento.
 
 ### Pendiente de definir
-- Qué es el lote en el seguimiento por AQL: la OP completa, las bobinas o las
+- Qué es el lote en el seguimiento por AQL: la OP completa, los masters o las
   etiquetas
 - Qué niveles de inspección y valores de AQL usa Calidad
 - Si la aplicación debe aplicar las **reglas de cambio de severidad** del
@@ -1538,6 +1538,11 @@ etiqueta y operador; hora y auditor son automáticos (SPEC-027). Hay un campo
 nuevo, **orden de producción**: obligatorio en el arranque; en el seguimiento
 viene de la corrida.
 
+**Sin arranque no hay seguimiento.** En una máquina con formato, el seguimiento a
+corrida solo se puede hacer si hay una corrida activa, es decir, un arranque
+liberado. Sin ella, la pantalla de seguimiento solo muestra el aviso y el botón
+para hacer el arranque.
+
 ### Arranque (liberación)
 Es el «Apartado exclusivo de calidad» de la hoja de arranque, en la app.
 
@@ -1581,13 +1586,14 @@ Es el «Apartado exclusivo de calidad» de la hoja de arranque, en la app.
   quién y cuándo.
 
 ### Seguimiento a corrida
-- **Método: por bobina**, que es como se trabaja hoy. Cada revisión lleva el
-  **número de bobina**; la app propone la siguiente a la última revisada.
+- **Método: por master**, que es como se trabaja hoy. Cada revisión lleva el
+  **número de master**; la app propone el siguiente al último revisado.
 - En una máquina con formato, el seguimiento se liga a la **corrida activa**:
-  la OP y la etiqueta salen de ella y no se editan. La bobina es obligatoria en
-  las máquinas con formato y opcional en las demás. Si no hay corrida activa se puede
-  registrar igual, pero queda marcado **sin arranque liberado**, para que se
-  note en el historial.
+  la OP y la etiqueta salen de ella y no se editan. El número de master es
+  obligatorio en las máquinas con formato y opcional en las demás. **Si no hay
+  corrida activa, no se puede registrar el seguimiento**: primero se libera el
+  arranque. Las máquinas de áreas sin formato todavía no tienen arranque, así
+  que siguen con la inspección de variables como antes.
 - Cada revisión incluye:
   - los **puntos del producto** marcados «en seguimiento» del formato. Por
     omisión son tonos, textos, registro, spot, curling, código de barras,
@@ -1597,7 +1603,7 @@ Es el «Apartado exclusivo de calidad» de la hoja de arranque, en la app.
   - **Pasa / No pasa**. Con un punto en No cumple no se puede registrar Pasa:
     se registra No pasa y se abre el hallazgo (SPEC-007).
 - **Corridas activas**: la pestaña muestra todas, con máquina, OP y etiqueta,
-  hora de liberación, bobinas revisadas y última revisión. Tocar una corrida
+  hora de liberación, revisiones, último master y última revisión. Tocar una corrida
   elige su máquina.
 - **Por AQL** (SPEC-006) queda como segundo método, para cuando Calidad defina
   el criterio.
@@ -1623,15 +1629,16 @@ disponible (por ejemplo, una etiqueta sin código de barras).
   grado y el estándar o rango con que se evaluó), área libre, comentarios,
   resultado, motivos, intento y la corrida que abrió.
 - `cal/corridas/<id>`: máquina, área, OP, etiqueta, arranque, quién liberó y
-  cuándo, estado (activa / cerrada), bobinas y última revisión, y el cierre.
+  cuándo, estado (activa / cerrada), `masters` (el más alto revisado) y última
+  revisión, y el cierre.
 - En la inspección de seguimiento (`cal/inspecciones`): `op`, `corridaId`,
-  `bobina`, `puntos`, `puntosNoCumple` y, si aplica, `sinArranque`.
+  `master`, `puntos` y `puntosNoCumple`.
 - `cal/especificaciones/<área>/<punto>`: lo que el administrador cambió; el
   resto viene del código.
 
 ### Dónde se ve
 **Historial** muestra arranques y seguimientos juntos: los arranques con
-Liberado / No liberado, intento y motivos; los seguimientos con OP y bobina.
+Liberado / No liberado, intento y motivos; los seguimientos con OP y master.
 
 ---
 

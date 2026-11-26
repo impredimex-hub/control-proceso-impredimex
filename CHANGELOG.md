@@ -11,6 +11,20 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.21.0] — 2026-11-26
+
+### Cambiado
+
+- **Sin arranque no hay seguimiento** (SPEC-028): en las máquinas con formato
+  de arranque, el seguimiento a corrida solo se registra si hay un arranque
+  liberado. Sin él, la pantalla muestra el aviso y el botón «Hacer el
+  arranque». Se quita la marca «sin arranque liberado».
+- **Número de master** en lugar de número de bobina en el seguimiento. Se guarda
+  como `master` en la inspección y `masters` en la corrida.
+- Caché del service worker a `calidad-v1.21.0`.
+
+---
+
 ## [1.20.0] — 2026-11-26
 
 ### Agregado

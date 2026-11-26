@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.21.3 — estados revisados contra el código el 26 de
+**Versión vigente:** 1.22.0 — estados revisados contra el código el 26 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -59,7 +59,7 @@ se puede ir del documento al código y de regreso.
 | 025 | Carga del histórico «Rechazo interno» | Implementado |
 | 026 | Folio de rechazo automático | Implementado |
 | 027 | Operador, hora y auditor en la inspección | Implementado |
-| 028 | Arranque de calidad y seguimiento a corrida | Implementado — faltan formatos de digital, laminado y acondicionado, y rangos |
+| 028 | Arranque de calidad y seguimiento a corrida | Implementado (con corridas terminadas desde la v1.22.0) — faltan formatos de digital, laminado y acondicionado, y rangos |
 
 ---
 
@@ -1639,7 +1639,7 @@ disponible (por ejemplo, una etiqueta sin código de barras).
   operador, auditor, fecha, hora, turno, requisitos, puntos (resultado, medida,
   grado y el estándar o rango con que se evaluó), área libre, comentarios,
   resultado, motivos, intento y la corrida que abrió.
-- `cal/corridas/<id>`: máquina, área, OP, etiqueta, arranque, quién liberó y
+- `cal/corridas/<AAAA-MM-DD>_<id>`: máquina, área, OP, etiqueta, arranque, quién liberó y
   cuándo, estado (activa / cerrada), `masters` (el más alto revisado), última
   revisión, último operador, y el cierre.
 - En la inspección de seguimiento (`cal/inspecciones`): `op`, `corridaId`,
@@ -1650,6 +1650,24 @@ disponible (por ejemplo, una etiqueta sin código de barras).
 ### Dónde se ve
 **Historial** muestra arranques y seguimientos juntos: los arranques con
 Liberado / No liberado, intento y motivos; los seguimientos con OP y master.
+
+### Corridas terminadas (v1.22.0)
+Una corrida terminada no se borra: queda en `cal/corridas` con estado
+`cerrada`. En **Historial → Corridas terminadas** se consulta:
+- **Tabla por mes de liberación** (o todo el histórico): máquina, OP, etiqueta,
+  nombre, liberada (fecha y hora) y quién la liberó, terminada y quién la
+  terminó, duración, revisiones, último master y motivo de cierre (terminada o
+  nuevo arranque). Se lee al abrir la pestaña; no es una escucha en vivo.
+- **Exportar a Excel**: las mismas columnas, con el formato de las otras
+  exportaciones.
+- **Detalle**: al tocar una corrida se ven juntos su arranque (requisitos,
+  puntos con resultado, medida o grado, área libre y comentarios) y todas sus
+  revisiones de seguimiento (master, hora, operador, resultado, puntos que no
+  cumplieron y auditor).
+- **Clave de la corrida**: desde la v1.22.0 empieza con la fecha de liberación
+  (`AAAA-MM-DD_<id>`), como los rechazos (SPEC-018), para leer un mes por rango
+  de clave sin índices. Las corridas de prueba anteriores tienen clave sin
+  fecha y solo salen en «Todo el histórico».
 
 ---
 

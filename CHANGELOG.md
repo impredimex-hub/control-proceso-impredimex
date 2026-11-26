@@ -11,6 +11,24 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.22.0] — 2026-11-26
+
+### Agregado
+
+- **Corridas terminadas** en Historial (SPEC-028): tabla por mes de liberación
+  (o todo el histórico) con máquina, OP, etiqueta, nombre, liberada y quién,
+  terminada y quién, duración, revisiones, último master y motivo de cierre.
+  Se exporta a Excel. Al tocar una corrida se ven su arranque y todas sus
+  revisiones de seguimiento.
+
+### Cambiado
+
+- La clave de una corrida nueva empieza con su fecha de liberación
+  (`AAAA-MM-DD_<id>`), para leer un mes por rango de clave.
+- Caché del service worker a `calidad-v1.22.0`.
+
+---
+
 ## [1.21.3] — 2026-11-26
 
 ### Cambiado

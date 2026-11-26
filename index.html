@@ -279,6 +279,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--navy-mid)}
 .corr-info{font-size:12.5px;line-height:1.55;color:var(--text2)}
 .corr-info b{color:var(--navy-dark)}
 .e-tabla td{white-space:normal}
+.modal-box.modal-ancho{max-width:860px;max-height:88vh;overflow-y:auto}
+.vc-t{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--navy);margin:16px 0 6px}
+.vc .corr-info{margin-bottom:8px}
 input.derivado-m{background:var(--bg);color:var(--navy-dark);font-weight:600}
 select:disabled{background:var(--bg);color:var(--navy-dark);font-weight:600;opacity:1}
 
@@ -622,6 +625,16 @@ textarea.derivado[readonly]{background:var(--bg);color:var(--navy-dark);font-wei
 
   <!-- Historial (SPEC-014) -->
   <section id="pg-historial" class="hide">
+    <!-- SPEC-028: corridas terminadas -->
+    <div class="card">
+      <div class="card-t">Corridas terminadas</div>
+      <div class="gal-acciones" style="margin-top:0">
+        <select id="ct-mes" class="r-mes" onchange="pintarCorridasTerminadas()"></select>
+        <span id="ct-cuenta" class="r-cuenta">—</span>
+        <button class="btn btn-2 btn-sm" onclick="exportarCorridas()">Exportar a Excel</button>
+      </div>
+      <div class="gal-tabla-wrap" style="max-height:60vh"><table class="gal-tabla" id="ct-tabla"></table></div>
+    </div>
     <div class="card">
       <div class="card-t">Inspecciones registradas</div>
       <div id="lista-historial"></div>
@@ -965,7 +978,7 @@ function verPagina(id, btn){
   $('pg-'+id).classList.remove('hide');
   if(btn){ [...$('nav').children].forEach(b=>b.classList.remove('on')); btn.classList.add('on'); }
   if(id==='acciones')  pintarAcciones();
-  if(id==='historial') pintarHistorial();
+  if(id==='historial'){ pintarHistorial(); pintarMesesExcel('ct-mes'); pintarCorridasTerminadas(); }   // SPEC-028
   if(id==='tendencia') pintarTendencia();
   if(id==='matriz')    cargarMatriz();
   if(id==='galeria'){  leerGaleria(false); pintarDefectos(); pintarEspecs(); }   // SPEC-028: formatos de arranque
@@ -1553,7 +1566,8 @@ async function registrarArranque(){
     resultado: ev.liberado ? 'liberado' : 'no liberado', motivos: ev.motivos, intento};
   const aKey = db.ref('cal/arranques').push().key, upd = {};
   if(ev.liberado){
-    const cKey = db.ref('cal/corridas').push().key; rec.corridaId = cKey;
+    // La clave empieza con la fecha, como los rechazos: un mes se lee por rango de clave.
+    const cKey = rec.fecha + '_' + db.ref('cal/corridas').push().key; rec.corridaId = cKey;
     // Una máquina tiene a lo sumo una corrida activa: la anterior se cierra.
     CORRIDAS.filter(c=>c.maquina===maq && c.estado==='activa').forEach(c=>{
       const r = 'corridas/'+c._id+'/';
@@ -1707,6 +1721,111 @@ function terminarCorrida(id){
     cerradaHora: horaLocal(ahora), cerradaPorNomina: sesion.nomina, cerradaPorNombre: sesion.nombre, motivoCierre:'terminada'})
     .then(()=>{ cerrarModal('modal-corrida'); toast('Corrida terminada'); })
     .catch(e=>toast('Error: '+e.message));
+}
+
+/* ── Corridas terminadas: Historial (SPEC-028, v1.22.0) ── */
+let CT_LISTA = [], ctLectura = 0;
+const fechaHora = (f, h) => f ? f.split('-').reverse().join('/') + (h ? ' ' + h : '') : '';
+function duracion(a, b){
+  if(!(a>0 && b>a)) return '';
+  const min = Math.round((b-a)/60000), d = Math.floor(min/1440), h = Math.floor(min%1440/60), m = min%60;
+  return d ? `${d} d ${h} h` : h ? `${h} h ${m} min` : `${m} min`;
+}
+const CT_COLUMNAS = [
+  {t:'Máquina',        v:c=>c.maquina, w:9},
+  {t:'OP',             v:c=>c.op, w:13},
+  {t:'Etiqueta',       v:c=>c.etiqueta, w:10},
+  {t:'Nombre',         v:c=>c.etiquetaNombre, w:34, largo:true},
+  {t:'Liberada',       v:c=>fechaHora(c.fecha, c.hora), w:16},
+  {t:'Liberó',         v:c=>c.liberoNombre, w:26, largo:true},
+  {t:'Terminada',      v:c=>fechaHora(c.cerradaFecha, c.cerradaHora), w:16},
+  {t:'Terminó',        v:c=>c.cerradaPorNombre, w:26, largo:true},
+  {t:'Duración',       v:c=>duracion(c.inicioTs, c.cerradaTs), w:11},
+  {t:'Revisiones',     v:c=>+c.revisiones||0, w:11, num:true},
+  {t:'Último master',  v:c=>+c.masters||null, w:12, num:true},
+  {t:'Motivo de cierre', v:c=>c.motivoCierre==='nuevo arranque' ? 'Nuevo arranque' : 'Terminada', w:16}
+];
+async function pintarCorridasTerminadas(){
+  const mes = $('ct-mes').value, n = ++ctLectura;
+  $('ct-cuenta').textContent = 'Leyendo…';
+  let v;
+  try{
+    await baseLista;
+    const ref = db.ref('cal/corridas');
+    v = (await (mes ? ref.orderByKey().startAt(mes).endAt(mes+'') : ref).once('value')).val() || {};
+  }catch(e){ console.error('Corridas:', e); if(n===ctLectura) $('ct-cuenta').textContent = 'No se pudo leer: '+(e.code||e.message); return; }
+  if(n!==ctLectura) return;           // llegó otra lectura después
+  CT_LISTA = Object.keys(v).map(id=>({_id:id, ...v[id]})).filter(c=>c.estado==='cerrada')
+                   .sort((a,b)=>(b.cerradaTs||0)-(a.cerradaTs||0));
+  $('ct-cuenta').textContent = CT_LISTA.length ? `${CT_LISTA.length} corrida${CT_LISTA.length===1?'':'s'} · toca una para ver el detalle`
+                                               : 'Sin corridas terminadas en este periodo';
+  const fmt = v => v==null ? '' : typeof v==='number' ? v.toLocaleString('es-MX') : v;
+  $('ct-tabla').innerHTML = !CT_LISTA.length ? '' :
+    `<thead><tr>${CT_COLUMNAS.map(c=>`<th class="${c.num?'num':''}">${c.t}</th>`).join('')}</tr></thead><tbody>` +
+    CT_LISTA.map(c=>`<tr class="corr-fila" onclick="verCorrida('${c._id}')">${CT_COLUMNAS.map(k=>
+      `<td class="${k.num?'num':''}">${esc(fmt(k.v(c)))}</td>`).join('')}</tr>`).join('') + '</tbody>';
+}
+function exportarCorridas(){
+  if(!CT_LISTA.length){ toast('No hay corridas que exportar'); return; }
+  const mes = $('ct-mes').value, COLS = CT_COLUMNAS;
+  const borde = {style:'thin', color:{rgb:'C9D3E3'}}, bordes = {top:borde, bottom:borde, left:borde, right:borde};
+  const sCab = {font:{bold:true, color:{rgb:'FFFFFF'}}, fill:{patternType:'solid', fgColor:{rgb:'003580'}},
+                alignment:{horizontal:'center', vertical:'center', wrapText:true}, border:bordes};
+  const ws = {};
+  COLS.forEach((c,j)=>{ ws[XLSX.utils.encode_cell({r:0,c:j})] = {v:c.t, t:'s', s:sCab}; });
+  CT_LISTA.forEach((x,i)=>{
+    const relleno = i%2 ? {fill:{patternType:'solid', fgColor:{rgb:'EEF3FA'}}} : {};
+    COLS.forEach((c,j)=>{
+      const val = c.v(x), s = {border:bordes, alignment:{vertical:'top', wrapText:!!c.largo}, ...relleno};
+      ws[XLSX.utils.encode_cell({r:i+1,c:j})] = c.num && typeof val==='number'
+        ? {v:val, t:'n', z:'#,##0', s:{...s, alignment:{horizontal:'right', vertical:'top'}}}
+        : {v: val==null ? '' : String(val), t:'s', s};
+    });
+  });
+  const rango = XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:CT_LISTA.length, c:COLS.length-1}});
+  ws['!ref'] = rango; ws['!autofilter'] = {ref:rango};
+  ws['!cols'] = COLS.map(c=>({wch:c.w})); ws['!rows'] = [{hpt:30}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Corridas terminadas');
+  XLSX.writeFile(wb, mes ? `Corridas_Terminadas_Calidad_${mes}.xlsx` : `Corridas_Terminadas_Calidad_historico_${fechaLocal()}.xlsx`);
+}
+// El detalle: el arranque que la abrió y todas sus revisiones de seguimiento.
+async function verCorrida(id){
+  const c = CT_LISTA.find(x=>x._id===id); if(!c) return;
+  const cont = document.createElement('div');
+  cont.className = 'modal'; cont.id = 'modal-ver-corrida';
+  cont.innerHTML = `<div class="modal-box modal-ancho"><div class="modal-t">${esc(c.maquina)} · ${esc(conOP(c.op))} · etiqueta ${esc(c.etiqueta)}</div>
+    <div id="vc-cuerpo" class="vc"><div class="vacio">Leyendo…</div></div>
+    <button class="btn btn-2" onclick="cerrarModal('modal-ver-corrida')">Cerrar</button></div>`;
+  document.body.appendChild(cont);
+  let a = null;
+  try{ a = c.arranqueId ? (ARRANQUES.find(x=>x._id===c.arranqueId) || (await db.ref('cal/arranques/'+c.arranqueId).once('value')).val()) : null; }
+  catch(e){ console.error('Arranque:', e); }
+  const revs = DB.inspecciones.filter(i=>i.corridaId===id).sort((x,y)=>(x.ts||0)-(y.ts||0));
+  const res = r => r==='cumple' ? 'Cumple' : r==='no' ? '<b class="r-mal">No cumple</b>' : r==='na' ? 'NA' : '—';
+  const req = a && a.requisitos ? REQUISITOS_ARRANQUE.map(r=>`${esc(r.t)}: ${a.requisitos[r.id]==='si' ? 'Sí' : '<b class="r-mal">No</b>'}`).join(' · ') : '';
+  // La base devuelve las claves en orden alfabético: se acomodan como en la hoja.
+  const orden = a && FORMATOS_BASE[a.area] ? FORMATOS_BASE[a.area].puntos.map(p=>p.id) : [];
+  const ptsOrd = a && a.puntos ? Object.keys(a.puntos).sort((x,y)=>((orden.indexOf(x)+1)||99)-((orden.indexOf(y)+1)||99)).map(k=>a.puntos[k]) : [];
+  const pts = ptsOrd.length ? ptsOrd.map(p=>`<tr><td>${esc(p.punto||'')}</td><td>${res(p.r)}${
+      p.medida!=null ? ' · '+fmtNum(p.medida)+' mm' : ''}${p.grado ? ' · grado '+esc(p.grado) : ''}</td></tr>`).join('') : '';
+  $('vc-cuerpo').innerHTML = `
+    <div class="corr-info">${c.etiquetaNombre ? `<b>${esc(c.etiquetaNombre)}</b>${c.etiquetaCliente ? ' · '+esc(c.etiquetaCliente) : ''}<br>` : ''}
+      Liberada ${esc(fechaHora(c.fecha, c.hora))} por ${esc(c.liberoNombre||'')}${a && a.intento>1 ? ' (intento '+a.intento+')' : ''}<br>
+      Terminada ${esc(fechaHora(c.cerradaFecha, c.cerradaHora))} por ${esc(c.cerradaPorNombre||'')} ·
+      ${c.motivoCierre==='nuevo arranque' ? 'se cerró con un nuevo arranque' : 'terminada a mano'}${duracion(c.inicioTs, c.cerradaTs) ? ' · duró '+duracion(c.inicioTs, c.cerradaTs) : ''}</div>
+    <div class="vc-t">Arranque</div>
+    ${a ? `<div class="corr-info">Operador: ${esc(a.operadorNombre||'')} (${esc(a.operadorNomina||'')}) · Auditor: ${esc(a.inspectorNombre||'')}<br>${req}<br>
+      Área libre del pedido anterior: ${a.areaLibre==='si' ? 'Sí' : '<b class="r-mal">No</b>'}${a.comentarios ? '<br>Comentarios: '+esc(a.comentarios) : ''}</div>
+      <div class="gal-tabla-wrap"><table class="gal-tabla"><thead><tr><th>Punto</th><th>Resultado</th></tr></thead><tbody>${pts}</tbody></table></div>`
+      : '<div class="corr-info">No se encontró el arranque.</div>'}
+    <div class="vc-t">Seguimiento · ${revs.length} revisi${revs.length===1?'ón':'ones'}</div>
+    ${revs.length ? `<div class="gal-tabla-wrap"><table class="gal-tabla"><thead><tr><th>Master</th><th>Fecha</th><th>Operador</th>
+      <th>Resultado</th><th>No cumple</th><th>Auditor</th></tr></thead><tbody>${revs.map(i=>`<tr>
+      <td class="num">${i.master||'—'}</td><td>${esc(fechaHora(i.fecha, i.hora))}</td><td>${esc(i.operadorNombre||'')}</td>
+      <td><span class="pill ${i.resultado==='pasa'?'p-green':'p-red'}">${esc(i.resultado)}</span></td>
+      <td>${esc((i.puntosNoCumple||[]).join(', '))}</td><td>${esc(i.inspectorNombre||'')}</td></tr>`).join('')}</tbody></table></div>`
+      : '<div class="corr-info">Sin revisiones de seguimiento.</div>'}`;
 }
 
 /* ── Especificaciones y rangos: Galería → Formatos de arranque ── */

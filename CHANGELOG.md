@@ -11,6 +11,17 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.21.2] — 2026-11-26
+
+### Corregido
+
+- **Etapa y máquina también quedan bloqueadas** con la corrida liberada
+  (SPEC-028). Se sueltan con el botón nuevo «Cambiar de máquina» de la corrida,
+  o tocando otra fila de «Corridas activas».
+- Caché del service worker a `calidad-v1.21.2`.
+
+---
+
 ## [1.21.1] — 2026-11-26
 
 ### Cambiado

@@ -279,6 +279,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--navy-mid)}
 .corr-info b{color:var(--navy-dark)}
 .e-tabla td{white-space:normal}
 input.derivado-m{background:var(--bg);color:var(--navy-dark);font-weight:600}
+select:disabled{background:var(--bg);color:var(--navy-dark);font-weight:600;opacity:1}
 
 /* ── Formulario de rechazo (SPEC-017): los campos que se derivan se ven en gris ── */
 /* Textarea de un renglón que crece con el texto: un nombre del padrón llega a
@@ -480,7 +481,7 @@ textarea.derivado[readonly]{background:var(--bg);color:var(--navy-dark);font-wei
       <div class="card-t">Datos de la inspección</div>
       <div class="row">
         <div><label>Etapa</label>
-          <select id="f-etapa" onchange="pintarEtapa()">
+          <select id="f-etapa" onchange="cambiandoMaquina=false; pintarEtapa()">
             <option value="arranque">Arranque</option>
             <!-- SPEC-028: «En proceso» pasó a llamarse así; se graba con el mismo valor -->
             <option value="proceso" selected>Seguimiento a corrida</option>
@@ -1289,7 +1290,8 @@ let ARRANQUES = [], CORRIDAS = [], ESPECS = {};
 let fGal = null;                       // registro de galería de la etiqueta escrita
 const estArr = {req:{}, pts:{}, area:null, formato:''};
 const estSeg = {pts:{}};
-let corridaFijada = null;              // corrida cuyos OP y etiqueta están puestos en el formulario
+let corridaFijada = null;
+let cambiandoMaquina = false;          // «Cambiar de máquina»: suelta etapa y máquina hasta elegir otra              // corrida cuyos OP y etiqueta están puestos en el formulario
 const fmtNum = v => (+v).toLocaleString('es-MX', {maximumFractionDigits:2});
 const numMed = t => { const x = String(t==null?'':t).trim().replace(',', '.'); if(!x) return null;
   const n = +x; return Number.isFinite(n) && n>0 ? n : null; };
@@ -1424,6 +1426,7 @@ function resaltarFaltantes(ctx, ids){
 
 /* ── Etapa: qué se muestra ── */
 function maquinaElegida(){
+  cambiandoMaquina = false;
   const area = areaDe($('f-maquina').value);
   if(area !== estArr.formato){ estArr.pts = {}; estArr.formato = area; }
   estSeg.pts = {}; $('a-hecho').innerHTML = '';
@@ -1451,6 +1454,9 @@ function pintarPuntos(){            // cuando cambia la etiqueta: cambian los es
 function fijarCorrida(c){
   const id = c ? c._id : null, op = $('f-op'), et = $('f-etiqueta'), ms = $('f-master');
   [op, et, ms].forEach(e=>{ e.readOnly = !!c; e.classList.toggle('derivado-m', !!c); e.tabIndex = c ? -1 : 0; });
+  // Etapa y máquina también: se sueltan con «Cambiar de máquina» o tocando otra corrida activa.
+  const fija = !!c && !cambiandoMaquina;
+  $('f-etapa').disabled = $('f-maquina').disabled = fija;
   if(c) ms.value = String((+c.masters||0) + 1);
   if(id === corridaFijada) return;
   const antes = corridaFijada; corridaFijada = id;
@@ -1590,7 +1596,9 @@ function pintarSeguimiento(){
       ${c.etiquetaNombre ? '<br>'+esc(c.etiquetaNombre)+(c.etiquetaCliente ? ' · '+esc(c.etiquetaCliente) : '') : ''}
       <br>Liberada ${esc(lib)} por ${esc(c.liberoNombre||'')}
       <br>Revisiones: ${+c.revisiones||0}${c.masters ? ' · último master '+c.masters : ''}${c.ultimaHora ? ' · última revisión '+esc(c.ultimaHora) : ''}</div>
-      <button class="btn btn-2 btn-sm" style="margin-top:10px" onclick="pedirTerminarCorrida('${c._id}')">Terminar corrida</button>`;
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn btn-2 btn-sm" onclick="cambiarMaquina()">Cambiar de máquina</button>
+        <button class="btn btn-2 btn-sm" onclick="pedirTerminarCorrida('${c._id}')">Terminar corrida</button></div>`;
   } else if(f){
     $('corrida-info').innerHTML = `<div class="aviso aviso-amber" style="margin:0">No hay un arranque liberado en
       ${esc(maq)}. El seguimiento a corrida empieza después de liberar el arranque.</div>
@@ -1662,6 +1670,10 @@ function pintarCorridasActivas(){
           <td>${+c.revisiones||0}${c.masters ? ' · master '+c.masters : ''}</td>
           <td>${c.ultimaHora ? (c.ultimaFecha && c.ultimaFecha!==hoy ? esc(c.ultimaFecha.split('-').reverse().slice(0,2).join('/'))+' ' : '')+esc(c.ultimaHora) : '—'}</td>
         </tr>`).join('')}</tbody></table></div>`;
+}
+function cambiarMaquina(){
+  cambiandoMaquina = true; $('f-etapa').disabled = $('f-maquina').disabled = false;
+  $('f-maquina').focus(); toast('Elige la máquina o la etapa');
 }
 function irAlArranque(){
   $('f-etapa').value = 'arranque'; pintarEtapa();

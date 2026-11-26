@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.21.1 — estados revisados contra el código el 26 de
+**Versión vigente:** 1.21.2 — estados revisados contra el código el 26 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -1591,8 +1591,11 @@ Es el «Apartado exclusivo de calidad» de la hoja de arranque, en la app.
 - En una máquina con formato, el seguimiento se liga a la **corrida activa**:
   la OP y la etiqueta salen de ella. El número de master es obligatorio en las
   máquinas con formato y opcional en las demás.
-- **Con la corrida liberada, los datos quedan bloqueados**: OP, etiqueta y
-  número de master (el siguiente al último revisado) no se modifican. Lo único
+- **Con la corrida liberada, los datos quedan bloqueados**: etapa, máquina, OP,
+  etiqueta y número de master (el siguiente al último revisado) no se
+  modifican. Para pasar a otra máquina o hacer otro arranque, el inspector toca
+  **Cambiar de máquina** (suelta etapa y máquina hasta que elige otra) o una
+  fila de **Corridas activas**. Lo único
   que se cambia es la **nómina del operador**; la app propone la de la última
   revisión de la corrida, o la del arranque. **Si no hay
   corrida activa, no se puede registrar el seguimiento**: primero se libera el

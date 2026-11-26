@@ -275,6 +275,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--navy-mid)}
 .res-ok{background:var(--green-bg);color:var(--green)}
 .res-no{background:var(--red-bg);color:var(--red)}
 .corr-fila{cursor:pointer}
+.gal-tabla tbody tr.corr-sel td,.gal-tabla tbody tr.corr-sel:hover td{background:var(--navy-light);font-weight:700}
 .corr-info{font-size:12.5px;line-height:1.55;color:var(--text2)}
 .corr-info b{color:var(--navy-dark)}
 .e-tabla td{white-space:normal}
@@ -515,6 +516,7 @@ textarea.derivado[readonly]{background:var(--bg);color:var(--navy-dark);font-wei
         <div><label>Auditor · automático</label>
           <div id="f-auditor" class="campo-fijo envuelve">—</div></div>
       </div>
+      <div id="f-terminar"></div>   <!-- SPEC-028: con corrida activa en seguimiento -->
     </div>
 
     <!-- SPEC-028: arranque (liberación), el «Apartado exclusivo de calidad» de la hoja -->
@@ -544,7 +546,7 @@ textarea.derivado[readonly]{background:var(--bg);color:var(--navy-dark);font-wei
     <div id="bloque-seguimiento">
       <!-- SPEC-028: la corrida de la máquina elegida -->
       <div class="card" id="c-corrida">
-        <div class="card-t">Corrida en esta máquina</div>
+        <div class="card-t">Arranque pendiente</div>
         <div id="corrida-info"></div>
       </div>
 
@@ -1440,7 +1442,7 @@ function pintarEtapa(){
   $('c-corridas').classList.toggle('hide', arr);
   $('f-master-c').classList.toggle('hide', arr);
   fijarCorrida(arr ? null : corridaActiva($('f-maquina').value));
-  if(arr) pintarArranque(); else pintarSeguimiento();
+  if(arr){ $('f-terminar').innerHTML = ''; pintarArranque(); } else pintarSeguimiento();
   pintarCorridasActivas();
 }
 function pintarPuntos(){            // cuando cambia la etiqueta: cambian los estándares de la galería
@@ -1589,17 +1591,11 @@ async function registrarArranque(){
 /* ── Seguimiento a corrida ── */
 function pintarSeguimiento(){
   const maq = $('f-maquina').value, f = formatoDe(maq), c = corridaActiva(maq);
-  $('c-corrida').classList.toggle('hide', !f && !c);
-  if(c){
-    const lib = c.fecha===fechaLocal(new Date()) ? 'hoy a las '+c.hora : c.fecha.split('-').reverse().join('/')+' a las '+c.hora;
-    $('corrida-info').innerHTML = `<div class="corr-info"><b>${esc(conOP(c.op))} · etiqueta ${esc(c.etiqueta)}</b>
-      ${c.etiquetaNombre ? '<br>'+esc(c.etiquetaNombre)+(c.etiquetaCliente ? ' · '+esc(c.etiquetaCliente) : '') : ''}
-      <br>Liberada ${esc(lib)} por ${esc(c.liberoNombre||'')}
-      <br>Revisiones: ${+c.revisiones||0}${c.masters ? ' · último master '+c.masters : ''}${c.ultimaHora ? ' · última revisión '+esc(c.ultimaHora) : ''}</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-        <button class="btn btn-2 btn-sm" onclick="cambiarMaquina()">Cambiar de máquina</button>
-        <button class="btn btn-2 btn-sm" onclick="pedirTerminarCorrida('${c._id}')">Terminar corrida</button></div>`;
-  } else if(f){
+  // Con corrida, sus datos ya están en el formulario y en «Corridas activas»: la tarjeta
+  // solo aparece para avisar que falta el arranque. «Terminar corrida» va en los datos.
+  $('c-corrida').classList.toggle('hide', !f || !!c);
+  $('f-terminar').innerHTML = c ? `<button class="btn btn-2" onclick="pedirTerminarCorrida('${c._id}')">Terminar corrida</button>` : '';
+  if(f && !c){
     $('corrida-info').innerHTML = `<div class="aviso aviso-amber" style="margin:0">No hay un arranque liberado en
       ${esc(maq)}. El seguimiento a corrida empieza después de liberar el arranque.</div>
       <button class="btn btn-2" onclick="irAlArranque()">Hacer el arranque</button>`;
@@ -1664,16 +1660,23 @@ function pintarCorridasActivas(){
     ? '<div class="vacio" style="padding:10px">No hay corridas activas. Se abren al liberar un arranque.</div>'
     : `<div class="gal-tabla-wrap"><table class="gal-tabla"><thead><tr><th>Máquina</th><th>OP · etiqueta</th>
         <th>Liberada</th><th>Revisiones</th><th>Última revisión</th></tr></thead><tbody>${lista.map(c=>`
-        <tr class="corr-fila" onclick="irACorrida('${esc(c.maquina)}')">
+        <tr class="corr-fila${!cambiandoMaquina && $('f-etapa').value!=='arranque' && $('f-maquina').value===c.maquina ? ' corr-sel' : ''}" onclick="tocarCorrida('${esc(c.maquina)}')">
           <td><b>${esc(c.maquina)}</b></td><td>${esc(c.op)} · ${esc(c.etiqueta)}</td>
           <td>${c.fecha===hoy ? '' : esc(c.fecha.split('-').reverse().slice(0,2).join('/'))+' '}${esc(c.hora||'')}</td>
           <td>${+c.revisiones||0}${c.masters ? ' · master '+c.masters : ''}</td>
           <td>${c.ultimaHora ? (c.ultimaFecha && c.ultimaFecha!==hoy ? esc(c.ultimaFecha.split('-').reverse().slice(0,2).join('/'))+' ' : '')+esc(c.ultimaHora) : '—'}</td>
-        </tr>`).join('')}</tbody></table></div>`;
+        </tr>`).join('')}</tbody></table></div>
+      <div class="r-def-nota">Toca una corrida para revisarla. Tócala otra vez para soltarla y elegir otra máquina o hacer un arranque.</div>`;
 }
-function cambiarMaquina(){
-  cambiandoMaquina = true; $('f-etapa').disabled = $('f-maquina').disabled = false;
-  $('f-maquina').focus(); toast('Elige la máquina o la etapa');
+// Tocar la corrida en la que ya se está la suelta: etapa y máquina quedan libres
+// para elegir otra máquina o hacer un arranque. Tocar otra lleva a ella.
+function tocarCorrida(maq){
+  const c = corridaActiva(maq);
+  if($('f-etapa').value!=='arranque' && $('f-maquina').value===maq && c && !cambiandoMaquina){
+    cambiandoMaquina = true; pintarEtapa();
+    toast('Corrida suelta: elige otra máquina o la etapa de arranque'); return;
+  }
+  irACorrida(maq);
 }
 function irAlArranque(){
   $('f-etapa').value = 'arranque'; pintarEtapa();
@@ -1681,7 +1684,7 @@ function irAlArranque(){
 }
 function irACorrida(maq){
   $('f-etapa').value = 'proceso'; $('f-maquina').value = maq; maquinaElegida();
-  $('c-corrida').scrollIntoView({block:'start', behavior:'smooth'});
+  $('f-etapa').scrollIntoView({block:'center', behavior:'smooth'});
 }
 function pedirTerminarCorrida(id){
   const c = CORRIDAS.find(x=>x._id===id); if(!c) return;

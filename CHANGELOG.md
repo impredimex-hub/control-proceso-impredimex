@@ -11,6 +11,19 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.21.3] — 2026-11-26
+
+### Cambiado
+
+- Se quitan el botón «Cambiar de máquina» y la tarjeta «Corrida en esta
+  máquina» (SPEC-028). La corrida en revisión se resalta en «Corridas activas»;
+  tocarla otra vez la suelta para elegir otra máquina o hacer un arranque.
+- «Terminar corrida» queda al final de «Datos de la inspección». La tarjeta,
+  ahora «Arranque pendiente», solo aparece en una máquina sin arranque liberado.
+- Caché del service worker a `calidad-v1.21.3`.
+
+---
+
 ## [1.21.2] — 2026-11-26
 
 ### Corregido

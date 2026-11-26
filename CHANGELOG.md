@@ -11,6 +11,17 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.18.1] — 2026-11-25
+
+### Cambiado
+
+- **Todas las pestañas con el mismo ancho en computadora** (hasta 1,600 px, el
+  de la tabla de rechazos), incluida la barra de pestañas; los formularios ya
+  no se angostan. En el teléfono y la tableta no cambia nada.
+- Caché del service worker a `calidad-v1.18.1`.
+
+---
+
 ## [1.18.0] — 2026-11-25
 
 ### Cambiado

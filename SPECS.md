@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.18.0 — estados revisados contra el código el 24 de
+**Versión vigente:** 1.18.1 — estados revisados contra el código el 24 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -1475,10 +1475,10 @@ consecutivo siga el orden de las fechas, de la más antigua a la actual.
 
 # Convenciones del código
 
-- **Ancho de pantalla.** El contenido tiene un ancho máximo de 900 px, pensado
-  para el teléfono. Las pestañas con tablas (Galería, Acciones y Merma) se
-  abren hasta 1,600 px en computadora; dentro de ellas, los formularios se
-  quedan en 868 px y centrados (clase `angosta`). En el teléfono no cambia nada.
+- **Ancho de pantalla.** Desde la v1.18.1 todas las pestañas, la barra de
+  pestañas y los paneles tienen el mismo ancho máximo, 1,600 px, para que los
+  paneles no cambien de ancho al pasar de una pestaña a otra en computadora.
+  En el teléfono y la tableta ocupan el ancho de la pantalla, como siempre.
 - **Un solo archivo**, `index.html`, sin compilación. GitHub Pages lo sirve
   tal cual.
 - **Marcas de especificación.** Cada bloque que cumple una SPEC lleva su

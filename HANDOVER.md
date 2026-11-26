@@ -3,7 +3,7 @@
 Lo que necesita saber quien reciba esta aplicación para operarla, corregirla y
 extenderla sin depender de quien la construyó.
 
-**Versión de la aplicación:** 1.18.1
+**Versión de la aplicación:** 1.19.0
 **Última actualización de este documento:** 24 de noviembre de 2026
 **Desarrollo original:** Victor Moreno
 
@@ -147,7 +147,7 @@ en la SPEC-010.
 
 | Ruta | Quién escribe | Qué guarda |
 |---|---|---|
-| `cal/inspecciones/<id>` | Inspector, Admin | Etapa, turno, máquina, etiqueta, `etiquetaNombre`, `etiquetaCliente`, `etiquetaEnGaleria`, fecha (local, `AAAA-MM-DD`), `ts`, `inspectorNomina`, `inspectorNombre`, `resultado`, `variables`, `variablesDesviadas` y, si no pasó, `hallazgoId` |
+| `cal/inspecciones/<id>` | Inspector, Admin | Etapa, turno, `hora` (SPEC-027), máquina, etiqueta, `operadorNomina`, `operadorNombre`, `etiquetaNombre`, `etiquetaCliente`, `etiquetaEnGaleria`, fecha (local, `AAAA-MM-DD`), `ts`, `inspectorNomina`, `inspectorNombre`, `resultado`, `variables`, `variablesDesviadas` y, si no pasó, `hallazgoId` |
 | `cal/hallazgos/<id>` | Inspector, Admin; al cerrar, Supervisor o Admin | Lo de la inspección más `defecto`, `causa`, `causaDeterminada`, `metros`, `paro`, `obs`, `estado`; al cerrar, `correccion`, `cerradoPorNomina`, `cerradoPorNombre`, `fechaCierre`, `tsCierre` |
 | `cal/matriz/<defecto>@<máquina>` | Admin | `defecto`, `maquina` (vacía = todas), `vars: [{nombre, peso}]`, `actualizadoPor`, `actualizadoEn` |
 | `cal/merma` | Ya nadie (hasta la v1.7.0, Admin) | La última carga del cargador anterior: `datos[línea][defecto][AAAA-MM] = metros`, `registros`, `ultimoMes`, `cargadoPor`, `cargadoEn`. Si existe, es la base histórica del foco (SPEC-018) |

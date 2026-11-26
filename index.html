@@ -223,6 +223,13 @@ input:focus,select:focus,textarea:focus{border-color:var(--navy-mid)}
 .foco-bar{flex:1;height:7px;background:var(--navy-light);border-radius:4px;overflow:hidden}
 .foco-bar i{display:block;height:100%;background:var(--navy);border-radius:4px}
 .foco-nom{min-width:150px;font-size:13px;font-weight:600}
+/* En el foco el nombre tiene ancho fijo: el «vigilar: …» de abajo ya no empuja
+   la barra, y todas empiezan en el mismo lugar (v1.19.0). */
+#foco .foco-nom{flex:0 0 150px;min-width:0}
+/* Hora y auditor: en el teléfono las casillas no deben salirse de la tarjeta. */
+.row.r-auto > div{min-width:0}
+.campo-fijo.envuelve{white-space:normal}
+@media (min-width:900px){ #foco .foco-nom{flex-basis:230px} }
 .foco-pct{min-width:44px;text-align:right;font-size:12.5px;font-weight:700;color:var(--navy)}
 .tend{min-width:58px;font-size:11px;font-weight:700;text-align:right}
 .t-up{color:var(--red)}.t-down{color:var(--green)}.t-eq{color:var(--text3)}
@@ -454,6 +461,19 @@ textarea.derivado[readonly]{background:var(--bg);color:var(--navy-dark);font-wei
           placeholder="Núm. de etiqueta" oninput="etiquetaEscrita()" onchange="buscarEtiqueta(true)"></div>
       </div>
       <div id="f-etiqueta-info"></div>
+      <!-- SPEC-027: operador (nombre desde el padrón), hora y auditor automáticos -->
+      <div class="row r-persona" style="margin-top:2px">
+        <div><label>Nómina operador</label><input id="f-nom-ope" inputmode="numeric" autocomplete="off"
+          oninput="fOperadorEscrito()" onchange="fBuscarOperador()"></div>
+        <div><label>Nombre operador</label><textarea id="f-nombre-ope" class="derivado" rows="1" readonly tabindex="-1"></textarea></div>
+      </div>
+      <div id="f-aviso-ope"></div>
+      <div class="row r-tres r-auto">
+        <div><label>Hora de inspección · automática</label>
+          <div id="f-hora" class="campo-fijo"><span style="margin:0">Se registra al terminar</span></div></div>
+        <div><label>Auditor · automático</label>
+          <div id="f-auditor" class="campo-fijo envuelve">—</div></div>
+      </div>
     </div>
 
     <div class="card">
@@ -866,7 +886,7 @@ function poblarSelects(){
   $('f-maquina').innerHTML = om; $('t-maquina').innerHTML = om;
   $('m-maquina').innerHTML = '<option value="">— Todas —</option>' + om;
   refrescarCatalogo();            // lista oficial mientras llega la de la base
-  pintarTurno();
+  pintarTurno(); pintarAuditor();
   pintarFoco();
 }
 
@@ -1115,21 +1135,62 @@ function variablesDe(defecto, maquina){
 }
 
 /* ═══════════════ INSPECCIÓN (SPEC-004, SPEC-007) ═══════════════ */
+/* ── SPEC-027: operador, hora y auditor en la inspección ── */
+let fOperador = null, fOpTimer = null;
+function pintarAuditor(){ const e = $('f-auditor'); if(e && sesion) e.innerHTML = `${esc(sesion.nombre)}<span>${esc(sesion.nomina)}</span>`; }
+const horaLocal = d => String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+function mostrarHoraInspeccion(h){ $('f-hora').innerHTML = `${esc(h)}<span>última registrada</span>`; }
+function fOperadorEscrito(){
+  fOperador = null; fijarDerivado('f-nombre-ope', ''); $('f-aviso-ope').innerHTML = '';
+  clearTimeout(fOpTimer);
+  if($('f-nom-ope').value.trim()) fOpTimer = setTimeout(fBuscarOperador, 450);
+}
+// El nombre sale del padrón de RRHH (SPEC-009), como en el rechazo (SPEC-017).
+async function fBuscarOperador(){
+  clearTimeout(fOpTimer);
+  const n = $('f-nom-ope').value.trim();
+  if(!n){ fOperador = null; return null; }
+  if(fOperador && fOperador.nomina===n) return fOperador;
+  let p, estado;
+  if(/[\/]/.test(n)){ p = null; estado = 'no'; }
+  else {
+    try{ p = await personaDeSuite(n); estado = !p ? 'no' : (p.estatus==='ACTIVO' ? 'ok' : 'baja'); }
+    catch(e){ console.error('Padrón:', e); estado = 'error'; }
+  }
+  if($('f-nom-ope').value.trim() !== n) return null;
+  fOperador = {nomina:n, nombre: p ? p.nombre : '', estado};
+  fijarDerivado('f-nombre-ope', fOperador.nombre);
+  $('f-aviso-ope').innerHTML =
+      estado==='no'    ? `<div class="r-aviso r-mal">La nómina ${esc(n)} no está en el padrón de RRHH.</div>`
+    : estado==='baja'  ? `<div class="r-aviso r-mal">Está dado de baja en RRHH.</div>`
+    : estado==='error' ? `<div class="r-aviso r-mal">No se pudo consultar el padrón. Revisa la conexión.</div>` : '';
+  return fOperador;
+}
+
 async function resolver(pasa){
   // SPEC-004: la etiqueta es obligatoria; sin ella el foco por etiqueta es imposible.
   if(!$('f-etiqueta').value.trim()){ toast('Escribe el número de etiqueta'); return; }
+  // SPEC-027: el operador es obligatorio y debe estar activo en el padrón.
+  if(!$('f-nom-ope').value.trim()){ toast('Escribe la nómina del operador'); return; }
+  const op = await fBuscarOperador();
+  if(!op || op.estado==='error'){ toast('No se pudo consultar la nómina del operador'); return; }
+  if(op.estado==='no'){ toast('La nómina del operador no está en el padrón de RRHH'); return; }
+  if(op.estado==='baja'){ toast('El operador está dado de baja en RRHH'); return; }
   // SPEC-016: se asegura la consulta a la galería aunque no haya salido del campo.
   const info = await buscarEtiqueta(true);
   const etiqueta = info.clave;
   const enGaleria = info.encontrada===true ? {etiquetaNombre: info.nombre, etiquetaCliente: info.cliente,
                                                etiquetaEnGaleria: true}
                   : info.encontrada===false ? {etiquetaEnGaleria: false} : {};
+  const ahora = new Date();                       // SPEC-027: el momento en que termina la inspección
   const base = {
     etapa: $('f-etapa').value,                    // SPEC-003
-    turno: turnoDe(new Date()),                   // SPEC-016: el de la hora de registro
+    turno: turnoDe(ahora),                        // SPEC-016: el de la hora de registro
     maquina: $('f-maquina').value, etiqueta, ...enGaleria,
-    fecha: fechaLocal(),                          // SPEC-016: fecha local, no universal
-    ts: Date.now(),
+    fecha: fechaLocal(ahora),                     // SPEC-016: fecha local, no universal
+    hora: horaLocal(ahora),                       // SPEC-027
+    ts: ahora.getTime(),
+    operadorNomina: op.nomina, operadorNombre: op.nombre,   // SPEC-027: copia, como todo lo de la suite
     // SPEC-009: copia, no referencia. Quién inspeccionó queda grabado con nombre y
     // nómina tal como estaban. El inspector es quien inició sesión, no un
     // nombre elegido de una lista.
@@ -1141,7 +1202,8 @@ async function resolver(pasa){
   };
   if(pasa){
     db.ref('cal/inspecciones').push(base)
-      .then(()=>{ toast('Inspección registrada'); $('f-etiqueta').value=''; etiquetaEscrita(); })
+      .then(()=>{ toast(`Inspección registrada a las ${base.hora}`); mostrarHoraInspeccion(base.hora);
+                  $('f-etiqueta').value=''; etiquetaEscrita(); })   // el operador se queda: suele seguir en la máquina
       .catch(e=>toast('Error: '+e.message));
   } else {
     pendiente = base; abrirHallazgo();
@@ -1232,6 +1294,7 @@ function guardarHallazgo(){
     .then(()=>{
       cerrarModal('modal-hallazgo');
       toast(h.paro ? 'Hallazgo registrado. Avisa al supervisor del paro.' : 'Hallazgo registrado');
+      mostrarHoraInspeccion(pendiente.hora);
       $('f-etiqueta').value=''; etiquetaEscrita(); pendiente=null;
     })
     .catch(e=>toast('Error: '+e.message));
@@ -1252,10 +1315,12 @@ const I_COLUMNAS = [
   {t:'Nombre de etiqueta', v:h=>h.etiquetaNombre,    w:40},
   {t:'Cliente',            v:h=>h.etiquetaCliente,   w:36},
   {t:'Turno',              v:h=>h.turno,             w:11},
+  {t:'Hora',               v:h=>h.hora,              w:8},       // SPEC-027
   {t:'Etapa',              v:h=>h.etapa==='arranque' ? 'Arranque' : 'En proceso', w:11},
   {t:'Metros afectados',   v:h=>h.metros!=null && h.metros!=='' ? +h.metros : null, w:12, num:true},
   {t:'Observaciones',      v:h=>h.obs,               w:36, largo:true},
-  {t:'Detectó',            v:h=>h.inspectorNombre ? `${h.inspectorNombre} (${h.inspectorNomina})` : '', w:32},
+  {t:'Operador',           v:h=>h.operadorNombre ? `${h.operadorNombre} (${h.operadorNomina})` : '', w:32},   // SPEC-027
+  {t:'Auditor',            v:h=>h.inspectorNombre ? `${h.inspectorNombre} (${h.inspectorNomina})` : '', w:32},
   {t:'Cerró',              v:h=>h.cerradoPorNombre ? `${h.cerradoPorNombre} (${h.cerradoPorNomina})` : '', w:32},
   {t:'Fecha de cierre',    v:h=>h.fechaCierre,       w:12}
 ];
@@ -1374,8 +1439,9 @@ function pintarHistorial(){
       <span class="pill ${i.resultado==='pasa'?'p-green':'p-red'}">${esc(i.resultado)}</span>
     </div>
     ${datosEtiqueta(i)}
-    <div class="meta">${esc(i.fecha)} · ${esc(i.turno)} · ${i.etapa==='arranque'?'arranque':'en proceso'}</div>
-    <div class="meta">${esc(i.inspectorNombre)} (${esc(i.inspectorNomina)})</div>
+    <div class="meta">${esc(i.fecha)}${i.hora ? ' · '+esc(i.hora) : ''} · ${esc(i.turno)} · ${i.etapa==='arranque'?'arranque':'en proceso'}</div>
+    ${i.operadorNombre ? `<div class="meta">Operador: ${esc(i.operadorNombre)} (${esc(i.operadorNomina)})</div>` : ''}
+    <div class="meta">Auditor: ${esc(i.inspectorNombre)} (${esc(i.inspectorNomina)})</div>
   </div>`).join('');
 }
 

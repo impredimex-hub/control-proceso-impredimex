@@ -4,7 +4,7 @@ Inspección de calidad en línea: foco por máquina, hallazgos con causa y
 acciones correctivas que se cierran.
 
 **Dirección:** https://impredimex-hub.github.io/control-proceso-impredimex/
-**Versión vigente:** 1.18.1 (ver [`CHANGELOG.md`](./CHANGELOG.md))
+**Versión vigente:** 1.19.0 (ver [`CHANGELOG.md`](./CHANGELOG.md))
 **Estado:** reconstruida y publicada; varias especificaciones están parciales
 (ver la tabla de estado en [`SPECS.md`](./SPECS.md))
 
@@ -30,7 +30,8 @@ y se entra desde el portal https://impredimex-hub.github.io/.
 - **Foco por máquina** con los defectos que más metros rechazados sumaron en
   los últimos tres meses, y si van al alza o a la baja
 - **Variables de proceso a vigilar**, tomadas de la matriz defecto ↔ variable
-- **Inspección de producto** pasa / no pasa, en arranque o en proceso. Al
+- **Inspección de producto** pasa / no pasa, en arranque o en proceso, con
+  operador (nombre desde el padrón), hora y auditor automáticos. Al
   escribir la etiqueta muestra su nombre y cliente; el turno se pone solo con
   la hora
 - **Hallazgos con causa obligatoria**, paro de máquina y observaciones

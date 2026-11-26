@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.18.1 — estados revisados contra el código el 24 de
+**Versión vigente:** 1.19.0 — estados revisados contra el código el 24 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -58,6 +58,7 @@ se puede ir del documento al código y de regreso.
 | 024 | Orden de producción en el rechazo | Implementado |
 | 025 | Carga del histórico «Rechazo interno» | Implementado |
 | 026 | Folio de rechazo automático | Implementado |
+| 027 | Operador, hora y auditor en la inspección | Implementado |
 
 ---
 
@@ -1470,6 +1471,39 @@ consecutivo siga el orden de las fechas, de la más antigua a la actual.
   metros. Esos se saltan.
 - Si el archivo trae fechas anteriores a rechazos ya registrados del mismo año,
   sus folios quedan al final; el resumen lo avisa y sugiere renumerar.
+
+---
+
+# SPEC-027 — Operador, hora y auditor en la inspección
+
+**Estado:** implementado (v1.19.0)
+
+### Qué hace
+En **Datos de la inspección**, además de etapa, turno, máquina y etiqueta:
+- **Nómina operador** y **Nombre operador**: el nombre se deriva del padrón de
+  RRHH (SPEC-009), igual que en el rechazo (SPEC-017). Es obligatorio; no se
+  registra una inspección con una nómina que no está en el padrón o que está
+  dada de baja. Después de registrar, la nómina del operador se queda escrita,
+  porque suele seguir en la misma máquina.
+- **Hora de inspección · automática**: se toma al terminar la inspección, es
+  decir, al tocar Pasa o No pasa, junto con la fecha y el turno. La casilla
+  muestra la última hora registrada.
+- **Auditor · automático**: nombre y nómina de quien inició sesión. Es el mismo
+  dato que ya se guardaba como `inspectorNombre` e `inspectorNomina`; en
+  pantalla se llama Auditor.
+
+### Qué se guarda
+En la inspección y, si no pasa, en el hallazgo: `operadorNomina`,
+`operadorNombre` (copia) y `hora` (`HH:MM`, hora local).
+
+### Dónde se ve
+- **Historial**: hora junto a la fecha, operador y auditor.
+- **Acciones de la inspección** (tabla y Excel): columnas **Hora**,
+  **Operador** y **Auditor** (antes «Detectó»).
+
+### De paso (v1.19.0)
+En «Qué vigilar en esta máquina» el nombre del defecto tiene ancho fijo, así
+el texto «vigilar: …» ya no empuja su barra y todas empiezan en el mismo lugar.
 
 ---
 

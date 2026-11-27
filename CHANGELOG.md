@@ -11,6 +11,16 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.25.1] — 2026-11-27
+
+### Cambiado
+
+- Al liberar un arranque, la app pasa directo al seguimiento a corrida de esa
+  corrida, sin el aviso ni el botón «Ir al seguimiento» (SPEC-028).
+- Caché del service worker a `calidad-v1.25.1`.
+
+---
+
 ## [1.25.0] — 2026-11-27
 
 ### Cambiado

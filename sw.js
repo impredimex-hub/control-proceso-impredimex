@@ -5,7 +5,7 @@
 // Se sube la versión en cada cambio: al activarse, el service worker borra
 // las copias guardadas con otro nombre y nadie se queda con la vieja
 // (SPEC-012, SPEC-013). Debe coincidir con la versión de CHANGELOG.md.
-const CACHE = 'calidad-v1.25.0';
+const CACHE = 'calidad-v1.25.1';
 const ESENCIALES = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

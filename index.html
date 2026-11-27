@@ -1610,12 +1610,14 @@ async function registrarArranque(){
   catch(e){ toast('Error: '+e.message); return; }
   mostrarHoraInspeccion(rec.hora);
   if(ev.liberado){
-    toast(`Arranque liberado a las ${rec.hora}. Se abrió la corrida.`);
-    estArr.req = {}; estArr.pts = {}; estArr.area = null; $('a-coment').value = '';
-    $('a-hecho').innerHTML = `<div class="card"><div class="res-arr res-ok"><b>Arranque liberado</b> ·
-      ${esc(maq)} · ${esc(conOP(op))} · etiqueta ${esc(rec.etiqueta)} · ${esc(rec.hora)}${intento>1 ? ' · intento '+intento : ''}<br>
-      Se abrió la corrida: el seguimiento por master se registra en «Seguimiento a corrida».</div>
-      <button class="btn btn-2" onclick="irACorrida('${esc(maq)}')">Ir al seguimiento</button></div>`;
+    // Liberado: directo al seguimiento a corrida de la corrida que se acaba de abrir.
+    estArr.req = {}; estArr.pts = {}; estArr.area = null; $('a-coment').value = ''; $('a-hecho').innerHTML = '';
+    if(!CORRIDAS.some(c=>c._id===rec.corridaId))               // por si la escucha todavía no la trae
+      CORRIDAS.push({_id: rec.corridaId, ...upd['corridas/'+rec.corridaId]});
+    pintarArranque();                                          // queda limpio para el siguiente
+    irACorrida(maq);
+    toast(`Arranque liberado a las ${rec.hora}. Sigue el seguimiento de ${conOP(op)}.`);
+    return;
   } else {
     toast(`Arranque no liberado (intento ${intento})`);
     $('a-hecho').innerHTML = `<div class="card"><div class="res-arr res-no"><b>No liberado</b> · intento ${intento} ·

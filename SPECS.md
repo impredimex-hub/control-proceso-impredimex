@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.25.0 — estados revisados contra el código el 26 de
+**Versión vigente:** 1.25.1 — estados revisados contra el código el 26 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -1581,7 +1581,9 @@ Es el «Apartado exclusivo de calidad» de la hoja de arranque, en la app.
 
 ### Corrida
 - Un arranque **liberado abre una corrida** en esa máquina: OP, etiqueta, quién
-  liberó y a qué hora.
+  liberó y a qué hora. Desde la v1.25.1 la app **pasa directo al seguimiento a
+  corrida** de esa corrida, ya bloqueado en ella; el formato de arranque queda
+  limpio para el siguiente.
 - **Una máquina tiene a lo sumo una corrida activa.** Liberar un arranque nuevo
   en una máquina cierra la corrida anterior (motivo: nuevo arranque).
 - **Terminar corrida**: cualquier usuario la cierra cuando termina la OP; queda

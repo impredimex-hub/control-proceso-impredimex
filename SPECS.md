@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.24.1 — estados revisados contra el código el 26 de
+**Versión vigente:** 1.25.0 — estados revisados contra el código el 26 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -1678,8 +1678,9 @@ Una corrida terminada no se borra: queda en `cal/corridas` con estado
 
 # SPEC-029 — Borrar: acciones en Acciones; corridas, inspecciones y arranques donde nacen
 
-**Estado:** implementado (v1.23.0). Desde la v1.24.0, en la pestaña Acciones se
-borra **solo la acción**, no el registro.
+**Estado:** implementado (v1.23.0). Desde la v1.24.0, en la pestaña Acciones no
+se borra el registro. Desde la v1.25.0, en «Acciones de merma» se **quita el
+folio de la lista de Acciones**; el rechazo se queda en Merma.
 
 ### Por qué
 Las capturas de prueba o equivocadas se quedan para siempre en las tablas.
@@ -1701,11 +1702,21 @@ Un botón discreto, **un círculo rojo con una «B» blanca**, que solo ve el
 - **Acciones de la inspección** (Acciones): borra la **corrección** de un
   hallazgo cerrado; el hallazgo vuelve a quedar **abierto**. Solo aparece en
   los cerrados.
-- **Acciones de merma** (Acciones): borra **lo recuperado y la acción** de un
-  defecto; el folio se queda. Solo aparece en los defectos que tienen algo
-  capturado. Se pueden borrar varias de una vez: casilla por defecto,
-  «seleccionar todos» en el encabezado (los visibles; no se muestra si ningún
-  defecto visible tiene acción) y el botón **Borrar seleccionados (n)**.
+- **Acciones de merma** (Acciones), desde la v1.25.0: **quita el folio de la
+  lista de Acciones**. Las filas de esa lista son los mismos rechazos de la
+  pestaña Merma, y lo que se necesita es sacar de la lista los que no llevan
+  acción (por ejemplo, el histórico cargado del Excel) sin tocar el rechazo:
+  - **el rechazo se queda** en Merma con sus metros, sigue contando en el foco
+    y en su exportación, y conserva lo recuperado y la acción si los tenía;
+  - **casilla y «B» por folio**, «seleccionar todos» en el encabezado (los
+    visibles) y **Quitar seleccionadas (n)**;
+  - **Quitar todas (todos los meses)**: todos los folios que siguen en la lista,
+    de cualquier mes;
+  - el filtro **Quitadas** muestra los folios quitados, con **Regresar
+    seleccionadas (n)** para devolverlos a la lista;
+  - se guarda en el rechazo, en `accionesQuitado`, quién, cuándo y el motivo. La
+    exportación de Acciones no incluye los quitados (salvo con el filtro
+    Quitadas).
 - **Inspecciones registradas** (Historial): en cada tarjeta, abajo a la
   derecha. Borra la inspección o el arranque.
 
@@ -1721,8 +1732,10 @@ Un botón discreto, **un círculo rojo con una «B» blanca**, que solo ve el
   seguimientos también. Si estaba en pantalla, el formulario se suelta.
 - **Corrección** (Acciones de la inspección): se quitan la corrección, quién y
   cuándo cerró; el hallazgo vuelve a «abierta». La causa se queda como está.
-- **Acción de merma**: se quitan lo recuperado (etiquetas y metros), la acción
-  y quién y cuándo la capturó, de ese defecto. Los metros rechazados no cambian.
+- **Folio quitado de Acciones de merma**: nada se borra; el rechazo solo deja
+  de aparecer en esa lista. (En la v1.24 esta «B» borraba lo recuperado y la
+  acción de un defecto; las copias de entonces están en
+  `cal/borrados/accionesMerma`.)
 - **Inspección** (seguimiento o de variables): si abrió un hallazgo, se borra
   también. Si era de una corrida que sigue existiendo, la corrida se recalcula:
   revisiones, último master y última revisión salen de las revisiones que

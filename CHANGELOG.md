@@ -11,6 +11,25 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.25.0] — 2026-11-27
+
+### Cambiado
+
+- **«Acciones de merma»: quitar folios de la lista sin borrar el rechazo**
+  (SPEC-029). La «B» y las casillas, ahora por folio, quitan el folio de la
+  lista de Acciones. El rechazo se queda en Merma con sus metros, sigue en el
+  foco y conserva su acción si la tenía. Reemplaza el borrado de la acción de
+  un defecto de la v1.24.
+- **Quitar todas (todos los meses)**: quita de la lista todos los folios, de
+  cualquier mes.
+- Filtro **Quitadas**, con «Regresar seleccionadas», para devolver folios a la
+  lista.
+- La exportación de Acciones no incluye los folios quitados (salvo con el
+  filtro Quitadas).
+- Caché del service worker a `calidad-v1.25.0`.
+
+---
+
 ## [1.24.1] — 2026-11-27
 
 ### Corregido

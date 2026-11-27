@@ -11,6 +11,23 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.22.1] — 2026-11-26
+
+### Agregado
+
+- Botón **Nuevo arranque** junto a «Terminar corrida» (SPEC-028): pasa a la
+  etapa de arranque con etapa y máquina libres y OP, etiqueta y master vacíos.
+  La corrida sigue activa hasta que se termina o se libera otro arranque en su
+  máquina.
+
+### Cambiado
+
+- «Corridas activas» se ve también en la etapa de arranque, para regresar a una
+  corrida.
+- Caché del service worker a `calidad-v1.22.1`.
+
+---
+
 ## [1.22.0] — 2026-11-26
 
 ### Agregado

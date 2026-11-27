@@ -1452,7 +1452,7 @@ function pintarEtapa(){
   const arr = $('f-etapa').value==='arranque';
   $('bloque-arranque').classList.toggle('hide', !arr);
   $('bloque-seguimiento').classList.toggle('hide', arr);
-  $('c-corridas').classList.toggle('hide', arr);
+  // «Corridas activas» se ve en las dos etapas: desde el arranque se regresa a una corrida.
   $('f-master-c').classList.toggle('hide', arr);
   fijarCorrida(arr ? null : corridaActiva($('f-maquina').value));
   if(arr){ $('f-terminar').innerHTML = ''; pintarArranque(); } else pintarSeguimiento();
@@ -1608,7 +1608,10 @@ function pintarSeguimiento(){
   // Con corrida, sus datos ya están en el formulario y en «Corridas activas»: la tarjeta
   // solo aparece para avisar que falta el arranque. «Terminar corrida» va en los datos.
   $('c-corrida').classList.toggle('hide', !f || !!c);
-  $('f-terminar').innerHTML = c ? `<button class="btn btn-2" onclick="pedirTerminarCorrida('${c._id}')">Terminar corrida</button>` : '';
+  // «Nuevo arranque» suelta la corrida (sin terminarla) y pasa a la etapa de arranque.
+  $('f-terminar').innerHTML = c ? `<div class="row">
+    <button class="btn btn-2" onclick="pedirTerminarCorrida('${c._id}')">Terminar corrida</button>
+    <button class="btn btn-2" onclick="irAlArranque()">Nuevo arranque</button></div>` : '';
   if(f && !c){
     $('corrida-info').innerHTML = `<div class="aviso aviso-amber" style="margin:0">No hay un arranque liberado en
       ${esc(maq)}. El seguimiento a corrida empieza después de liberar el arranque.</div>
@@ -1680,7 +1683,7 @@ function pintarCorridasActivas(){
           <td>${+c.revisiones||0}${c.masters ? ' · master '+c.masters : ''}</td>
           <td>${c.ultimaHora ? (c.ultimaFecha && c.ultimaFecha!==hoy ? esc(c.ultimaFecha.split('-').reverse().slice(0,2).join('/'))+' ' : '')+esc(c.ultimaHora) : '—'}</td>
         </tr>`).join('')}</tbody></table></div>
-      <div class="r-def-nota">Toca una corrida para revisarla. Tócala otra vez para soltarla y elegir otra máquina o hacer un arranque.</div>`;
+      <div class="r-def-nota">Toca una corrida para registrar su seguimiento.</div>`;
 }
 // Tocar la corrida en la que ya se está la suelta: etapa y máquina quedan libres
 // para elegir otra máquina o hacer un arranque. Tocar otra lleva a ella.

@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.22.0 — estados revisados contra el código el 26 de
+**Versión vigente:** 1.22.1 — estados revisados contra el código el 26 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -1594,9 +1594,12 @@ Es el «Apartado exclusivo de calidad» de la hoja de arranque, en la app.
 - **Con la corrida liberada, los datos quedan bloqueados**: etapa, máquina, OP,
   etiqueta y número de master (el siguiente al último revisado) no se
   modifican. Para pasar a otra corrida, el inspector toca su fila en **Corridas
-  activas**. Tocar otra vez la corrida seleccionada (resaltada) la suelta: etapa
-  y máquina quedan libres para elegir otra máquina o hacer un arranque.
-- **Terminar corrida** es un botón al final de «Datos de la inspección». Los
+  activas**, que se ve en las dos etapas. Tocar otra vez la corrida
+  seleccionada (resaltada) la suelta: etapa y máquina quedan libres.
+- **Terminar corrida** y **Nuevo arranque** son botones al final de «Datos de la
+  inspección». Nuevo arranque pasa a la etapa de arranque con etapa y máquina
+  libres y OP, etiqueta y master vacíos; la corrida sigue activa hasta que se
+  termina o se libera otro arranque en su máquina. Los
   datos de la corrida (liberación, revisiones, último master) se ven en
   «Corridas activas»; la tarjeta de la corrida solo aparece para avisar que a
   la máquina le falta el arranque. Lo único

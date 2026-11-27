@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.24.0 — estados revisados contra el código el 26 de
+**Versión vigente:** 1.24.1 — estados revisados contra el código el 26 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -1704,8 +1704,8 @@ Un botón discreto, **un círculo rojo con una «B» blanca**, que solo ve el
 - **Acciones de merma** (Acciones): borra **lo recuperado y la acción** de un
   defecto; el folio se queda. Solo aparece en los defectos que tienen algo
   capturado. Se pueden borrar varias de una vez: casilla por defecto,
-  «seleccionar todos» en el encabezado (los visibles) y el botón **Borrar
-  seleccionados (n)**.
+  «seleccionar todos» en el encabezado (los visibles; no se muestra si ningún
+  defecto visible tiene acción) y el botón **Borrar seleccionados (n)**.
 - **Inspecciones registradas** (Historial): en cada tarjeta, abajo a la
   derecha. Borra la inspección o el arranque.
 

@@ -3640,8 +3640,10 @@ function pintarBarraSel(){
   b.classList.toggle('hide', !mSel.size || sesion.rol!=='ADMIN');
   b.textContent = `Borrar acciones seleccionadas (${mSel.size})`;
   const todos = $('m-sel-todos'), n = document.querySelectorAll('#a-lista td .m-sel').length;
+  // Sin acciones capturadas no hay nada que seleccionar: la casilla no se muestra.
   if(todos){ todos.checked = n>0 && mSel.size===n; todos.indeterminate = mSel.size>0 && mSel.size<n;
-             todos.disabled = !n; }
+             todos.style.display = n ? '' : 'none';
+             todos.title = n ? 'Seleccionar todas las acciones' : ''; }
 }
 const pedirBorrarSeleccion = () => pedirBorrarAccionesMerma([...mSel]);
 // Las acciones elegidas que siguen existiendo: [{id, idx, r, d}]

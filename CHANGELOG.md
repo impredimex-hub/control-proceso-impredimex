@@ -11,6 +11,17 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.24.1] — 2026-11-27
+
+### Corregido
+
+- En «Acciones de merma», la casilla «seleccionar todos» se veía gris cuando
+  ningún defecto tenía acción capturada y parecía descompuesta. Ahora no se
+  muestra en ese caso (SPEC-029).
+- Caché del service worker a `calidad-v1.24.1`.
+
+---
+
 ## [1.24.0] — 2026-11-27
 
 ### Corregido

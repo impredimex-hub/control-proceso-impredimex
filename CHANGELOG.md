@@ -11,6 +11,17 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.25.2] — 2026-11-27
+
+### Cambiado
+
+- «Nuevo arranque» deja el formulario en blanco: máquina sin elegir, etiqueta,
+  OP, master, operador y hora (SPEC-028). Sin máquina, la pantalla pide
+  elegirla.
+- Caché del service worker a `calidad-v1.25.2`.
+
+---
+
 ## [1.25.1] — 2026-11-27
 
 ### Cambiado

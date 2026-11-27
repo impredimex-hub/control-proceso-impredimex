@@ -1009,7 +1009,9 @@ function verPagina(id, btn){
 
 function poblarSelects(){
   const om = MAQUINAS.map(m=>`<option value="${m.id}">${m.id} · ${m.area}</option>`).join('');
-  $('f-maquina').innerHTML = om; $('t-maquina').innerHTML = om;
+  // SPEC-028: «Nuevo arranque» deja la máquina sin elegir; al abrir se propone la primera.
+  $('f-maquina').innerHTML = '<option value="">— Elige la máquina —</option>' + om; $('f-maquina').value = MAQUINAS[0].id;
+  $('t-maquina').innerHTML = om;
   $('m-maquina').innerHTML = '<option value="">— Todas —</option>' + om;
   refrescarCatalogo();            // lista oficial mientras llega la de la base
   pintarTurno(); pintarAuditor();
@@ -1472,7 +1474,6 @@ function maquinaElegida(){
   pintarFoco(); pintarEtapa();
 }
 function pintarEtapa(){
-  if(!$('f-maquina').value) return;
   const arr = $('f-etapa').value==='arranque';
   $('bloque-arranque').classList.toggle('hide', !arr);
   $('bloque-seguimiento').classList.toggle('hide', arr);
@@ -1513,7 +1514,8 @@ function fijarCorrida(c){
 function pintarArranque(){
   const f = formatoDe($('f-maquina').value);
   $('a-formato').classList.toggle('hide', !f);
-  $('a-sin-formato').innerHTML = f ? '' : `<div class="card"><div class="aviso aviso-amber" style="margin:0">
+  $('a-sin-formato').innerHTML = f ? '' : !$('f-maquina').value
+    ? `<div class="card"><div class="aviso" style="margin:0">Elige la máquina para ver su formato de arranque.</div></div>` : `<div class="card"><div class="aviso aviso-amber" style="margin:0">
     ${esc($('f-maquina').value)} es del área ${esc(areaDe($('f-maquina').value)||'—')}, que todavía no tiene
     formato de arranque. Hoy lo tienen Rotograbado y Flexografía; digital, laminado y acondicionado
     se agregan cuando Calidad comparta sus hojas.</div></div>`;
@@ -1553,6 +1555,7 @@ function pintarResultadoArr(){
 /* Lo que piden el arranque y el seguimiento por igual (SPEC-016, SPEC-027):
    etiqueta y operador válidos. Devuelve los datos comunes del registro, o null. */
 async function validarComunes(){
+  if(!$('f-maquina').value){ toast('Elige la máquina'); return null; }
   if(!$('f-etiqueta').value.trim()){ toast('Escribe el número de etiqueta'); return null; }
   if(!$('f-nom-ope').value.trim()){ toast('Escribe la nómina del operador'); return null; }
   const op = await fBuscarOperador();
@@ -1573,6 +1576,7 @@ async function validarComunes(){
 
 async function registrarArranque(){
   const maq = $('f-maquina').value, f = formatoDe(maq);
+  if(!maq){ toast('Elige la máquina'); $('f-maquina').focus(); return; }
   if(!f){ toast('Esta máquina todavía no tiene formato de arranque'); return; }
   const op = normOP($('f-op').value);
   if(!op){ toast('Escribe la orden de producción'); $('f-op').focus(); return; }
@@ -1631,13 +1635,18 @@ async function registrarArranque(){
 /* ── Seguimiento a corrida ── */
 function pintarSeguimiento(){
   const maq = $('f-maquina').value, f = formatoDe(maq), c = corridaActiva(maq);
+  if(!maq){                                                     // después de «Nuevo arranque»
+    $('c-corrida').classList.remove('hide'); $('f-terminar').innerHTML = '';
+    $('corrida-info').innerHTML = '<div class="aviso" style="margin:0">Elige la máquina o toca una corrida activa.</div>';
+    $('seg-cuerpo').classList.add('hide'); $('f-master-c').classList.add('hide'); return;
+  }
   // Con corrida, sus datos ya están en el formulario y en «Corridas activas»: la tarjeta
   // solo aparece para avisar que falta el arranque. «Terminar corrida» va en los datos.
   $('c-corrida').classList.toggle('hide', !f || !!c);
   // «Nuevo arranque» suelta la corrida (sin terminarla) y pasa a la etapa de arranque.
   $('f-terminar').innerHTML = c ? `<div class="row">
     <button class="btn btn-2" onclick="pedirTerminarCorrida('${c._id}')">Terminar corrida</button>
-    <button class="btn btn-2" onclick="irAlArranque()">Nuevo arranque</button></div>` : '';
+    <button class="btn btn-2" onclick="nuevoArranque()">Nuevo arranque</button></div>` : '';
   if(f && !c){
     $('corrida-info').innerHTML = `<div class="aviso aviso-amber" style="margin:0">No hay un arranque liberado en
       ${esc(maq)}. El seguimiento a corrida empieza después de liberar el arranque.</div>
@@ -1721,6 +1730,20 @@ function tocarCorrida(maq){
     toast('Corrida suelta: elige otra máquina o la etapa de arranque'); return;
   }
   irACorrida(maq);
+}
+// «Nuevo arranque»: el formulario queda en blanco (máquina, etiqueta, OP, master,
+// operador y hora). La corrida de la que se viene sigue activa.
+function nuevoArranque(){
+  cambiandoMaquina = false; corridaFijada = null;
+  $('f-etapa').value = 'arranque'; $('f-maquina').value = '';
+  ['f-op','f-etiqueta','f-master'].forEach(id=>{ const e = $(id); e.value = ''; e.readOnly = false; e.classList.remove('derivado-m'); e.tabIndex = 0; });
+  etiquetaEscrita();
+  $('f-nom-ope').value = ''; fOperadorEscrito();
+  $('f-hora').innerHTML = '<span style="margin:0">Se registra al terminar</span>';
+  estArr.req = {}; estArr.pts = {}; estArr.area = null; estArr.formato = ''; estSeg.pts = {};
+  $('a-coment').value = ''; $('a-hecho').innerHTML = '';
+  pintarEtapa();
+  $('f-etapa').scrollIntoView({block:'center', behavior:'smooth'});
 }
 function irAlArranque(){
   $('f-etapa').value = 'arranque'; pintarEtapa();

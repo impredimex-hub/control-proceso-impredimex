@@ -11,6 +11,27 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.23.0] — 2026-11-27
+
+### Agregado
+
+- **Borrar, solo administrador** (SPEC-029), con un botón discreto en:
+  - **Corridas activas**: borra la corrida; su arranque y sus seguimientos se
+    quedan.
+  - **Acciones de la inspección**: borra el hallazgo; la inspección que lo
+    originó se queda.
+  - **Acciones de merma**: borra el folio de rechazo completo, igual que en la
+    pestaña Merma.
+  - **Inspecciones registradas**: borra la inspección (y su hallazgo, si abrió
+    uno; la corrida se recalcula) o el arranque (y la corrida que abrió).
+- Cada borrado pide el motivo, se hace en una sola escritura y deja una copia
+  en `cal/borrados/<tipo>/<id>` con quién y cuándo.
+- Las tablas de Historial y Acciones se actualizan al momento cuando cambian
+  inspecciones o hallazgos.
+- Caché del service worker a `calidad-v1.23.0`.
+
+---
+
 ## [1.22.1] — 2026-11-26
 
 ### Agregado

@@ -1025,6 +1025,9 @@ async function conectar(){
       const v=s.val()||{};
       DB[k] = Object.keys(v).map(id=>({_id:id, ...v[id]}));
       pintarFoco();
+      // SPEC-029: un borrado se ve al momento en la tabla abierta.
+      if(!$('pg-historial').classList.contains('hide')) pintarHistorial();
+      if(!$('pg-acciones').classList.contains('hide')) pintarAcciones();
     }, fallo('cal/'+k));
   });
   db.ref('cal/matriz').on('value', s=>{ DB.matriz = s.val()||{}; pintarFoco(); }, fallo('cal/matriz'));
@@ -1676,12 +1679,13 @@ function pintarCorridasActivas(){
   $('corridas-activas').innerHTML = !lista.length
     ? '<div class="vacio" style="padding:10px">No hay corridas activas. Se abren al liberar un arranque.</div>'
     : `<div class="gal-tabla-wrap"><table class="gal-tabla"><thead><tr><th>Máquina</th><th>OP · etiqueta</th>
-        <th>Liberada</th><th>Revisiones</th><th>Última revisión</th></tr></thead><tbody>${lista.map(c=>`
+        <th>Liberada</th><th>Revisiones</th><th>Última revisión</th>${sesion.rol==='ADMIN' ? '<th>Borrar</th>' : ''}</tr></thead><tbody>${lista.map(c=>`
         <tr class="corr-fila${!cambiandoMaquina && $('f-etapa').value!=='arranque' && $('f-maquina').value===c.maquina ? ' corr-sel' : ''}" onclick="tocarCorrida('${esc(c.maquina)}')">
           <td><b>${esc(c.maquina)}</b></td><td>${esc(c.op)} · ${esc(c.etiqueta)}</td>
           <td>${c.fecha===hoy ? '' : esc(c.fecha.split('-').reverse().slice(0,2).join('/'))+' '}${esc(c.hora||'')}</td>
           <td>${+c.revisiones||0}${c.masters ? ' · master '+c.masters : ''}</td>
           <td>${c.ultimaHora ? (c.ultimaFecha && c.ultimaFecha!==hoy ? esc(c.ultimaFecha.split('-').reverse().slice(0,2).join('/'))+' ' : '')+esc(c.ultimaHora) : '—'}</td>
+          ${sesion.rol==='ADMIN' ? `<td class="r-acc-td">${btnBorrar('corrida', c._id)}</td>` : ''}
         </tr>`).join('')}</tbody></table></div>
       <div class="r-def-nota">Toca una corrida para registrar su seguimiento.</div>`;
 }
@@ -1894,6 +1898,118 @@ function restablecerEspec(area, id){
     .then(()=>{ cerrarModal('modal-espec'); toast('Se restableció lo de la hoja'); }).catch(e=>toast('Error: '+e.message));
 }
 
+/* ═══════════════ BORRAR CORRIDAS, ACCIONES E INSPECCIONES, SOLO ADMIN (SPEC-029) ═══════════════
+   Como los rechazos (SPEC-019): una ventana con qué se borra y el motivo, una
+   sola escritura y una copia en cal/borrados/<tipo>/<id> con quién, cuándo y
+   por qué. */
+const btnBorrar = (tipo, id) => sesion && sesion.rol==='ADMIN'
+  ? `<button class="r-acc r-acc-borrar" onclick="event.stopPropagation(); pedirBorrar('${tipo}','${esc(id)}')">Borrar</button>` : '';
+const sinId = o => { const {_id, _arranque, ...r} = o || {}; return r; };
+const copiaBorrado = (o, motivo) => ({...sinId(o), borradoPorNomina: sesion.nomina, borradoPorNombre: sesion.nombre,
+                                      borradoEn: new Date().toISOString(), motivo});
+
+// Lo que dice la ventana y lo que se escribe, según el tipo.
+async function planBorrado(tipo, id){
+  if(tipo==='corrida'){
+    const c = CORRIDAS.find(x=>x._id===id); if(!c) return null;
+    return {titulo:`Borrar la corrida de ${c.maquina}`,
+      detalle:`${conOP(c.op)} · etiqueta ${c.etiqueta} · liberada ${fechaHora(c.fecha, c.hora)} · ${+c.revisiones||0} revisiones`,
+      aviso:'Su arranque y sus revisiones de seguimiento se quedan en el historial.',
+      upd: m => ({['corridas/'+id]: null, ['borrados/corridas/'+id]: copiaBorrado(c, m)}),
+      hecho:'Corrida borrada'};
+  }
+  if(tipo==='hallazgo'){
+    const h = DB.hallazgos.find(x=>x._id===id); if(!h) return null;
+    const ins = DB.inspecciones.filter(i=>i.hallazgoId===id);
+    return {titulo:'Borrar la acción de la inspección',
+      detalle:`${h.fecha||''} · ${h.maquina||''} · ${h.defecto||''}${h.etiqueta ? ' · etiqueta '+h.etiqueta : ''}`,
+      aviso:'Deja de contar en el foco. La inspección «no pasa» que la originó se queda.',
+      upd: m => { const u = {['hallazgos/'+id]: null, ['borrados/hallazgos/'+id]: copiaBorrado(h, m)};
+                  ins.forEach(i=>{ u['inspecciones/'+i._id+'/hallazgoId'] = null; }); return u; },
+      hecho:'Acción borrada'};
+  }
+  if(tipo==='inspeccion'){
+    const i = DB.inspecciones.find(x=>x._id===id); if(!i) return null;
+    const h = i.hallazgoId && DB.hallazgos.find(x=>x._id===i.hallazgoId);
+    let c = null;
+    if(i.corridaId){
+      c = CORRIDAS.find(x=>x._id===i.corridaId) || null;
+      if(!c){ try{ const v = (await db.ref('cal/corridas/'+i.corridaId).once('value')).val(); if(v) c = {_id:i.corridaId, ...v}; }catch(e){} }
+    }
+    const avisos = [];
+    if(h) avisos.push(`También se borra la acción que abrió (${h.defecto||'hallazgo'}).`);
+    if(c) avisos.push('La corrida se recalcula con las revisiones que quedan.');
+    return {titulo:`Borrar la inspección de ${i.maquina}`,
+      detalle:`${fechaHora(i.fecha, i.hora)} · ${i.etapa==='arranque' ? 'arranque' : 'seguimiento'} · etiqueta ${i.etiqueta||''}` +
+              `${i.op ? ' · '+conOP(i.op) : ''}${i.master ? ' · master '+i.master : ''} · ${i.resultado||''}`,
+      aviso: avisos.join(' '),
+      upd: m => {
+        const u = {['inspecciones/'+id]: null, ['borrados/inspecciones/'+id]: copiaBorrado(i, m)};
+        if(h){ u['hallazgos/'+h._id] = null; u['borrados/hallazgos/'+h._id] = copiaBorrado(h, m); }
+        if(c){
+          const r = 'corridas/'+c._id+'/';
+          const resto = DB.inspecciones.filter(x=>x.corridaId===c._id && x._id!==id).sort((a,b)=>(a.ts||0)-(b.ts||0));
+          const ult = resto[resto.length-1];
+          u[r+'revisiones'] = resto.length;
+          u[r+'masters'] = resto.reduce((mx,x)=>Math.max(mx, +x.master||0), 0);
+          u[r+'ultimaTs'] = ult ? ult.ts : null; u[r+'ultimaFecha'] = ult ? ult.fecha : null;
+          u[r+'ultimaHora'] = ult ? ult.hora : null; u[r+'ultimoResultado'] = ult ? ult.resultado : null;
+          if(ult){ u[r+'ultimoOperadorNomina'] = ult.operadorNomina||null; u[r+'ultimoOperadorNombre'] = ult.operadorNombre||null; }
+        }
+        return u; },
+      hecho:'Inspección borrada'};
+  }
+  if(tipo==='arranque'){
+    const a = ARRANQUES.find(x=>x._id===id); if(!a) return null;
+    let c = null;
+    if(a.corridaId){
+      try{ const v = (await db.ref('cal/corridas/'+a.corridaId).once('value')).val(); if(v) c = {_id:a.corridaId, ...v}; }catch(e){}
+    }
+    return {titulo:`Borrar el arranque de ${a.maquina}`,
+      detalle:`${fechaHora(a.fecha, a.hora)} · ${conOP(a.op)} · etiqueta ${a.etiqueta} · ${a.resultado}${a.intento>1 ? ' · intento '+a.intento : ''}`,
+      aviso: c ? `También se borra la corrida que abrió (${c.estado==='activa' ? 'activa' : 'terminada'}). Sus revisiones de seguimiento se quedan en el historial.` : '',
+      upd: m => { const u = {['arranques/'+id]: null, ['borrados/arranques/'+id]: copiaBorrado(a, m)};
+                  if(c){ u['corridas/'+c._id] = null; u['borrados/corridas/'+c._id] = copiaBorrado(c, m); } return u; },
+      hecho:'Arranque borrado'};
+  }
+  return null;
+}
+
+let planActual = null;
+async function pedirBorrar(tipo, id){
+  if(sesion.rol!=='ADMIN') return;
+  cerrarModal('modal-borrar');
+  const plan = await planBorrado(tipo, id);
+  if(!plan){ toast('Ya no existe; recarga la página'); return; }
+  planActual = plan;
+  const c = document.createElement('div'); c.className='modal'; c.id='modal-borrar';
+  c.innerHTML = `<div class="modal-box">
+    <div class="modal-t">${esc(plan.titulo)}</div>
+    <div style="font-size:12.5px;color:var(--text2);line-height:1.5;margin-bottom:10px">${esc(plan.detalle)}</div>
+    <div class="aviso aviso-amber" style="margin:0">${plan.aviso ? esc(plan.aviso)+' ' : ''}Se guarda una copia con tu nombre y el motivo.</div>
+    <label>Motivo</label>
+    <input id="b-motivo" maxlength="200" placeholder="Ej. captura de prueba, máquina equivocada" autocomplete="off">
+    <div id="b-err" style="color:var(--red);font-size:12.5px;margin-top:8px"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn btn-2" style="margin:0" onclick="cerrarModal('modal-borrar')">Cancelar</button>
+      <button class="btn" style="margin:0;background:var(--red)" id="b-ok" onclick="confirmarBorrado()">Borrar</button>
+    </div></div>`;
+  document.body.appendChild(c);
+  $('b-motivo').focus();
+}
+async function confirmarBorrado(){
+  const plan = planActual; if(!plan || sesion.rol!=='ADMIN') return;
+  const motivo = $('b-motivo').value.trim();
+  if(motivo.length < 3) return void($('b-err').textContent = 'Escribe el motivo.');
+  $('b-ok').disabled = true;
+  try{
+    await db.ref('cal').update(plan.upd(motivo));
+    cerrarModal('modal-borrar'); planActual = null; toast(plan.hecho);
+  }catch(e){
+    $('b-ok').disabled = false; $('b-err').textContent = 'No se pudo borrar: ' + e.message;
+  }
+}
+
 /* ═══════════════ INSPECCIÓN (SPEC-004, SPEC-007) ═══════════════ */
 /* ── SPEC-027: operador, hora y auditor en la inspección ── */
 let fOperador = null, fOpTimer = null;
@@ -2099,10 +2215,11 @@ function pintarAcciones(){
       <td class="fija">${esc(h.fecha||'')}</td>
       <td><span class="pill ${cerrada?'p-green':'p-red'}">${cerrada?'cerrada':'abierta'}</span></td>
       <td class="a-acc"><div class="a-def">${esc(h.defecto||'')}</div>${correccion}</td>` +
+      (sesion.rol==='ADMIN' ? `<td class="r-acc-td">${btnBorrar('hallazgo', h._id)}</td>` : '') +      // SPEC-029
       I_COLUMNAS.map(c=>`<td class="${c.num?'num':''}${c.largo?' a-acc':''}">${esc(fmt(c.v(h)))}</td>`).join('') + '</tr>';
   }).join('');
   $('lista-acciones').innerHTML = `<div class="gal-tabla-wrap"><table class="gal-tabla r-tabla">
-    <thead><tr><th>Fecha</th><th>Estado</th><th>Corrección</th>${I_COLUMNAS.map(c=>`<th class="${c.num?'num':''}">${c.t}</th>`).join('')}</tr></thead>
+    <thead><tr><th>Fecha</th><th>Estado</th><th>Corrección</th>${sesion.rol==='ADMIN' ? '<th>Borrar</th>' : ''}${I_COLUMNAS.map(c=>`<th class="${c.num?'num':''}">${c.t}</th>`).join('')}</tr></thead>
     <tbody>${cuerpo}</tbody></table></div>`;
 }
 
@@ -2199,7 +2316,8 @@ function pintarHistorial(){
     ${motivos.length ? `<div class="meta" style="color:var(--red)">${motivos.map(esc).join(' · ')}</div>` : ''}
     ${i.comentarios ? `<div class="meta">Comentarios: ${esc(i.comentarios)}</div>` : ''}
     ${i.operadorNombre ? `<div class="meta">Operador: ${esc(i.operadorNombre)} (${esc(i.operadorNomina)})</div>` : ''}
-    <div class="meta">Auditor: ${esc(i.inspectorNombre)} (${esc(i.inspectorNomina)})</div>
+    <div class="meta" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <span>Auditor: ${esc(i.inspectorNombre)} (${esc(i.inspectorNomina)})</span>${btnBorrar(i._arranque ? 'arranque' : 'inspeccion', i._id)}</div>
   </div>`;}).join('');
 }
 
@@ -2715,6 +2833,7 @@ function pintarRechazos(lista, mes, vista){
   const V = VISTAS[vista||'merma'], enAcciones = !!V.acciones;
   V.ultima = {lista, mes};
   const esAdmin = sesion.rol==='ADMIN' && !enAcciones, puedeAcc = enAcciones && puedeRegistrarAccion();
+  const borraAcc = sesion.rol==='ADMIN' && enAcciones;         // SPEC-029
   lista.forEach(r=>{ if(r._id) rTablaPorId[r._id] = r; });
   lista = lista.slice().sort(ordenRechazos);
   if(!mes) lista = lista.slice(0, 300);
@@ -2752,6 +2871,9 @@ function pintarRechazos(lista, mes, vista){
         const acciones = c.t==='Folio' && esAdmin
           ? `<td${rs} class="r-acc-td"><button class="r-acc" onclick="editarRechazo('${esc(r._id)}')">Editar</button></td>` +
             `<td${rs} class="r-acc-td"><button class="r-acc r-acc-borrar" onclick="pedirBorrarRechazo('${esc(r._id)}')">Borrar</button></td>`
+          // SPEC-029: en Acciones de merma, Borrar el folio completo (mismo procedimiento)
+          : c.t==='Folio' && borraAcc && j===0
+          ? `<td${rs} class="r-acc-td"><button class="r-acc r-acc-borrar" onclick="pedirBorrarRechazo('${esc(r._id)}')">Borrar</button></td>`
           : '';
         // SPEC-023: Recuperado y Acción, por defecto, después de Folio.
         const btn = t => puedeAcc && idx>=0
@@ -2771,6 +2893,7 @@ function pintarRechazos(lista, mes, vista){
   $(V.lista).innerHTML = `<div class="gal-tabla-wrap"><table class="gal-tabla r-tabla">
     <thead><tr>${R_COLUMNAS.filter(c=>!c.soloExcel).map(c=>`<th class="${c.num?'num':''}">${c.t}</th>` +
       (c.t==='Folio' && esAdmin ? '<th>Editar</th><th>Borrar</th>' : '') +
+      (c.t==='Folio' && borraAcc ? '<th>Borrar</th>' : '') +
       (c.t==='Folio' && enAcciones ? '<th>Recuperado</th><th>Acción</th>' : '')).join('')}</tr></thead>
     <tbody>${cuerpo}</tbody></table></div>`;
 }

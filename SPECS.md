@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.22.1 — estados revisados contra el código el 26 de
+**Versión vigente:** 1.23.0 — estados revisados contra el código el 26 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -60,6 +60,7 @@ se puede ir del documento al código y de regreso.
 | 026 | Folio de rechazo automático | Implementado |
 | 027 | Operador, hora y auditor en la inspección | Implementado |
 | 028 | Arranque de calidad y seguimiento a corrida | Implementado (con corridas terminadas desde la v1.22.0) — faltan formatos de digital, laminado y acondicionado, y rangos |
+| 029 | Borrar corridas, acciones e inspecciones (solo administrador) | Implementado |
 
 ---
 
@@ -1671,6 +1672,49 @@ Una corrida terminada no se borra: queda en `cal/corridas` con estado
   (`AAAA-MM-DD_<id>`), como los rechazos (SPEC-018), para leer un mes por rango
   de clave sin índices. Las corridas de prueba anteriores tienen clave sin
   fecha y solo salen en «Todo el histórico».
+
+---
+
+# SPEC-029 — Borrar corridas, acciones e inspecciones (solo administrador)
+
+**Estado:** implementado (v1.23.0).
+
+### Por qué
+Las capturas de prueba o equivocadas se quedan para siempre en las tablas.
+Hace falta poder quitarlas, sin perder el rastro.
+
+### Dónde
+Un botón **Borrar** discreto (texto rojo, como el de rechazos y etiquetas), que
+solo ve el **administrador**, en:
+- **Corridas activas** (Inspección): una columna al final. Tocar el botón no
+  abre la corrida.
+- **Acciones de la inspección** (Acciones): una columna después de
+  «Corrección».
+- **Acciones de merma** (Acciones): una columna después de «Folio». Borra el
+  **folio de rechazo completo**, con el mismo procedimiento y la misma ventana
+  que el Borrar de la pestaña Merma (SPEC-019).
+- **Inspecciones registradas** (Historial): en cada tarjeta, arranques y
+  seguimientos.
+
+### Cómo
+- Una ventana muestra qué se va a borrar y qué más cambia, y **pide el motivo**
+  (mínimo tres letras). Todo va en **una sola escritura**.
+- **Se guarda una copia** en `cal/borrados/<tipo>/<id>` (`corridas`,
+  `hallazgos`, `inspecciones` o `arranques`) con quién, cuándo y el motivo. Es el
+  rastro y sirve para recuperar el registro.
+
+### Qué se lleva cada borrado
+- **Corrida**: solo la corrida. Su arranque sigue en el historial y sus
+  seguimientos también. Si estaba en pantalla, el formulario se suelta.
+- **Acción de la inspección** (hallazgo): el hallazgo deja de contar en el foco.
+  La inspección «no pasa» que lo originó se queda, sin la liga al hallazgo.
+- **Inspección** (seguimiento o de variables): si abrió un hallazgo, se borra
+  también. Si era de una corrida que sigue existiendo, la corrida se recalcula:
+  revisiones, último master y última revisión salen de las revisiones que
+  quedan.
+- **Arranque**: si abrió una corrida, se borra también la corrida. Sus
+  seguimientos se quedan en el historial; cada uno se borra aparte si hace falta.
+- **Folio de rechazo**: como en la SPEC-019.
 
 ---
 

@@ -3,7 +3,7 @@
 Lo que necesita saber quien reciba esta aplicación para operarla, corregirla y
 extenderla sin depender de quien la construyó.
 
-**Versión de la aplicación:** 1.22.1
+**Versión de la aplicación:** 1.23.0
 **Última actualización de este documento:** 24 de noviembre de 2026
 **Desarrollo original:** Victor Moreno
 
@@ -151,6 +151,7 @@ en la SPEC-010.
 | `cal/hallazgos/<id>` | Inspector, Admin; al cerrar, Supervisor o Admin | Lo de la inspección más `defecto`, `causa`, `causaDeterminada`, `metros`, `paro`, `obs`, `estado`; al cerrar, `correccion`, `cerradoPorNomina`, `cerradoPorNombre`, `fechaCierre`, `tsCierre` |
 | `cal/arranques/<id>` | Los tres papeles | Arranque de calidad (SPEC-028): máquina, `area`, `formato`, `op`, etiqueta, operador, auditor, fecha, hora, turno, `requisitos`, `puntos` (`r`, `medida`, `nominal`, `tol`, `grado`, `gradoMin`, `estandar`), `areaLibre`, `comentarios`, `resultado` (`liberado` / `no liberado`), `motivos`, `intento` y, si se liberó, `corridaId` |
 | `cal/corridas/<AAAA-MM-DD>_<id>` | Los tres papeles | La fecha es la de liberación (desde la v1.22.0; las de prueba anteriores no la traen). Corrida abierta por un arranque liberado: máquina, `op`, etiqueta, `arranqueId`, `liberoNomina`, `liberoNombre`, fecha, hora, `estado` (`activa` / `cerrada`), `revisiones`, `masters` (el más alto revisado), `ultimaHora`, `ultimoResultado`, `ultimoOperadorNomina`, `ultimoOperadorNombre`; al cerrar, `cerrada*` y `motivoCierre` (`terminada` / `nuevo arranque`) |
+| `cal/borrados/<tipo>/<id>` | Admin | Copia de lo borrado (SPEC-029): `corridas`, `hallazgos`, `inspecciones` o `arranques`, con `borradoPorNomina`, `borradoPorNombre`, `borradoEn` y `motivo`. Sirve para recuperar un registro |
 | `cal/especificaciones/<área>/<punto>` | Admin | Lo que cambió del formato de arranque: `std`, `seg`, `tol` (mm), `gradoMin`, y quién y cuándo. Lo que no está aquí viene del código (`FORMATOS_BASE`) |
 | `cal/matriz/<defecto>@<máquina>` | Admin | `defecto`, `maquina` (vacía = todas), `vars: [{nombre, peso}]`, `actualizadoPor`, `actualizadoEn` |
 | `cal/merma` | Ya nadie (hasta la v1.7.0, Admin) | La última carga del cargador anterior: `datos[línea][defecto][AAAA-MM] = metros`, `registros`, `ultimoMes`, `cargadoPor`, `cargadoEn`. Si existe, es la base histórica del foco (SPEC-018) |

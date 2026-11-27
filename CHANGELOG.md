@@ -11,6 +11,22 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.23.1] — 2026-11-27
+
+### Cambiado
+
+- El botón de borrar (SPEC-029) ahora es un círculo rojo con una «B» blanca, y
+  en las tablas va en la última columna.
+
+### Agregado
+
+- **Borrar varios folios de una vez** en «Acciones de merma»: casilla por
+  folio, «seleccionar todos» en el encabezado y botón «Borrar seleccionados».
+  Un solo motivo y una sola escritura.
+- Caché del service worker a `calidad-v1.23.1`.
+
+---
+
 ## [1.23.0] — 2026-11-27
 
 ### Agregado

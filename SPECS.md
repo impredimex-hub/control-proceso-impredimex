@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.23.0 — estados revisados contra el código el 26 de
+**Versión vigente:** 1.23.1 — estados revisados contra el código el 26 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -1677,24 +1677,27 @@ Una corrida terminada no se borra: queda en `cal/corridas` con estado
 
 # SPEC-029 — Borrar corridas, acciones e inspecciones (solo administrador)
 
-**Estado:** implementado (v1.23.0).
+**Estado:** implementado (v1.23.0; borrado de varios folios desde la v1.23.1).
 
 ### Por qué
 Las capturas de prueba o equivocadas se quedan para siempre en las tablas.
 Hace falta poder quitarlas, sin perder el rastro.
 
 ### Dónde
-Un botón **Borrar** discreto (texto rojo, como el de rechazos y etiquetas), que
-solo ve el **administrador**, en:
-- **Corridas activas** (Inspección): una columna al final. Tocar el botón no
-  abre la corrida.
-- **Acciones de la inspección** (Acciones): una columna después de
-  «Corrección».
-- **Acciones de merma** (Acciones): una columna después de «Folio». Borra el
-  **folio de rechazo completo**, con el mismo procedimiento y la misma ventana
-  que el Borrar de la pestaña Merma (SPEC-019).
-- **Inspecciones registradas** (Historial): en cada tarjeta, arranques y
-  seguimientos.
+Un botón discreto, **un círculo rojo con una «B» blanca**, que solo ve el
+**administrador**. En las tablas va en la **última columna**:
+- **Corridas activas** (Inspección). Tocar el botón no abre la corrida.
+- **Acciones de la inspección** (Acciones).
+- **Acciones de merma** (Acciones). Borra el **folio de rechazo completo**, con
+  el mismo procedimiento y la misma ventana que el Borrar de la pestaña Merma
+  (SPEC-019). Además, **se pueden borrar varios de una vez**: cada folio tiene
+  una casilla, el encabezado tiene «seleccionar todos» (los visibles con el mes
+  y el filtro elegidos) y aparece el botón **Borrar seleccionados (n)**. La
+  ventana muestra cuántos folios y cuántos metros, pide un solo motivo y borra
+  todo en una escritura: rechazos, folios libres, metros del foco y una copia
+  de cada uno en `merma2Borrados`.
+- **Inspecciones registradas** (Historial): en cada tarjeta, abajo a la
+  derecha.
 
 ### Cómo
 - Una ventana muestra qué se va a borrar y qué más cambia, y **pide el motivo**

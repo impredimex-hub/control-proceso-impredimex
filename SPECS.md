@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.23.1 — estados revisados contra el código el 26 de
+**Versión vigente:** 1.24.0 — estados revisados contra el código el 26 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -60,7 +60,8 @@ se puede ir del documento al código y de regreso.
 | 026 | Folio de rechazo automático | Implementado |
 | 027 | Operador, hora y auditor en la inspección | Implementado |
 | 028 | Arranque de calidad y seguimiento a corrida | Implementado (con corridas terminadas desde la v1.22.0) — faltan formatos de digital, laminado y acondicionado, y rangos |
-| 029 | Borrar corridas, acciones e inspecciones (solo administrador) | Implementado |
+| 029 | Borrar (solo administrador); en Acciones, solo la acción | Implementado |
+| 030 | Recuperar folios borrados | Implementado |
 
 ---
 
@@ -1675,49 +1676,90 @@ Una corrida terminada no se borra: queda en `cal/corridas` con estado
 
 ---
 
-# SPEC-029 — Borrar corridas, acciones e inspecciones (solo administrador)
+# SPEC-029 — Borrar: acciones en Acciones; corridas, inspecciones y arranques donde nacen
 
-**Estado:** implementado (v1.23.0; borrado de varios folios desde la v1.23.1).
+**Estado:** implementado (v1.23.0). Desde la v1.24.0, en la pestaña Acciones se
+borra **solo la acción**, no el registro.
 
 ### Por qué
 Las capturas de prueba o equivocadas se quedan para siempre en las tablas.
 Hace falta poder quitarlas, sin perder el rastro.
 
+**Lo que se corrigió en la v1.24.0.** En la v1.23 la «B» de la pestaña Acciones
+borraba el registro completo: en «Acciones de merma» el folio de rechazo, y en
+«Acciones de la inspección» el hallazgo. En una pestaña que se llama Acciones,
+un botón de borrar se lee como «borrar la acción», y así se borraron folios que
+debían quedarse. Desde la v1.24.0 la «B» de Acciones borra solo la acción. El
+registro se borra donde nace: los folios en la pestaña Merma (SPEC-019) y las
+inspecciones con su hallazgo en Historial.
+
 ### Dónde
 Un botón discreto, **un círculo rojo con una «B» blanca**, que solo ve el
 **administrador**. En las tablas va en la **última columna**:
-- **Corridas activas** (Inspección). Tocar el botón no abre la corrida.
-- **Acciones de la inspección** (Acciones).
-- **Acciones de merma** (Acciones). Borra el **folio de rechazo completo**, con
-  el mismo procedimiento y la misma ventana que el Borrar de la pestaña Merma
-  (SPEC-019). Además, **se pueden borrar varios de una vez**: cada folio tiene
-  una casilla, el encabezado tiene «seleccionar todos» (los visibles con el mes
-  y el filtro elegidos) y aparece el botón **Borrar seleccionados (n)**. La
-  ventana muestra cuántos folios y cuántos metros, pide un solo motivo y borra
-  todo en una escritura: rechazos, folios libres, metros del foco y una copia
-  de cada uno en `merma2Borrados`.
+- **Corridas activas** (Inspección): borra la corrida. Tocar el botón no abre la
+  corrida.
+- **Acciones de la inspección** (Acciones): borra la **corrección** de un
+  hallazgo cerrado; el hallazgo vuelve a quedar **abierto**. Solo aparece en
+  los cerrados.
+- **Acciones de merma** (Acciones): borra **lo recuperado y la acción** de un
+  defecto; el folio se queda. Solo aparece en los defectos que tienen algo
+  capturado. Se pueden borrar varias de una vez: casilla por defecto,
+  «seleccionar todos» en el encabezado (los visibles) y el botón **Borrar
+  seleccionados (n)**.
 - **Inspecciones registradas** (Historial): en cada tarjeta, abajo a la
-  derecha.
+  derecha. Borra la inspección o el arranque.
 
 ### Cómo
 - Una ventana muestra qué se va a borrar y qué más cambia, y **pide el motivo**
   (mínimo tres letras). Todo va en **una sola escritura**.
 - **Se guarda una copia** en `cal/borrados/<tipo>/<id>` (`corridas`,
-  `hallazgos`, `inspecciones` o `arranques`) con quién, cuándo y el motivo. Es el
-  rastro y sirve para recuperar el registro.
+  `hallazgos`, `inspecciones`, `arranques`, `correcciones` o `accionesMerma`)
+  con quién, cuándo y el motivo.
 
 ### Qué se lleva cada borrado
 - **Corrida**: solo la corrida. Su arranque sigue en el historial y sus
   seguimientos también. Si estaba en pantalla, el formulario se suelta.
-- **Acción de la inspección** (hallazgo): el hallazgo deja de contar en el foco.
-  La inspección «no pasa» que lo originó se queda, sin la liga al hallazgo.
+- **Corrección** (Acciones de la inspección): se quitan la corrección, quién y
+  cuándo cerró; el hallazgo vuelve a «abierta». La causa se queda como está.
+- **Acción de merma**: se quitan lo recuperado (etiquetas y metros), la acción
+  y quién y cuándo la capturó, de ese defecto. Los metros rechazados no cambian.
 - **Inspección** (seguimiento o de variables): si abrió un hallazgo, se borra
   también. Si era de una corrida que sigue existiendo, la corrida se recalcula:
   revisiones, último master y última revisión salen de las revisiones que
   quedan.
 - **Arranque**: si abrió una corrida, se borra también la corrida. Sus
   seguimientos se quedan en el historial; cada uno se borra aparte si hace falta.
-- **Folio de rechazo**: como en la SPEC-019.
+
+---
+
+# SPEC-030 — Recuperar folios borrados
+
+**Estado:** implementado (v1.24.0).
+
+### Por qué
+Un folio borrado por error se tendría que volver a subir con el Excel, pero
+entonces recibiría un folio nuevo (SPEC-026) y perdería sus acciones. La copia
+en `merma2Borrados` (SPEC-019) tiene todo: se puede regresar tal cual.
+
+### Cómo
+- En la pestaña **Merma**, el administrador ve la tarjeta **Folios borrados**:
+  folio, fecha, OP, etiqueta, máquina que genera, metros, cuándo se borró, quién
+  y el motivo, del más reciente al más antiguo. Se lee al abrir la pestaña y con
+  «Actualizar».
+- Casilla por folio, «seleccionar todos» y el botón **Recuperar seleccionados
+  (n)**.
+- Antes de recuperar, la app revisa cada folio contra los rechazos actuales:
+  - **ya existe** con esa clave: no se toca;
+  - **ya se volvió a subir** (mismo rechazo por fecha, OP, etiqueta, máquina
+    y defectos, como en la SPEC-026): no se duplica; se dice con qué folio
+    quedó;
+  - **su número de folio ya lo usa otro rechazo**: no se recupera; se dice
+    cuál.
+- La ventana dice cuántos se recuperan y cuáles no y por qué. Al confirmar, en
+  una sola escritura: el rechazo regresa con su clave, su folio, sus defectos y
+  sus acciones; el folio vuelve a quedar ocupado; sus metros vuelven al foco;
+  sale de `merma2Borrados` y queda un registro en
+  `merma2Recuperados/<id>` con quién y cuándo lo recuperó.
 
 ---
 

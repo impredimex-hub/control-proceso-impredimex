@@ -11,6 +11,33 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.24.0] — 2026-11-27
+
+### Corregido
+
+- **En la pestaña Acciones, la «B» borra solo la acción** (SPEC-029). En la
+  v1.23 borraba el registro completo, y así se borraron folios de rechazo que
+  debían quedarse.
+  - Acciones de merma: borra lo recuperado y la acción de un defecto; el folio
+    se queda con sus metros. Solo aparece en los defectos con algo capturado.
+    Se pueden borrar varias acciones de una vez.
+  - Acciones de la inspección: borra la corrección; el hallazgo vuelve a
+    quedar abierto. Solo aparece en los cerrados.
+  - Los folios se borran en la pestaña Merma; inspecciones y hallazgos, en
+    Historial.
+
+### Agregado
+
+- **Recuperar folios borrados** (SPEC-030), en la pestaña Merma, solo
+  administrador. Regresan tal cual (folio, defectos, metros y acciones) y sus
+  metros vuelven al foco. No se duplican los que ya se volvieron a subir ni
+  los que tienen su número de folio ocupado.
+- Copias de lo borrado también para correcciones y acciones de merma, en
+  `cal/borrados/correcciones` y `cal/borrados/accionesMerma`.
+- Caché del service worker a `calidad-v1.24.0`.
+
+---
+
 ## [1.23.1] — 2026-11-27
 
 ### Cambiado

@@ -624,8 +624,8 @@ td.td-b .m-sel,th .m-sel{width:16px;height:16px;margin:0 6px 0 0;vertical-align:
         </select>
         <select id="a-mes" class="r-mes" aria-label="Periodo" onchange="leerTablaRechazos('acciones')"></select>
         <button class="btn btn-sm" id="a-exportar" onclick="exportarRechazos('acciones')">Exportar a Excel</button>
-        <!-- SPEC-029: borrar varios folios de una vez (solo admin) -->
-        <button class="btn btn-sm hide" id="a-borrar-sel" style="background:var(--red)" onclick="pedirBorrarSeleccion()">Borrar seleccionados</button>
+        <!-- SPEC-029: borrar varias acciones de una vez (solo admin); el folio se queda -->
+        <button class="btn btn-sm hide" id="a-borrar-sel" style="background:var(--red)" onclick="pedirBorrarSeleccion()">Borrar acciones seleccionadas</button>
       </div>
       <div id="a-lista"><div class="vacio">Cargando…</div></div>
     </div>
@@ -781,6 +781,17 @@ td.td-b .m-sel,th .m-sel{width:16px;height:16px;margin:0 6px 0 0;vertical-align:
         <button class="btn btn-sm" id="r-exportar" onclick="exportarRechazos()">Exportar a Excel</button>
       </div>
       <div id="r-lista"><div class="vacio">Cargando…</div></div>
+    </div>
+
+    <!-- SPEC-030: recuperar folios borrados, solo admin -->
+    <div class="card hide" id="m-borrados">
+      <div class="card-t">Folios borrados</div>
+      <div class="gal-acciones" style="margin-top:0">
+        <span id="fb-cuenta" class="r-cuenta">—</span>
+        <button class="btn btn-2 btn-sm" onclick="leerBorrados()">Actualizar</button>
+        <button class="btn btn-sm hide" id="fb-recuperar" onclick="pedirRecuperar()">Recuperar seleccionados</button>
+      </div>
+      <div id="fb-lista"></div>
     </div>
   </section>
 
@@ -1926,6 +1937,21 @@ async function planBorrado(tipo, id){
       upd: m => ({['corridas/'+id]: null, ['borrados/corridas/'+id]: copiaBorrado(c, m)}),
       hecho:'Corrida borrada'};
   }
+  // v1.24.0: en Acciones de la inspección se borra solo la corrección; el hallazgo se reabre.
+  if(tipo==='correccion'){
+    const h = DB.hallazgos.find(x=>x._id===id); if(!h || h.estado!=='cerrada') return null;
+    const campos = ['correccion','cerradoPorNomina','cerradoPorNombre','fechaCierre','tsCierre'];
+    return {titulo:'Borrar la corrección',
+      detalle:`${h.fecha||''} · ${h.maquina||''} · ${h.defecto||''}${h.correccion ? ' · «'+h.correccion+'»' : ''}`,
+      aviso:'El hallazgo se queda y vuelve a quedar abierto. La causa no cambia.',
+      upd: m => { const u = {['hallazgos/'+id+'/estado']: 'abierta'};
+        campos.forEach(k=>{ u['hallazgos/'+id+'/'+k] = null; });
+        const copia = {hallazgoId: id, defecto: h.defecto||'', maquina: h.maquina||'', fecha: h.fecha||''};
+        campos.forEach(k=>{ if(h[k]!=null) copia[k] = h[k]; });
+        u['borrados/correcciones/'+id+'_'+Date.now()] = copiaBorrado(copia, m);
+        return u; },
+      hecho:'Corrección borrada; el hallazgo quedó abierto'};
+  }
   if(tipo==='hallazgo'){
     const h = DB.hallazgos.find(x=>x._id===id); if(!h) return null;
     const ins = DB.inspecciones.filter(i=>i.hallazgoId===id);
@@ -2224,7 +2250,7 @@ function pintarAcciones(){
       <td><span class="pill ${cerrada?'p-green':'p-red'}">${cerrada?'cerrada':'abierta'}</span></td>
       <td class="a-acc"><div class="a-def">${esc(h.defecto||'')}</div>${correccion}</td>` +
       I_COLUMNAS.map(c=>`<td class="${c.num?'num':''}${c.largo?' a-acc':''}">${esc(fmt(c.v(h)))}</td>`).join('') +
-      (sesion.rol==='ADMIN' ? `<td class="td-b">${btnBorrar('hallazgo', h._id)}</td>` : '') + '</tr>';      // SPEC-029: al final
+      (sesion.rol==='ADMIN' ? `<td class="td-b">${h.estado==='cerrada' ? btnBorrar('correccion', h._id) : ''}</td>` : '') + '</tr>';      // SPEC-029: al final; solo la corrección
   }).join('');
   $('lista-acciones').innerHTML = `<div class="gal-tabla-wrap"><table class="gal-tabla r-tabla">
     <thead><tr><th>Fecha</th><th>Estado</th><th>Corrección</th>${I_COLUMNAS.map(c=>`<th class="${c.num?'num':''}">${c.t}</th>`).join('')}${sesion.rol==='ADMIN' ? '<th>Borrar</th>' : ''}</tr></thead>
@@ -2501,6 +2527,8 @@ async function personaDeSuite(n){
 function prepararMerma(){
   escucharFolios();                                              // SPEC-026
   $('m-carga').classList.toggle('hide', sesion.rol!=='ADMIN');   // SPEC-018
+  $('m-borrados').classList.toggle('hide', sesion.rol!=='ADMIN'); // SPEC-030
+  if(sesion.rol==='ADMIN') leerBorrados();
   pintarFuenteMerma();
   if(!$('r-maquina').options.length){
     $('r-maq-genera').innerHTML = '<option value="">— Selecciona —</option>' +
@@ -2857,7 +2885,7 @@ function pintarRechazos(lista, mes, vista){
       : mes ? 'No hay rechazos registrados en '+nombreMes(mes)+'.' : 'Todavía no hay rechazos registrados.'}</div>`; return;
   }
   lista = filas.map(x=>x.r);
-  if(borraAcc){ const vis = new Set(lista.map(r=>r._id)); [...mSel].forEach(id=>{ if(!vis.has(id)) mSel.delete(id); }); }
+  if(borraAcc){ const vis = new Set(filas.flatMap(x=>x.defs.map(y=>x.r._id+'|'+y.idx))); [...mSel].forEach(k=>{ if(!vis.has(k)) mSel.delete(k); }); }
   const fmt = v => v==null ? '' : (typeof v==='number' ? v.toLocaleString('es-MX') : String(v));
   const lineas = filas.flatMap(x=>x.defs.map(y=>y.d));
   const nDef = lineas.length, metros = lineas.reduce((a,d)=>a+(+d.metros||0), 0);
@@ -2895,11 +2923,12 @@ function pintarRechazos(lista, mes, vista){
         if(c.t==='Folio' && j>0) return celdasAcc;
         return `<td${rs} class="${cls}">${esc(fmt(c.v(r,d)))}</td>${acciones}${celdasAcc}`;
       }).join('') +
-      // SPEC-029: al final, la casilla para borrar varios y la B para borrar uno (el folio completo).
-      (borraAcc && j===0 ? `<td${alto>1 ? ` rowspan="${alto}"` : ''} class="td-b"><input type="checkbox" class="m-sel"
-          aria-label="Seleccionar folio ${esc(r.folio)}" data-id="${esc(r._id)}" ${mSel.has(r._id)?'checked':''}
-          onchange="marcarSel(this)"><button class="btn-b" title="Borrar" aria-label="Borrar"
-          onclick="pedirBorrarRechazo('${esc(r._id)}')">B</button></td>` : '') + '</tr>';
+      // SPEC-029 (v1.24.0): al final, por defecto, borrar SOLO lo recuperado y la acción.
+      // El folio se borra en la pestaña Merma.
+      (borraAcc ? `<td class="td-b">${idx>=0 && (d.accion || d.recuperadoMetros!=null) ? `<input type="checkbox" class="m-sel"
+          aria-label="Seleccionar acción del folio ${esc(r.folio)}" data-id="${esc(r._id)}|${idx}" ${mSel.has(r._id+'|'+idx)?'checked':''}
+          onchange="marcarSel(this)"><button class="btn-b" title="Borrar la acción" aria-label="Borrar la acción"
+          onclick="pedirBorrarAccionesMerma(['${esc(r._id)}|${idx}'])">B</button>` : ''}</td>` : '') + '</tr>';
     });
   });
   $(V.lista).innerHTML = `<div class="gal-tabla-wrap"><table class="gal-tabla r-tabla">
@@ -3594,10 +3623,11 @@ async function borrarRechazo(id){
   }
 }
 
-/* ── SPEC-029: borrar varios folios de una vez, en Acciones de merma ──
-   Mismo procedimiento que borrar uno (SPEC-019), en una sola escritura: se
-   quitan los rechazos, se liberan sus folios, se restan sus metros del foco y
-   se guarda una copia de cada uno en merma2Borrados con el motivo. */
+/* ── SPEC-029 (v1.24.0): en Acciones de merma se borra SOLO la acción ──
+   Lo recuperado y la acción de cada defecto elegido, uno o varios a la vez. El
+   folio, sus defectos y sus metros rechazados se quedan. Copia de cada acción
+   en cal/borrados/accionesMerma, con el motivo. La selección son claves
+   «<id del rechazo>|<índice del defecto>». */
 const mSel = new Set();
 function marcarSel(cb){ if(cb.checked) mSel.add(cb.dataset.id); else mSel.delete(cb.dataset.id); pintarBarraSel(); }
 function marcarTodos(cb){
@@ -3608,59 +3638,170 @@ function marcarTodos(cb){
 function pintarBarraSel(){
   const b = $('a-borrar-sel'); if(!b) return;
   b.classList.toggle('hide', !mSel.size || sesion.rol!=='ADMIN');
-  b.textContent = `Borrar seleccionados (${mSel.size})`;
+  b.textContent = `Borrar acciones seleccionadas (${mSel.size})`;
   const todos = $('m-sel-todos'), n = document.querySelectorAll('#a-lista td .m-sel').length;
-  if(todos){ todos.checked = n>0 && mSel.size===n; todos.indeterminate = mSel.size>0 && mSel.size<n; }
+  if(todos){ todos.checked = n>0 && mSel.size===n; todos.indeterminate = mSel.size>0 && mSel.size<n;
+             todos.disabled = !n; }
 }
-function pedirBorrarSeleccion(){
+const pedirBorrarSeleccion = () => pedirBorrarAccionesMerma([...mSel]);
+// Las acciones elegidas que siguen existiendo: [{id, idx, r, d}]
+function accionesElegidas(claves){
+  return claves.map(k=>{ const [id, i] = k.split('|'), r = rTablaPorId[id], idx = +i;
+    const d = r && defectosDe(r)[idx];
+    return d && (d.accion || d.recuperadoMetros!=null) ? {id, idx, r, d} : null; }).filter(Boolean);
+}
+let accionesPorBorrar = [];
+function pedirBorrarAccionesMerma(claves){
   if(sesion.rol!=='ADMIN') return;
-  const recs = [...mSel].map(id=>rTablaPorId[id]).filter(Boolean); if(!recs.length) return;
-  const metros = recs.reduce((a,r)=>a + defectosDe(r).reduce((b,d)=>b+(+d.metros||0),0), 0);
-  const folios = recs.map(r=>r.folio).filter(Boolean);
+  const sel = accionesElegidas(claves); if(!sel.length){ toast('No hay acciones que borrar'); return; }
+  accionesPorBorrar = claves;
   cerrarModal('modal-borrar');
+  const lista = sel.map(x=>`${x.r.folio||'sin folio'} · ${x.d.defecto||''}`);
   const c = document.createElement('div'); c.className='modal'; c.id='modal-borrar';
   c.innerHTML = `<div class="modal-box">
-    <div class="modal-t">Borrar ${recs.length} folio${recs.length===1?'':'s'}</div>
+    <div class="modal-t">Borrar ${sel.length===1 ? 'la acción' : sel.length+' acciones'}</div>
     <div style="font-size:12.5px;color:var(--text2);line-height:1.5;margin-bottom:10px">
-      ${(+metros.toFixed(2)).toLocaleString('es-MX')} m en total<br>
-      ${esc(folios.slice(0,12).join(', '))}${folios.length>12 ? ' y '+(folios.length-12)+' más' : ''}</div>
-    <div class="aviso aviso-amber" style="margin:0">Sus metros dejan de contar en el foco y los folios quedan
-      libres para capturarse otra vez. Se guarda una copia de cada uno con tu nombre y el motivo.</div>
+      ${esc(lista.slice(0,12).join(' · '))}${lista.length>12 ? ' y '+(lista.length-12)+' más' : ''}</div>
+    <div class="aviso aviso-amber" style="margin:0">Se borran solo lo recuperado y la acción. ${sel.length===1 ? 'El folio se queda' : 'Los folios se quedan'}
+      con sus defectos y sus metros rechazados. Se guarda una copia con tu nombre y el motivo.</div>
     <label>Motivo</label>
-    <input id="b-motivo" maxlength="200" placeholder="Ej. carga equivocada del Excel" autocomplete="off">
+    <input id="b-motivo" maxlength="200" placeholder="Ej. acción capturada en el folio equivocado" autocomplete="off">
     <div id="b-err" style="color:var(--red);font-size:12.5px;margin-top:8px"></div>
     <div class="row" style="margin-top:14px">
       <button class="btn btn-2" style="margin:0" onclick="cerrarModal('modal-borrar')">Cancelar</button>
-      <button class="btn" style="margin:0;background:var(--red)" id="b-ok" onclick="borrarSeleccion()">Borrar ${recs.length}</button>
+      <button class="btn" style="margin:0;background:var(--red)" id="b-ok" onclick="borrarAccionesMerma()">Borrar</button>
     </div></div>`;
   document.body.appendChild(c);
   $('b-motivo').focus();
 }
-async function borrarSeleccion(){
+async function borrarAccionesMerma(){
   if(sesion.rol!=='ADMIN') return;
-  const recs = [...mSel].map(id=>rTablaPorId[id]).filter(Boolean);
+  const sel = accionesElegidas(accionesPorBorrar);
   const motivo = $('b-motivo').value.trim();
   if(motivo.length < 3) return void($('b-err').textContent = 'Escribe el motivo.');
   $('b-ok').disabled = true; $('b-ok').textContent = 'Borrando…';
   try{
-    const limpios = recs.map(({_id, ...rec})=>rec), cuando = new Date().toISOString();
-    const upd = {...incrementosResumen(limpios, -1)};
-    recs.forEach((r,i)=>{
-      upd['merma2/'+r._id] = null;
-      upd['merma2Borrados/'+r._id] = {...limpios[i], borradoPorNomina: sesion.nomina, borradoPorNombre: sesion.nombre,
-                                       borradoEn: cuando, motivo};
+    const upd = {}, cuando = new Date().toISOString(), porId = {};
+    sel.forEach(x=>{ (porId[x.id] = porId[x.id] || []).push(x); });
+    Object.keys(porId).forEach(id=>{
+      const defs = defectosDe(rTablaPorId[id]).map(d=>({...d}));
+      porId[id].forEach(x=>{
+        const d = defs[x.idx], copia = {folio: x.r.folio||'', rechazoId: id, indice: x.idx, defecto: d.defecto||''};
+        CAMPOS_ACCION.forEach(k=>{ if(d[k]!=null) copia[k] = d[k]; delete d[k]; });
+        upd[`borrados/accionesMerma/${id}_${x.idx}_${Date.now()}`] = {...copia, borradoPorNomina: sesion.nomina,
+          borradoPorNombre: sesion.nombre, borradoEn: cuando, motivo};
+      });
+      upd['merma2/'+id+'/defectos'] = defs;
     });
-    // Cada folio se libera solo si apunta a su rechazo.
-    const libres = await Promise.all(recs.map(r => r.folio && claveValida(r.folio)
-      ? db.ref('cal/merma2Folios/'+r.folio).once('value').then(x=>x.val()===r._id ? r.folio : null) : null));
-    libres.filter(Boolean).forEach(f=>{ upd['merma2Folios/'+f] = null; });
     await db.ref('cal').update(upd);
-    mSel.clear(); pintarBarraSel();
+    sel.forEach(x=>mSel.delete(x.id+'|'+x.idx)); pintarBarraSel();
     cerrarModal('modal-borrar');
-    toast(`${recs.length} folio${recs.length===1?'':'s'} borrado${recs.length===1?'':'s'}`);
+    toast(sel.length===1 ? 'Acción borrada' : `${sel.length} acciones borradas`);
   }catch(e){
-    $('b-ok').disabled = false; $('b-ok').textContent = 'Borrar '+recs.length;
+    $('b-ok').disabled = false; $('b-ok').textContent = 'Borrar';
     $('b-err').textContent = 'No se pudo borrar: ' + e.message;
+  }
+}
+
+/* ═══════════════ RECUPERAR FOLIOS BORRADOS, SOLO ADMIN (SPEC-030) ═══════════════
+   La copia en merma2Borrados regresa tal cual: misma clave, folio, defectos y
+   acciones. Antes se revisa que no exista ya, que no se haya vuelto a subir
+   (misma huella, SPEC-026) y que su folio no lo use otro rechazo. */
+let FB_LISTA = [];
+const fbSel = new Set();
+const sinBorrado = ({_id, borradoPorNomina, borradoPorNombre, borradoEn, motivo, ...rec}) => rec;
+async function leerBorrados(){
+  if(sesion.rol!=='ADMIN') return;
+  $('fb-cuenta').textContent = 'Leyendo…';
+  let v;
+  try{ await baseLista; v = (await db.ref('cal/merma2Borrados').once('value')).val() || {}; }
+  catch(e){ $('fb-cuenta').textContent = 'No se pudo leer: '+(e.code||e.message); return; }
+  FB_LISTA = Object.keys(v).map(id=>({_id:id, ...v[id]})).sort((a,b)=>String(b.borradoEn||'').localeCompare(String(a.borradoEn||'')) || ordenRechazos(a,b));
+  [...fbSel].forEach(id=>{ if(!v[id]) fbSel.delete(id); });
+  pintarBorrados();
+}
+function pintarBorrados(){
+  const n = FB_LISTA.length;
+  $('fb-cuenta').textContent = n ? `${n} folio${n===1?'':'s'} borrado${n===1?'':'s'}` : 'No hay folios borrados';
+  const cuando = t => { const d = new Date(t); return isNaN(d) ? '' : fechaLocal(d).split('-').reverse().join('/')+' '+horaLocal(d); };
+  const metros = r => +defectosDe(r).reduce((a,d)=>a+(+d.metros||0),0).toFixed(2);
+  $('fb-lista').innerHTML = !n ? '' : `<div class="gal-tabla-wrap" style="max-height:50vh"><table class="gal-tabla">
+    <thead><tr><th style="text-align:center"><input type="checkbox" class="m-sel" id="fb-todos" aria-label="Seleccionar todos" onchange="fbTodos(this)"></th>
+      <th>Folio</th><th>Fecha</th><th>Orden de producción</th><th># de etiqueta</th><th>Máquina que genera</th>
+      <th class="num">Metros</th><th>Borrado</th><th>Borró</th><th>Motivo</th></tr></thead><tbody>` +
+    FB_LISTA.map(r=>`<tr><td class="td-b"><input type="checkbox" class="m-sel" data-id="${esc(r._id)}" ${fbSel.has(r._id)?'checked':''}
+        aria-label="Seleccionar folio ${esc(r.folio||'')}" onchange="fbMarcar(this)"></td>
+      <td><b>${esc(r.folio||'—')}</b></td><td>${esc(r.fecha||'')}</td><td>${esc(r.ordenProduccion||'')}</td><td>${esc(r.etiqueta||'')}</td>
+      <td>${esc(r.maquinaGenera||r.maquina||'')}</td><td class="num">${metros(r).toLocaleString('es-MX')}</td>
+      <td>${esc(cuando(r.borradoEn))}</td><td>${esc(r.borradoPorNombre||'')}</td><td>${esc(r.motivo||'')}</td></tr>`).join('') +
+    '</tbody></table></div>';
+  fbBarra();
+}
+function fbMarcar(cb){ if(cb.checked) fbSel.add(cb.dataset.id); else fbSel.delete(cb.dataset.id); fbBarra(); }
+function fbTodos(cb){ document.querySelectorAll('#fb-lista td .m-sel').forEach(x=>{ x.checked = cb.checked;
+  if(cb.checked) fbSel.add(x.dataset.id); else fbSel.delete(x.dataset.id); }); fbBarra(); }
+function fbBarra(){
+  $('fb-recuperar').classList.toggle('hide', !fbSel.size);
+  $('fb-recuperar').textContent = `Recuperar seleccionados (${fbSel.size})`;
+  const t = $('fb-todos'); if(t){ t.checked = FB_LISTA.length>0 && fbSel.size===FB_LISTA.length; t.indeterminate = fbSel.size>0 && fbSel.size<FB_LISTA.length; }
+}
+let planRecuperar = null;
+async function pedirRecuperar(){
+  if(sesion.rol!=='ADMIN' || !fbSel.size) return;
+  const btn = $('fb-recuperar'); btn.disabled = true; btn.textContent = 'Revisando…';
+  let actuales, folios;
+  try{
+    [actuales, folios] = await Promise.all([db.ref('cal/merma2').once('value'), db.ref('cal/merma2Folios').once('value')]);
+    actuales = actuales.val() || {}; folios = folios.val() || {};
+  }catch(e){ btn.disabled = false; fbBarra(); toast('No se pudo revisar: '+e.message); return; }
+  btn.disabled = false; fbBarra();
+  const huellas = {};
+  Object.keys(actuales).forEach(id=>{ huellas[huellaRechazo(actuales[id])] = actuales[id].folio || id; });
+  const ok = [], no = [];
+  FB_LISTA.filter(r=>fbSel.has(r._id)).forEach(r=>{
+    const rec = sinBorrado(r), f = rec.folio;
+    if(actuales[r._id]) return no.push(`${f||r._id}: ya existe`);
+    const h = huellas[huellaRechazo(rec)];
+    if(h) return no.push(`${f||r._id}: ya se volvió a subir como ${h}`);
+    if(f && folios[f] && folios[f]!==r._id) return no.push(`${f}: el número ya lo usa ${(actuales[folios[f]]||{}).folio||'otro rechazo'}`);
+    ok.push(r);
+  });
+  planRecuperar = ok;
+  cerrarModal('modal-recuperar');
+  const c = document.createElement('div'); c.className='modal'; c.id='modal-recuperar';
+  c.innerHTML = `<div class="modal-box">
+    <div class="modal-t">Recuperar folios</div>
+    <div style="font-size:13px;line-height:1.55">${ok.length ? `Se recuperan <b>${ok.length}</b> folio${ok.length===1?'':'s'} tal como
+      estaban: mismo folio, defectos, metros y acciones. Sus metros vuelven al foco.` : 'Ninguno de los seleccionados se puede recuperar.'}</div>
+    ${no.length ? `<div class="aviso aviso-amber" style="margin:10px 0 0">No se recuperan ${no.length}:<br>
+      ${no.slice(0,15).map(esc).join('<br>')}${no.length>15 ? '<br>y '+(no.length-15)+' más' : ''}</div>` : ''}
+    <div class="row" style="margin-top:14px">
+      <button class="btn btn-2" style="margin:0" onclick="cerrarModal('modal-recuperar')">Cancelar</button>
+      ${ok.length ? `<button class="btn" style="margin:0" id="rc-ok" onclick="recuperarFolios()">Recuperar ${ok.length}</button>` : ''}
+    </div></div>`;
+  document.body.appendChild(c);
+}
+async function recuperarFolios(){
+  const lista = planRecuperar || []; if(!lista.length || sesion.rol!=='ADMIN') return;
+  $('rc-ok').disabled = true; $('rc-ok').textContent = 'Recuperando…';
+  try{
+    const recs = lista.map(sinBorrado), cuando = new Date().toISOString();
+    const upd = {...incrementosResumen(recs, 1)};
+    lista.forEach((r,i)=>{
+      upd['merma2/'+r._id] = recs[i];
+      if(recs[i].folio && claveValida(recs[i].folio)) upd['merma2Folios/'+recs[i].folio] = r._id;
+      upd['merma2Borrados/'+r._id] = null;
+      upd['merma2Recuperados/'+r._id] = {folio: recs[i].folio||'', recuperadoPorNomina: sesion.nomina,
+        recuperadoPorNombre: sesion.nombre, recuperadoEn: cuando, borradoEn: r.borradoEn||'', motivoBorrado: r.motivo||''};
+    });
+    await db.ref('cal').update(upd);
+    lista.forEach(r=>fbSel.delete(r._id));
+    cerrarModal('modal-recuperar'); planRecuperar = null;
+    toast(`${lista.length} folio${lista.length===1?'':'s'} recuperado${lista.length===1?'':'s'}`);
+    leerBorrados();
+  }catch(e){
+    $('rc-ok').disabled = false; $('rc-ok').textContent = 'Recuperar '+lista.length;
+    toast('No se pudo recuperar: '+e.message);
   }
 }
 

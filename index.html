@@ -252,6 +252,19 @@ input:focus,select:focus,textarea:focus{border-color:var(--navy-mid)}
 .etq-info b{display:block;color:var(--navy-dark);font-size:13px}
 .etq-no{background:var(--amber-bg);color:var(--amber)}
 
+/* ── Ayudas emergentes (SPEC-031) ── */
+.ayuda{position:relative;display:inline-flex;vertical-align:middle;margin-left:6px}
+.ayuda-i{width:17px;height:17px;border-radius:50%;border:1.5px solid var(--navy);background:#fff;color:var(--navy);
+  font:700 10.5px/1 Georgia,serif;font-style:italic;padding:0;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.ayuda-box{display:none;position:absolute;left:-8px;top:calc(100% + 8px);z-index:30;width:max-content;max-width:min(280px,80vw);
+  background:var(--navy-dark);color:#fff;border-radius:9px;padding:10px 12px;font-size:12.5px;font-weight:400;line-height:1.5;
+  box-shadow:0 6px 18px rgba(0,30,80,.22);text-align:left;white-space:normal}
+.ayuda-box::before{content:'';position:absolute;left:var(--flecha,12px);top:-5px;width:10px;height:10px;background:var(--navy-dark);transform:rotate(45deg)}
+.ayuda-box ul{margin:6px 0 0;padding-left:18px}
+.ayuda-box li{margin:2px 0}
+.ayuda.abierta .ayuda-box{display:block}
+@media (hover:hover){ .ayuda:hover .ayuda-box{display:block} }
+
 /* ── Arranque y seguimiento a corrida (SPEC-028) ──
    Un punto por renglón en el teléfono; en computadora, dos columnas como la hoja. */
 .pts{display:grid;grid-template-columns:minmax(0,1fr);column-gap:28px}
@@ -1279,13 +1292,41 @@ function variablesDe(defecto, maquina){
   return src ? (src.vars||[]).map(v=>v.nombre) : [];
 }
 
+/* ═══════════════ AYUDAS EMERGENTES (SPEC-031) ═══════════════
+   Un icono «i» con un recuadro de ayuda. Con mouse se abre al pasar el
+   puntero (CSS, @media hover); en pantalla táctil, al tocar el icono, y se
+   cierra al tocarlo otra vez, al tocar fuera o al desplazarse. `html` es texto
+   fijo del código, nunca algo capturado por el usuario. */
+const iconoAyuda = (html, titulo) => `<span class="ayuda"><button type="button" class="ayuda-i"
+  aria-label="Ayuda: ${esc(titulo||'')}" onclick="alternarAyuda(event, this)">i</button><span class="ayuda-box" role="tooltip">${html}</span></span>`;
+function cerrarAyudas(salvo){ document.querySelectorAll('.ayuda.abierta').forEach(a=>{ if(a!==salvo) a.classList.remove('abierta'); }); }
+// El recuadro se recorre a la izquierda si no cabe a la derecha (margen de 8 px).
+function acomodarAyuda(a){
+  const box = a.querySelector('.ayuda-box'); if(!box) return;
+  box.style.left = '-8px';
+  const r = box.getBoundingClientRect(), sobra = r.right - (document.documentElement.clientWidth - 8);
+  if(sobra > 0) box.style.left = (-8 - sobra) + 'px';
+  const flecha = a.querySelector('.ayuda-i').getBoundingClientRect(), b2 = box.getBoundingClientRect();
+  box.style.setProperty('--flecha', Math.max(8, flecha.left + flecha.width/2 - b2.left - 5) + 'px');
+}
+function alternarAyuda(e, btn){
+  e.stopPropagation(); e.preventDefault();
+  const a = btn.parentElement; cerrarAyudas(a); a.classList.toggle('abierta');
+  if(a.classList.contains('abierta')){ ayudaScrollY = scrollY; acomodarAyuda(a); }
+}
+document.addEventListener('mouseover', e=>{ const a = e.target.closest && e.target.closest('.ayuda'); if(a) acomodarAyuda(a); });
+document.addEventListener('click', e=>{ if(!e.target.closest('.ayuda')) cerrarAyudas(); });
+// Se cierra al desplazarse de verdad, no con el rebote de la página al tocar.
+let ayudaScrollY = 0;
+window.addEventListener('scroll', ()=>{ if(Math.abs(scrollY - ayudaScrollY) > 40) cerrarAyudas(); }, {passive:true});
+
 /* ═══════════════ ARRANQUE Y SEGUIMIENTO A CORRIDA (SPEC-028) ═══════════════
    El arranque es el «Apartado exclusivo de calidad» de la hoja de arranque: el
    formato sale del área de la máquina. Un arranque liberado abre una corrida, y
    el seguimiento a corrida (por master) se liga a ella; sin arranque liberado no hay seguimiento. */
 const REQUISITOS_ARRANQUE = [
   {id:'op', t:'Orden de producción'}, {id:'tintas', t:'Control de tintas'},
-  {id:'kit', t:'Kit completo'}, {id:'etqmp', t:'Etiquetas MP'}, {id:'sabana', t:'Sábana de arranque'}];
+  {id:'kit', t:'Kit completo', ayuda:'El kit contiene:<ul><li>Bitácora</li><li>Estándar (debe contener la sábana física y las mediciones)</li><li>Ficha técnica</li><li>Ficha gráfica</li></ul>'}, {id:'etqmp', t:'Etiquetas MP'}, {id:'sabana', t:'Sábana de arranque'}];
 // Puntos y estándares tal cual las hojas de arranque. `seg`: también se revisa en
 // el seguimiento (por omisión; el administrador lo cambia). `tipo`: 'visual'
 // (Cumple / No cumple / NA), 'medida' (en mm, contra la galería ± tolerancia) o
@@ -1425,8 +1466,8 @@ function filaPunto(p, ctx){
     <div class="pt-t">${esc(p.t)}<span class="pt-std">${esc(textoEstandar(p))}</span></div>
     ${extra}<span class="ck ck-res${autoDe(p)?' auto':''}">${botonesResultado(p, r)}</span></div>`;
 }
-function filaSiNo(ctx, id, t, val, fn){
-  return `<div class="pt" id="pt-${ctx}-${id}"><div class="pt-t">${esc(t)}</div><span class="ck">
+function filaSiNo(ctx, id, t, val, fn, ayuda){
+  return `<div class="pt" id="pt-${ctx}-${id}"><div class="pt-t">${esc(t)}${ayuda ? iconoAyuda(ayuda, t) : ''}</div><span class="ck">
     <button type="button" class="${val==='si'?'on-ok':''}" onclick="${fn}('${id}','si')">Sí</button>
     <button type="button" class="${val==='no'?'on-no':''}" onclick="${fn}('${id}','no')">No</button></span></div>`;
 }
@@ -1521,13 +1562,13 @@ function pintarArranque(){
     se agregan cuando Calidad comparta sus hojas.</div></div>`;
   if(!f) return;
   $('a-formato-nom').textContent = f.nombre;
-  $('a-requisitos').innerHTML = REQUISITOS_ARRANQUE.map(r=>filaSiNo('a', r.id, r.t, estArr.req[r.id], 'marcarReq')).join('');
+  $('a-requisitos').innerHTML = REQUISITOS_ARRANQUE.map(r=>filaSiNo('a', r.id, r.t, estArr.req[r.id], 'marcarReq', r.ayuda)).join('');
   $('a-puntos').innerHTML = f.puntos.map(p=>filaPunto(p, 'a')).join('');
   $('a-area').innerHTML = filaSiNo('a', 'area', 'El área queda libre del trabajo del pedido anterior', estArr.area, 'marcarArea');
   pintarResultadoArr();
 }
 function marcarReq(id, v){ estArr.req[id] = v; $('a-requisitos').innerHTML =
-  REQUISITOS_ARRANQUE.map(r=>filaSiNo('a', r.id, r.t, estArr.req[r.id], 'marcarReq')).join(''); pintarResultadoArr(); }
+  REQUISITOS_ARRANQUE.map(r=>filaSiNo('a', r.id, r.t, estArr.req[r.id], 'marcarReq', r.ayuda)).join(''); pintarResultadoArr(); }
 function marcarArea(id, v){ estArr.area = v; $('a-area').innerHTML =
   filaSiNo('a', 'area', 'El área queda libre del trabajo del pedido anterior', estArr.area, 'marcarArea'); pintarResultadoArr(); }
 

@@ -11,6 +11,21 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.26.0] — 2026-11-27
+
+### Agregado
+
+- **Ayudas emergentes** (SPEC-031): un icono «i» junto al campo. En
+  computadora la ayuda sale al pasar el mouse; en celular, al tocar el icono,
+  y se cierra al tocar otra vez, al tocar fuera o al desplazarse. No se sale de
+  la pantalla.
+- Primera ayuda: **Kit completo** en los requisitos previos del arranque
+  (bitácora, estándar con la sábana física y las mediciones, ficha técnica y
+  ficha gráfica).
+- Caché del service worker a `calidad-v1.26.0`.
+
+---
+
 ## [1.25.2] — 2026-11-27
 
 ### Cambiado

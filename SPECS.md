@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.25.2 — estados revisados contra el código el 26 de
+**Versión vigente:** 1.26.0 — estados revisados contra el código el 26 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -62,6 +62,7 @@ se puede ir del documento al código y de regreso.
 | 028 | Arranque de calidad y seguimiento a corrida | Implementado (con corridas terminadas desde la v1.22.0) — faltan formatos de digital, laminado y acondicionado, y rangos |
 | 029 | Borrar (solo administrador); en Acciones, solo la acción | Implementado |
 | 030 | Recuperar folios borrados | Implementado |
+| 031 | Ayudas emergentes (tooltips) | Implementado — por ahora solo en «Kit completo» |
 
 ---
 
@@ -1777,6 +1778,35 @@ en `merma2Borrados` (SPEC-019) tiene todo: se puede regresar tal cual.
   sus acciones; el folio vuelve a quedar ocupado; sus metros vuelven al foco;
   sale de `merma2Borrados` y queda un registro en
   `merma2Recuperados/<id>` con quién y cuándo lo recuperó.
+
+---
+
+# SPEC-031 — Ayudas emergentes (tooltips)
+
+**Estado:** implementado (v1.26.0). Primera ayuda: «Kit completo» en el arranque.
+
+### Por qué
+Algunos campos necesitan una explicación corta que no cabe en la pantalla sin
+llenarla de texto.
+
+### Cómo
+- Un icono **«i»** en un círculo, junto al nombre del campo.
+- **En computadora** (con mouse): la ayuda aparece al pasar el puntero y
+  desaparece al quitarlo.
+- **En celular** (pantalla táctil): se abre al **tocar** el icono y se cierra
+  al tocarlo otra vez, al tocar en cualquier otro lugar o al desplazarse.
+- Un solo componente para los dos casos: detecta si el equipo tiene mouse.
+- En celular, un desplazamiento pequeño (el rebote de la página al tocar, hasta
+  40 px) no la cierra.
+- El recuadro no se sale de la pantalla (ancho máximo de 280 px o el 80 % de la
+  pantalla).
+- Los textos viven en el código, junto al campo que explican (por ejemplo, el
+  campo `ayuda` de `REQUISITOS_ARRANQUE`).
+
+### Ayudas
+| Dónde | Texto |
+|---|---|
+| Arranque → Requisitos previos → **Kit completo** | El kit contiene: Bitácora · Estándar (debe contener la sábana física y las mediciones) · Ficha técnica · Ficha gráfica (en lista) |
 
 ---
 

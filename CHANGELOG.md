@@ -11,6 +11,24 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.27.0] — 2026-11-27
+
+### Cambiado
+
+- **Historial → Inspecciones registradas** es ahora una tabla con la historia
+  de cada corrida (SPEC-014): arranques (también los intentos no liberados),
+  seguimientos por master (con puntos que no cumplieron, variables desviadas y
+  la acción que abrieron) y el cierre (quién, cuándo, motivo, duración,
+  revisiones y último master). Encabezado por etiqueta con máquina, OP, nombre,
+  cliente y si la corrida está activa o terminada.
+- Selector de mes (o todo el histórico); ya no se limita a las 60 más
+  recientes.
+- Borrar (administrador) en la última columna.
+- La tabla se actualiza al cambiar inspecciones, arranques o corridas.
+- Caché del service worker a `calidad-v1.27.0`.
+
+---
+
 ## [1.26.1] — 2026-11-27
 
 ### Corregido

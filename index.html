@@ -292,6 +292,14 @@ input:focus,select:focus,textarea:focus{border-color:var(--navy-mid)}
 .corr-info{font-size:12.5px;line-height:1.55;color:var(--text2)}
 .corr-info b{color:var(--navy-dark)}
 .e-tabla td{white-space:normal}
+/* ── Historial por corrida (SPEC-014, v1.27.0) ── */
+.hi-tabla tr.hi-grupo td{background:var(--navy-light);color:var(--navy-dark);font-size:12.5px;white-space:normal;
+  border-top:2px solid var(--navy);padding-top:9px;padding-bottom:9px}
+.hi-tabla tr.hi-grupo .pill{margin-left:6px;vertical-align:middle}
+.hi-tabla tr.hi-grupo .p-navy{background:#fff}
+.hi-tabla .hi-cli{color:var(--text2)}
+.hi-tabla td.hi-det{white-space:normal;min-width:220px;max-width:380px;font-size:12px}
+.hi-tabla tr.hi-cierre td{color:var(--text2)}
 .modal-box.modal-ancho{max-width:860px;max-height:88vh;overflow-y:auto}
 .vc-t{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--navy);margin:16px 0 6px}
 .vc .corr-info{margin-bottom:8px}
@@ -658,8 +666,13 @@ td.td-b .m-sel,th .m-sel{width:16px;height:16px;margin:0 6px 0 0;vertical-align:
       </div>
       <div class="gal-tabla-wrap" style="max-height:60vh"><table class="gal-tabla" id="ct-tabla"></table></div>
     </div>
+    <!-- SPEC-014 (v1.27.0): la historia de cada corrida, en tabla -->
     <div class="card">
       <div class="card-t">Inspecciones registradas</div>
+      <div class="gal-acciones" style="margin-top:0">
+        <select id="hi-mes" class="r-mes" aria-label="Periodo" onchange="pintarHistorial()"></select>
+        <span id="hi-cuenta" class="r-cuenta">—</span>
+      </div>
       <div id="lista-historial"></div>
     </div>
   </section>
@@ -1012,7 +1025,7 @@ function verPagina(id, btn){
   $('pg-'+id).classList.remove('hide');
   if(btn){ [...$('nav').children].forEach(b=>b.classList.remove('on')); btn.classList.add('on'); }
   if(id==='acciones')  pintarAcciones();
-  if(id==='historial'){ pintarHistorial(); pintarMesesExcel('ct-mes'); pintarCorridasTerminadas(); }   // SPEC-028
+  if(id==='historial'){ pintarMesesExcel('hi-mes'); pintarHistorial(); pintarMesesExcel('ct-mes'); pintarCorridasTerminadas(); }   // SPEC-014, SPEC-028
   if(id==='tendencia') pintarTendencia();
   if(id==='matriz')    cargarMatriz();
   if(id==='galeria'){  leerGaleria(false); pintarDefectos(); pintarEspecs(); }   // SPEC-028: formatos de arranque
@@ -1094,6 +1107,7 @@ async function conectar(){
   db.ref('cal/corridas').orderByKey().limitToLast(300).on('value', s=>{
     const v = s.val()||{}; CORRIDAS = Object.keys(v).map(id=>({_id:id, ...v[id]}));
     pintarEtapa();
+    if(!$('pg-historial').classList.contains('hide')) pintarHistorial();     // SPEC-014: el cierre usa la corrida
   }, fallo('cal/corridas'));
   db.ref('cal/especificaciones').on('value', s=>{
     ESPECS = s.val()||{}; pintarEtapa(); pintarEspecs();
@@ -2395,33 +2409,87 @@ function confirmarCierre(id){
 
 /* ═══════════════ HISTORIAL (SPEC-014) ═══════════════
    Las 60 inspecciones más recientes, de consulta. */
+// SPEC-014 (v1.27.0): agrupa por corrida: arranques (también los no liberados que
+// la precedieron), seguimientos por master y cierre. Lo que no tiene corrida va
+// en su propio grupo.
+function gruposHistorial(){
+  const grupos = new Map(), g = (k, base) => grupos.get(k) || (grupos.set(k, {k, ...base, ev:[]}), grupos.get(k));
+  const corr = {}; CORRIDAS.forEach(c=>{ corr[c._id] = c; });
+  const etqDe = x => ({maquina:x.maquina, op:x.op||'', etiqueta:x.etiqueta||'', nombre:x.etiquetaNombre||'', cliente:x.etiquetaCliente||''});
+  ARRANQUES.forEach(a=>{
+    let cid = a.corridaId && corr[a.corridaId] ? a.corridaId : null;
+    if(!cid && a.resultado!=='liberado'){        // el no liberado va con la corrida que se liberó después
+      const sig = CORRIDAS.filter(c=>c.maquina===a.maquina && c.op===a.op && c.etiqueta===a.etiqueta && (c.inicioTs||0)>=(a.ts||0))
+                          .sort((x,y)=>(x.inicioTs||0)-(y.inicioTs||0))[0];
+      if(sig) cid = sig._id;
+    }
+    const k = cid ? 'c:'+cid : a.corridaId ? 'c:'+a.corridaId : `n:${a.maquina}|${a.op}|${a.etiqueta}`;
+    g(k, {corrida: cid ? corr[cid] : null, ...etqDe(a)}).ev.push({tipo:'arranque', ts:a.ts||0, x:a});
+  });
+  DB.inspecciones.forEach(i=>{
+    const k = i.corridaId ? 'c:'+i.corridaId : 'i:'+i._id;
+    g(k, {corrida: i.corridaId ? corr[i.corridaId]||null : null, ...etqDe(i)}).ev.push({tipo:'insp', ts:i.ts||0, x:i});
+  });
+  grupos.forEach(gr=>{
+    const c = gr.corrida;
+    if(c){ Object.assign(gr, {maquina:c.maquina, op:c.op||gr.op, etiqueta:c.etiqueta||gr.etiqueta,
+             nombre:c.etiquetaNombre||gr.nombre, cliente:c.etiquetaCliente||gr.cliente});
+           if(c.estado==='cerrada') gr.ev.push({tipo:'cierre', ts:c.cerradaTs||0, x:c}); }
+    gr.ev.sort((a,b)=>a.ts-b.ts || (a.tipo==='cierre') - (b.tipo==='cierre'));
+    gr.inicio = gr.ev.length ? gr.ev[0].ts : 0; gr.ultimo = gr.ev.length ? gr.ev[gr.ev.length-1].ts : 0;
+  });
+  return [...grupos.values()].filter(x=>x.ev.length).sort((a,b)=>b.ultimo-a.ultimo);
+}
 function pintarHistorial(){
-  // SPEC-028: arranques y seguimientos juntos, del más reciente al más antiguo.
-  const list = [...DB.inspecciones, ...ARRANQUES.map(a=>({...a, _arranque:true}))]
-    .sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,60);
-  if(!list.length){ $('lista-historial').innerHTML='<div class="vacio">Todavía no hay inspecciones.</div>'; return; }
-  $('lista-historial').innerHTML = list.map(i=>{
-    const pill = i._arranque
-      ? `<span class="pill ${i.resultado==='liberado'?'p-green':'p-red'}">${esc(i.resultado)}</span>`
-      : `<span class="pill ${i.resultado==='pasa'?'p-green':'p-red'}">${esc(i.resultado)}</span>`;
-    const etapa = i._arranque ? 'arranque' + (i.intento>1 ? ' · intento '+i.intento : '')
-                : i.etapa==='arranque' ? 'arranque' : 'seguimiento';
-    const op = [i.op ? esc(conOP(i.op)) : '', i.master ? 'master '+i.master : ''].filter(Boolean).join(' · ');
-    const motivos = i._arranque && i.motivos && i.motivos.length ? i.motivos
-                  : (!i._arranque && i.puntosNoCumple ? i.puntosNoCumple.map(t=>t+': no cumple') : []);
-    return `<div class="item">
-    <div style="display:flex;justify-content:space-between;gap:8px">
-      <h4>${esc(i.maquina)} · etiqueta ${esc(i.etiqueta)}</h4>
-      ${pill}
-    </div>
-    ${datosEtiqueta(i)}
-    <div class="meta">${esc(i.fecha)}${i.hora ? ' · '+esc(i.hora) : ''} · ${esc(i.turno)} · ${etapa}${op ? ' · '+op : ''}</div>
-    ${motivos.length ? `<div class="meta" style="color:var(--red)">${motivos.map(esc).join(' · ')}</div>` : ''}
-    ${i.comentarios ? `<div class="meta">Comentarios: ${esc(i.comentarios)}</div>` : ''}
-    ${i.operadorNombre ? `<div class="meta">Operador: ${esc(i.operadorNombre)} (${esc(i.operadorNomina)})</div>` : ''}
-    <div class="meta" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-      <span>Auditor: ${esc(i.inspectorNombre)} (${esc(i.inspectorNomina)})</span>${btnBorrar(i._arranque ? 'arranque' : 'inspeccion', i._id)}</div>
-  </div>`;}).join('');
+  const mes = $('hi-mes') ? $('hi-mes').value : '';
+  const todos = gruposHistorial();
+  const grupos = mes ? todos.filter(gr=>fechaLocal(new Date(gr.inicio)).slice(0,7)===mes) : todos;
+  const n = grupos.reduce((a,gr)=>a+gr.ev.filter(e=>e.tipo!=='cierre').length, 0);
+  if($('hi-cuenta')) $('hi-cuenta').textContent = grupos.length
+    ? `${grupos.length} etiqueta${grupos.length===1?'':'s'} · ${n} registro${n===1?'':'s'}` : '';
+  if(!grupos.length){ $('lista-historial').innerHTML = `<div class="vacio">${mes ? 'Sin inspecciones en '+nombreMes(mes)+'.' : 'Todavía no hay inspecciones.'}</div>`; return; }
+  const admin = sesion.rol==='ADMIN', cols = admin ? 8 : 7;
+  const pill = (t, ok) => `<span class="pill ${ok===true?'p-green':ok===false?'p-red':'p-navy'}">${esc(t)}</span>`;
+  const fh = ts => { const d = new Date(ts); return isNaN(d)||!ts ? ['',''] : [fechaLocal(d).split('-').reverse().join('/'), horaLocal(d)]; };
+  const fila = (e) => {
+    const x = e.x;
+    if(e.tipo==='cierre'){
+      const [f,h] = [fechaHora(x.cerradaFecha,'') , x.cerradaHora||''];
+      const dur = duracion(x.inicioTs, x.cerradaTs);
+      return `<tr class="hi-cierre"><td>${esc(f)}</td><td>${esc(h)}</td><td><b>Cierre</b></td>
+        <td>${pill(x.motivoCierre==='nuevo arranque' ? 'nuevo arranque' : 'terminada')}</td>
+        <td>${[dur ? 'Duró '+dur : '', (+x.revisiones||0)+' revisi'+((+x.revisiones||0)===1?'ón':'ones'), x.masters ? 'último master '+x.masters : ''].filter(Boolean).map(esc).join(' · ')}</td>
+        <td>—</td><td>${esc(x.cerradaPorNombre||'')}</td>${admin ? '<td></td>' : ''}</tr>`;
+    }
+    const [f,h] = x.fecha ? [x.fecha.split('-').reverse().join('/'), x.hora||''] : fh(x.ts);
+    let evento, res, det = [];
+    if(e.tipo==='arranque'){
+      evento = 'Arranque' + (x.intento>1 ? ' · intento '+x.intento : '');
+      res = pill(x.resultado, x.resultado==='liberado');
+      if(x.motivos && x.motivos.length) det.push(...x.motivos);
+      if(x.comentarios) det.push('Comentarios: '+x.comentarios);
+    } else {
+      evento = x.etapa==='arranque' ? 'Inspección de arranque' : x.master ? 'Seguimiento · master '+x.master : x.corridaId ? 'Seguimiento' : 'Inspección';
+      res = pill(x.resultado, x.resultado==='pasa');
+      if(x.puntosNoCumple && x.puntosNoCumple.length) det.push('No cumple: '+x.puntosNoCumple.join(', '));
+      if(x.variablesDesviadas && x.variablesDesviadas.length) det.push('Variables desviadas: '+x.variablesDesviadas.join(', '));
+      const hz = x.hallazgoId && DB.hallazgos.find(y=>y._id===x.hallazgoId);
+      if(hz) det.push(`Acción: ${hz.defecto||''} (${hz.estado==='cerrada' ? 'cerrada' : 'abierta'})`);
+    }
+    return `<tr><td>${esc(f)}</td><td>${esc(h)}</td><td><b>${esc(evento)}</b></td><td>${res}</td>
+      <td class="hi-det">${det.length ? det.map(esc).join('<br>') : '<span class="a-vacio">—</span>'}</td>
+      <td>${esc(x.operadorNombre||'')}</td><td>${esc(x.inspectorNombre||'')}</td>
+      ${admin ? `<td class="td-b">${btnBorrar(e.tipo==='arranque' ? 'arranque' : 'inspeccion', x._id)}</td>` : ''}</tr>`;
+  };
+  $('lista-historial').innerHTML = `<div class="gal-tabla-wrap" style="max-height:70vh"><table class="gal-tabla hi-tabla">
+    <thead><tr><th>Fecha</th><th>Hora</th><th>Evento</th><th>Resultado</th><th>Detalle</th><th>Operador</th><th>Auditor</th>${admin ? '<th>Borrar</th>' : ''}</tr></thead>
+    <tbody>${grupos.map(gr=>{
+      const c = gr.corrida;
+      const estado = c ? (c.estado==='activa' ? '<span class="pill p-green">activa</span>' : '<span class="pill p-navy">terminada</span>') : '';
+      return `<tr class="hi-grupo"><td colspan="${cols}"><b>${esc(gr.maquina||'')}</b>${gr.op ? ' · '+esc(conOP(gr.op)) : ''} · etiqueta <b>${esc(gr.etiqueta)}</b>
+        ${gr.nombre ? ' · '+esc(gr.nombre) : ''}${gr.cliente ? ' · <span class="hi-cli">'+esc(gr.cliente)+'</span>' : ''} ${estado}</td></tr>` +
+        gr.ev.map(fila).join('');
+    }).join('')}</tbody></table></div>`;
 }
 
 /* ═══════════════ COMPORTAMIENTO EN EL TIEMPO (SPEC-004) ═══════════════

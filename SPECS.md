@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.26.1 — estados revisados contra el código el 26 de
+**Versión vigente:** 1.27.0 — estados revisados contra el código el 26 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -45,7 +45,7 @@ se puede ir del documento al código y de regreso.
 | 011 | Historial de merma como semilla | Sustituida por la SPEC-018 en la v1.8.0; queda la semilla como base histórica |
 | 012 | Encabezado estándar de la suite | Implementado |
 | 013 | Abrir sin mostrar la contraseña de paso | Implementado |
-| 014 | Historial de inspecciones | Implementado |
+| 014 | Historial de inspecciones | Implementado — por corrida, en tabla, desde la v1.27.0 |
 | 015 | Galería de etiquetas | Implementado |
 | 016 | Etiqueta y turno automáticos en la inspección | Implementado |
 | 017 | Registro de rechazos (antes «Merma 2») | Implementado; desde la v1.8.0 vive en la pestaña Merma |
@@ -759,20 +759,43 @@ versión anterior.
 
 # SPEC-014 — Historial de inspecciones
 
-**Estado:** implementado (v1.0.0) — se documenta en la v1.2.1; no tenía
-especificación
+**Estado:** implementado (v1.0.0). Desde la v1.27.0, **la historia de cada
+corrida en una tabla**.
 
 ### Qué hace
-La pestaña **Historial** muestra las **60 inspecciones más recientes**, de la
-más nueva a la más vieja: máquina, etiqueta, resultado (pasa / no pasa),
-nombre y cliente de la etiqueta (desde la v1.4.0, SPEC-016), fecha, turno,
-etapa e inspector con su nómina.
+La tarjeta **Inspecciones registradas** de la pestaña Historial es una tabla
+agrupada por **corrida** (SPEC-028). Cada grupo cuenta la historia de esa
+etiqueta en esa máquina, en orden:
+
+1. **Encabezado del grupo**: máquina, OP, etiqueta, nombre y cliente, y el
+   estado: activa, o terminada (con la duración).
+2. **Arranque**: cada intento, con Liberado / No liberado y los motivos. Los
+   intentos no liberados se juntan con la corrida que se liberó después con
+   la misma máquina, OP y etiqueta.
+3. **Seguimiento**: cada revisión por número de master, con Pasa / No pasa, los
+   puntos que no cumplieron, las variables desviadas y la acción que abrió (y
+   si está abierta o cerrada).
+4. **Cierre**: cuándo y quién la terminó, y el motivo (terminada a mano o con
+   un nuevo arranque), con duración, revisiones y último master.
+
+Columnas: fecha, hora, evento, resultado, detalle, operador, auditor y, para el
+administrador, **Borrar** (SPEC-029) al final.
+
+### Lo que no tiene corrida
+Las inspecciones de máquinas sin formato de arranque, las anteriores a la
+v1.20.0 y los arranques que nunca se liberaron forman su propio grupo, con la
+misma tabla.
+
+### Periodo
+Selector de mes (por el inicio de cada grupo) o todo el histórico; por omisión,
+el mes en curso. Los grupos van del más reciente al más antiguo por su última
+actividad.
 
 ### Reglas de negocio
 - La ven los tres papeles.
-- Es de consulta: no se edita ni se borra nada desde aquí.
-- El límite de 60 es para que la lista abra rápido en el teléfono. No hay
-  todavía filtros ni forma de ver inspecciones más antiguas desde la app.
+- Es de consulta; solo el administrador borra (SPEC-029).
+- Lee los últimos 400 arranques y las últimas 300 corridas (SPEC-028) y todas
+  las inspecciones.
 
 ---
 
@@ -1658,8 +1681,8 @@ disponible (por ejemplo, una etiqueta sin código de barras).
   resto viene del código.
 
 ### Dónde se ve
-**Historial** muestra arranques y seguimientos juntos: los arranques con
-Liberado / No liberado, intento y motivos; los seguimientos con OP y master.
+**Historial** muestra la historia de cada corrida en una tabla: arranques,
+seguimientos por master y cierre (SPEC-014).
 
 ### Corridas terminadas (v1.22.0)
 Una corrida terminada no se borra: queda en `cal/corridas` con estado
@@ -1722,8 +1745,9 @@ Un botón discreto, **un círculo rojo con una «B» blanca**, que solo ve el
   - se guarda en el rechazo, en `accionesQuitado`, quién, cuándo y el motivo. La
     exportación de Acciones no incluye los quitados (salvo con el filtro
     Quitadas).
-- **Inspecciones registradas** (Historial): en cada tarjeta, abajo a la
-  derecha. Borra la inspección o el arranque.
+- **Inspecciones registradas** (Historial): en la última columna de cada
+  arranque o inspección (desde la v1.27.0 es una tabla; SPEC-014). La fila de
+  cierre no tiene Borrar.
 
 ### Cómo
 - Una ventana muestra qué se va a borrar y qué más cambia, y **pide el motivo**

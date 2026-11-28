@@ -1330,7 +1330,8 @@ const REQUISITOS_ARRANQUE = [
 // Puntos y estándares tal cual las hojas de arranque. `seg`: también se revisa en
 // el seguimiento (por omisión; el administrador lo cambia). `tipo`: 'visual'
 // (Cumple / No cumple / NA), 'medida' (en mm, contra la galería ± tolerancia) o
-// 'grado' (código de barras, A–E).
+// 'grado' (código de barras, A–F; GRADOS_BARRAS).
+const GRADOS_BARRAS = ['A','B','C','D','E','F'];          // del mejor al peor
 const PF = (id, t, std, seg, extra) => Object.assign({id, t, std, seg, tipo:'visual'}, extra||{});
 const MEDIDAS_ARR = [
   PF('eje','Medida Eje','Ficha Gráfica',true,{tipo:'medida', galeria:'Med_eje'}),
@@ -1345,7 +1346,7 @@ const FORMATOS_BASE = {
     PF('direccion','Dir. Impresión en Máquina','Orden',false),
     PF('espesor','Espesor de Material','Ficha Gráfica',false,{galeria:'sustratos'}),
     PF('curling','Curling','Menor a 30°',true),
-    PF('barras','Código de Barras','A · B · C · D · E',true,{tipo:'grado'}),
+    PF('barras','Código de Barras','A · B · C · D · E · F',true,{tipo:'grado'}),
     ...MEDIDAS_ARR,
     PF('barniz_mate','Barniz mate','Ficha Gráfica',false),
     PF('barniz_simp','Barniz s/impresión','Ficha Gráfica',false),
@@ -1361,7 +1362,7 @@ const FORMATOS_BASE = {
     PF('spot','Spot (medidas y Densidad)','Std. Kit',true),
     PF('direccion','Dir. Impresión en Máquina','Orden',false),
     PF('espesor','Espesor de Material','Ficha Gráfica',false,{galeria:'sustratos'}),
-    PF('barras','Código de Barras','A · B · C · D · E',true,{tipo:'grado'}),
+    PF('barras','Código de Barras','A · B · C · D · E · F',true,{tipo:'grado'}),
     ...MEDIDAS_ARR,
     PF('laminado','Laminado/ Barnizado','Ficha Gráfica',false),
     PF('curling','Curling','Menor a 30°',true),
@@ -1392,7 +1393,7 @@ function formatoArea(area){
     if(typeof e.std==='string' && e.std.trim()) q.std = e.std.trim();
     if(typeof e.seg==='boolean') q.seg = e.seg;
     if(p.tipo==='medida' && +e.tol>0) q.tol = +e.tol;
-    if(p.tipo==='grado' && /^[A-E]$/.test(e.gradoMin||'')) q.gradoMin = e.gradoMin;
+    if(p.tipo==='grado' && GRADOS_BARRAS.includes(e.gradoMin)) q.gradoMin = e.gradoMin;
     return q;
   })};
 }
@@ -1460,7 +1461,7 @@ function filaPunto(p, ctx){
   let extra = '';
   if(p.tipo==='medida') extra = `<input class="pt-med" inputmode="decimal" placeholder="mm" aria-label="Medida en mm"
       value="${esc(st.valor||'')}" oninput="medidaPunto(this,'${p.id}')">`;
-  if(p.tipo==='grado') extra = `<span class="ck ck-grado">${['A','B','C','D','E'].map(g=>
+  if(p.tipo==='grado') extra = `<span class="ck ck-grado">${GRADOS_BARRAS.map(g=>
       `<button type="button" class="${st.grado===g?'on-g':''}" onclick="gradoPunto(this,'${p.id}','${g}')">${g}</button>`).join('')}</span>`;
   return `<div class="pt" id="pt-${ctx}-${p.id}" data-ctx="${ctx}">
     <div class="pt-t">${esc(p.t)}<span class="pt-std">${esc(textoEstandar(p))}</span></div>
@@ -1930,7 +1931,7 @@ function pintarEspecs(){
   const maqs = MAQUINAS.filter(m=>m.area===area).map(m=>m.id).join(', ');
   $('e-nota').textContent = `Máquinas: ${maqs || '—'}. ` + (admin ? 'Edita un punto para cambiar su estándar o su rango.'
     : 'Solo un administrador cambia estándares y rangos.');
-  const tipo = p => p.tipo==='medida' ? 'Medida (mm) contra galería' : p.tipo==='grado' ? 'Grado A–E' : 'Visual';
+  const tipo = p => p.tipo==='medida' ? 'Medida (mm) contra galería' : p.tipo==='grado' ? 'Grado A–F' : 'Visual';
   const rango = p => p.tipo==='medida' ? (p.tol ? '± '+fmtNum(p.tol)+' mm' : '<span class="a-vacio">sin definir</span>')
                    : p.tipo==='grado' ? (p.gradoMin ? 'mínimo '+p.gradoMin : '<span class="a-vacio">sin definir</span>') : '—';
   $('e-tabla').innerHTML = `<thead><tr><th>#</th><th>Punto</th><th>Estándar</th><th>Tipo</th><th>Rango</th>
@@ -1953,7 +1954,7 @@ function abrirEspec(area, id){
       <div class="r-def-nota">Con tolerancia, el inspector escribe la medida y la app la compara contra
       ${p.galeria==='Med_eje' ? 'Med_eje' : 'Med_des'} de la galería. Vacía, el inspector marca Cumple o No cumple.</div>` : ''}
     ${p.tipo==='grado' ? `<label>Grado mínimo aceptable</label><select id="e-grado">
-      <option value="">Sin definir</option>${['A','B','C','D','E'].map(g=>`<option ${p.gradoMin===g?'selected':''}>${g}</option>`).join('')}</select>
+      <option value="">Sin definir</option>${GRADOS_BARRAS.map(g=>`<option ${p.gradoMin===g?'selected':''}>${g}</option>`).join('')}</select>
       <div class="r-def-nota">Con grado mínimo, el inspector elige el grado y la app marca el resultado. Sin él, lo marca el inspector.</div>` : ''}
     <label style="display:flex;align-items:center;gap:8px;margin-top:14px">
       <input type="checkbox" id="e-seg" style="width:auto" ${p.seg ? 'checked' : ''}> Se revisa en el seguimiento a corrida</label>

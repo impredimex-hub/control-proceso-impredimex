@@ -8,7 +8,7 @@ implementar el código.
 
 **Versión objetivo:** 1.0 — reconstrucción desde cero
 **Fecha:** 9 de septiembre de 2026
-**Versión vigente:** 1.26.0 — estados revisados contra el código el 26 de
+**Versión vigente:** 1.26.1 — estados revisados contra el código el 26 de
 noviembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -1637,7 +1637,7 @@ solo el administrador edita. De cada punto se puede cambiar:
 - en **medida eje / desarrollo**: la **tolerancia ±** en mm. Con tolerancia, el
   inspector escribe la medida en mm y la app marca Cumple o No cumple contra el
   valor de la galería;
-- en **código de barras**: el **grado mínimo** (A–E). Con grado mínimo, el
+- en **código de barras**: el **grado mínimo** (A–F). Con grado mínimo, el
   inspector elige el grado y la app marca el resultado.
 
 Mientras no haya rango, el inspector marca Cumple / No cumple como en la hoja, y

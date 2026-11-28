@@ -11,6 +11,17 @@ historial del repositorio y de `SPECS.md`.
 
 ---
 
+## [1.26.1] — 2026-11-27
+
+### Corregido
+
+- El código de barras se califica de la **A a la F**, no hasta la E (SPEC-028):
+  botones de grado en arranque y seguimiento, estándar de la hoja y grado
+  mínimo en Formatos de arranque.
+- Caché del service worker a `calidad-v1.26.1`.
+
+---
+
 ## [1.26.0] — 2026-11-27
 
 ### Agregado
